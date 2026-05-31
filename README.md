@@ -1,36 +1,70 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Estia Ménage — Dashboard
 
-## Getting Started
+Console d'administration web pour la gestion de prestations de ménage Estia. Front desktop de [l'API Estia](https://github.com/Electrix67130/estia-menage).
 
-First, run the development server:
+## Stack
+
+- **Next.js 16** (App Router, React 19)
+- **TypeScript** strict
+- **TanStack Query** (cache & sync)
+- **Tailwind CSS** + **lucide-react** (UI)
+- **react-leaflet** + **leaflet** (carte des logements)
+- **react-hook-form** + **zod** (formulaires)
+- **i18n** custom (fr/en/de/es/it/pl/pt/tr)
+
+## Démarrage rapide
+
+Prérequis : Node 20+, l'API estia-menage qui tourne (cf. [estia-menage](https://github.com/Electrix67130/estia-menage)).
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+cp .env.local.example .env.local    # configure NEXT_PUBLIC_API_URL
+npm run dev                          # http://localhost:3001
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Architecture
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```
+src/
+├── app/(app)/       Routes protégées (admin authentifié)
+│   ├── dashboard/      Accueil + KPIs
+│   ├── menages/        Liste + détail + édition + création
+│   ├── logements/      CRUD logements
+│   ├── calendar/       Calendrier mensuel filtré
+│   ├── clients/        Annuaire clients + rapport compta
+│   ├── earnings/       Vue gains globale (par client + par presta)
+│   ├── reschedule-requests/  Demandes de changement de date
+│   ├── team/           Équipe (membres + clients)
+│   ├── templates/      Modèles de checklist
+│   ├── archives/       Ménages archivés
+│   ├── settings/       Paramètres org + profil
+│   └── admin/          Vue super-admin
+├── app/(auth)/      Login, register, reset-password
+├── components/      Composants UI (Card, Button, Modal, MenagesMap…)
+├── contexts/        AuthContext, I18nContext, ToastContext
+├── hooks/           useMenageDetail, useRescheduleRequests…
+├── i18n/            8 locales
+├── lib/             api client, date-fr, permissions, role-style
+└── types/           Types API partagés
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Scripts npm
 
-## Learn More
+| Commande | Description |
+|---|---|
+| `npm run dev` | Dev (Turbopack) sur :3001 |
+| `npm run build` | Build production |
+| `npm start` | Lance le build prod |
+| `npm run lint` | ESLint |
 
-To learn more about Next.js, take a look at the following resources:
+## Conventions
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- **Parité dashboard ↔ mobile** : toute modification fonctionnelle doit être appliquée des deux côtés, sauf exceptions documentées (gestion abonnement = dashboard seul ; pointage photo géolocalisé = mobile seul).
+- Le dashboard est **admin only** pour les opérations sensibles (assignation prestas, validation rapports, gestion clients).
+- Le couple `Card` + Tailwind est la base UI. Lucide pour les icônes.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Repos liés
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- 🛠️ [estia-menage](https://github.com/Electrix67130/estia-menage) — API backend (Fastify + Knex).
+- 📱 [estia-menage-ui](https://github.com/Electrix67130/estia-menage-ui) — app mobile (Expo).
+- 🌐 [estia-menage-website](https://github.com/Electrix67130/estia-menage-website) — site vitrine.
