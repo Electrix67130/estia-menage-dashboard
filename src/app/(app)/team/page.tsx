@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, FormEvent } from "react";
+import { usePersistedState } from "@/hooks/usePersistedState";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -32,7 +33,7 @@ export default function TeamPage() {
   const { user: me } = useAuth();
   const { t } = useI18n();
   const isAdmin = me?.role === "admin";
-  const [tab, setTab] = useState<Tab>("members");
+  const [tab, setTab] = usePersistedState<Tab>("team.tab", "members");
   const [showInvite, setShowInvite] = useState(false);
   const [clientSearch, setClientSearch] = useState("");
   const clientsList = useClients({ limit: 500, search: clientSearch });
@@ -60,7 +61,7 @@ export default function TeamPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">{t("team.title")}</h1>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">

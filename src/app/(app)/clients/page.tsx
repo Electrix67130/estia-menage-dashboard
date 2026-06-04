@@ -29,7 +29,7 @@ export default function ClientsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">Clients</h1>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">

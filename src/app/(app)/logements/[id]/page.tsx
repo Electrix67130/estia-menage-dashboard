@@ -12,6 +12,8 @@ import Textarea from "@/components/ui/Textarea";
 import DurationPicker from "@/components/ui/DurationPicker";
 import ColorPicker from "@/components/ui/ColorPicker";
 import ClientPickerModal from "@/components/ClientPickerModal";
+import PhotoLightbox from "@/components/PhotoLightbox";
+import { useI18n } from "@/contexts/I18nContext";
 import { ChevronDown, User } from "lucide-react";
 import {
   useLogementPhotos,
@@ -204,6 +206,7 @@ function Stat({ label, value }: { label: string; value: React.ReactNode }) {
 
 function EditLogementModal({ logement, onClose }: { logement: Logement; onClose: () => void }) {
   const update = useUpdateLogement(logement.id);
+  const { t } = useI18n();
   const clients = useClients({ limit: 200 });
   const [name, setName] = useState(logement.name);
   const [clientId, setClientId] = useState<string>(logement.client_id ?? "");
@@ -222,6 +225,10 @@ function EditLogementModal({ logement, onClose }: { logement: Logement; onClose:
   const [nKitchens, setNKitchens] = useState(String(logement.n_kitchens));
   const [nLivingRooms, setNLivingRooms] = useState(String(logement.n_living_rooms));
   const [nExteriorSpaces, setNExteriorSpaces] = useState(String(logement.n_exterior_spaces));
+  const [nLitSimple, setNLitSimple] = useState(String(logement.n_lit_simple ?? 0));
+  const [nLitDouble, setNLitDouble] = useState(String(logement.n_lit_double ?? 0));
+  const [nCanapeLit, setNCanapeLit] = useState(String(logement.n_canape_lit ?? 0));
+  const [nLitAppoint, setNLitAppoint] = useState(String(logement.n_lit_appoint ?? 0));
   const [hasBasement, setHasBasement] = useState(logement.has_basement);
   const [hasLaundry, setHasLaundry] = useState(logement.has_laundry);
   const [surfaceM2, setSurfaceM2] = useState(
@@ -289,6 +296,10 @@ function EditLogementModal({ logement, onClose }: { logement: Logement; onClose:
       n_kitchens: parseInt0(nKitchens),
       n_living_rooms: parseInt0(nLivingRooms),
       n_exterior_spaces: parseInt0(nExteriorSpaces),
+      n_lit_simple: parseInt0(nLitSimple),
+      n_lit_double: parseInt0(nLitDouble),
+      n_canape_lit: parseInt0(nCanapeLit),
+      n_lit_appoint: parseInt0(nLitAppoint),
       has_basement: hasBasement,
       has_laundry: hasLaundry,
       surface_m2: surface,
@@ -404,12 +415,12 @@ function EditLogementModal({ logement, onClose }: { logement: Logement; onClose:
         />
 
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          <Input label="Chambres" type="number" min={0} value={nBedrooms} onChange={(e) => setNBedrooms(e.target.value)} />
-          <Input label="Salles de bain" type="number" min={0} value={nBathrooms} onChange={(e) => setNBathrooms(e.target.value)} />
-          <Input label="WC" type="number" min={0} value={nWc} onChange={(e) => setNWc(e.target.value)} />
-          <Input label="Cuisines" type="number" min={0} value={nKitchens} onChange={(e) => setNKitchens(e.target.value)} />
-          <Input label="Salons" type="number" min={0} value={nLivingRooms} onChange={(e) => setNLivingRooms(e.target.value)} />
-          <Input label="Extérieurs" type="number" min={0} value={nExteriorSpaces} onChange={(e) => setNExteriorSpaces(e.target.value)} />
+          <Input label={t("logement.rooms.bedrooms")} type="number" min={0} value={nBedrooms} onChange={(e) => setNBedrooms(e.target.value)} />
+          <Input label={t("logement.rooms.bathrooms")} type="number" min={0} value={nBathrooms} onChange={(e) => setNBathrooms(e.target.value)} />
+          <Input label={t("logement.rooms.wc")} type="number" min={0} value={nWc} onChange={(e) => setNWc(e.target.value)} />
+          <Input label={t("logement.rooms.kitchens")} type="number" min={0} value={nKitchens} onChange={(e) => setNKitchens(e.target.value)} />
+          <Input label={t("logement.rooms.livingRooms")} type="number" min={0} value={nLivingRooms} onChange={(e) => setNLivingRooms(e.target.value)} />
+          <Input label={t("logement.rooms.exteriorSpaces")} type="number" min={0} value={nExteriorSpaces} onChange={(e) => setNExteriorSpaces(e.target.value)} />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
@@ -420,7 +431,7 @@ function EditLogementModal({ logement, onClose }: { logement: Logement; onClose:
               onChange={(e) => setHasBasement(e.target.checked)}
               className="h-4 w-4 rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
             />
-            Cave
+            {t("logement.rooms.basement")}
           </label>
           <label className="inline-flex items-center gap-2 text-sm">
             <input
@@ -429,8 +440,21 @@ function EditLogementModal({ logement, onClose }: { logement: Logement; onClose:
               onChange={(e) => setHasLaundry(e.target.checked)}
               className="h-4 w-4 rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
             />
-            Buanderie
+            {t("logement.rooms.laundry")}
           </label>
+        </div>
+
+        <div className="mt-2 rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-800/50">
+          <h3 className="text-sm font-semibold uppercase tracking-wider text-zinc-700 dark:text-zinc-300">
+            {t("beds.section")}
+          </h3>
+          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{t("beds.hintLogement")}</p>
+          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <Input label={t("beds.simple")} type="number" min={0} value={nLitSimple} onChange={(e) => setNLitSimple(e.target.value)} />
+            <Input label={t("beds.double")} type="number" min={0} value={nLitDouble} onChange={(e) => setNLitDouble(e.target.value)} />
+            <Input label={t("beds.sofa")} type="number" min={0} value={nCanapeLit} onChange={(e) => setNCanapeLit(e.target.value)} />
+            <Input label={t("beds.extra")} type="number" min={0} value={nLitAppoint} onChange={(e) => setNLitAppoint(e.target.value)} />
+          </div>
         </div>
 
         <Textarea
@@ -986,15 +1010,11 @@ function PhotosSection({ logementId, isAdmin }: { logementId: string; isAdmin: b
         </div>
       )}
 
-      {lightbox ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
-          onClick={() => setLightbox(null)}
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={lightbox} alt="" className="max-h-full max-w-full object-contain" />
-        </div>
-      ) : null}
+      <PhotoLightbox
+        open={!!lightbox}
+        onClose={() => setLightbox(null)}
+        photoUrl={lightbox}
+      />
     </Card>
   );
 }

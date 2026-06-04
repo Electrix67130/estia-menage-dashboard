@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { usePersistedState } from "@/hooks/usePersistedState";
 import { Wallet, RefreshCw } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
@@ -67,7 +68,7 @@ function money(value: number, currency: string) {
 
 export default function EarningsPage() {
   const { user } = useAuth();
-  const [preset, setPreset] = useState<Preset>("this-month");
+  const [preset, setPreset] = usePersistedState<Preset>("earnings.filter.period", "this-month");
   const range = useMemo(() => presetRange(preset), [preset]);
   const isAdmin = user?.role === "admin";
 
@@ -97,7 +98,7 @@ export default function EarningsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <Wallet size={24} className="text-zinc-500" />
           <div>

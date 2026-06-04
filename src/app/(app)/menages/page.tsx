@@ -1,9 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { usePersistedState } from "@/hooks/usePersistedState";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { Plus, Search, Building2, User as UserIcon, Clock, List as ListIcon, Map as MapIcon, CheckSquare, X, Trash2, ClipboardCheck, CheckCircle2, Lock } from "lucide-react";
+import { Plus, Search, Building2, User as UserIcon, Clock, List as ListIcon, Map as MapIcon, CheckSquare, X, Trash2, ClipboardCheck, CheckCircle2, Lock, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { apiFetch, ApiError } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
@@ -65,13 +66,17 @@ export default function MenagesPage() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
 
-  const [filter, setFilter] = useState<MenageFilter>("all");
+  // Filtres persistés en localStorage : reprend l'état au prochain chargement.
+  const [filter, setFilter] = usePersistedState<MenageFilter>("menages.filter.status", "all");
   const [search, setSearch] = useState("");
-  const [logementFilter, setLogementFilter] = useState("");
-  const [prestaFilter, setPrestaFilter] = useState("");
-  const [creatorFilter, setCreatorFilter] = useState("");
-  const [periodFilter, setPeriodFilter] = useState<"week" | "month" | "all">("all");
-  const [viewMode, setViewMode] = useState<ViewMode>("list");
+  const [logementFilter, setLogementFilter] = usePersistedState("menages.filter.logement", "");
+  const [prestaFilter, setPrestaFilter] = usePersistedState("menages.filter.presta", "");
+  const [creatorFilter, setCreatorFilter] = usePersistedState("menages.filter.creator", "");
+  const [periodFilter, setPeriodFilter] = usePersistedState<"week" | "month" | "all">(
+    "menages.filter.period",
+    "all",
+  );
+  const [viewMode, setViewMode] = usePersistedState<ViewMode>("menages.filter.viewMode", "list");
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
@@ -166,7 +171,17 @@ export default function MenagesPage() {
       .filter((m) => {
         if (logementFilter && m.logement_id !== logementFilter) return false;
         if (prestaFilter && m.prestataire_user_id !== prestaFilter) return false;
-        if (creatorFilter && m.created_by !== creatorFilter) return false;
+        if (creatorFilter) {
+          if (creatorFilter.startsWith("src:")) {
+            const src = creatorFilter.slice(4);
+            const matches = src === "manual" ? !m.external_source : m.external_source === src;
+            if (!matches) return false;
+          } else if (creatorFilter.startsWith("user:")) {
+            if (m.created_by !== creatorFilter.slice(5)) return false;
+          } else if (m.created_by !== creatorFilter) {
+            return false;
+          }
+        }
         if (periodMin && m.date_prevue.slice(0, 10) < periodMin) return false;
         if (periodMax && m.date_prevue.slice(0, 10) > periodMax) return false;
         if (!q) return true;
@@ -195,13 +210,39 @@ export default function MenagesPage() {
 
   const logementOptions = (logements.data?.data ?? []).filter((l) => !l.archived_at);
   const prestaOptions = allUsers.filter((u) => u.role === "prestataire");
-  const creatorIds = Array.from(
-    new Set((list.data?.data ?? []).map((m) => m.created_by).filter(Boolean) as string[]),
-  );
+
+  // "Créateur" combine users qui ont créé un ménage manuellement + sources
+  // externes (Airbnb, Booking, etc.). IDs préfixés : `user:<uuid>`, `src:<source>`,
+  // `src:manual` pour les ménages créés manuellement.
+  const creatorOptions = useMemo(() => {
+    const menages = list.data?.data ?? [];
+    const userIds = new Set<string>();
+    const sources = new Set<string>();
+    let hasManual = false;
+    for (const m of menages) {
+      if (m.external_source) sources.add(m.external_source);
+      else hasManual = true;
+      if (m.created_by) userIds.add(m.created_by);
+    }
+    const result: { id: string; label: string }[] = [];
+    if (hasManual) result.push({ id: "src:manual", label: "Manuel" });
+    for (const s of Array.from(sources).sort()) {
+      const provider = s.replace(/^cal_/, "");
+      const labelMap: Record<string, string> = {
+        airbnb: "Airbnb",
+        booking: "Booking",
+        vrbo: "Vrbo",
+        ical: "iCal",
+      };
+      result.push({ id: `src:${s}`, label: labelMap[provider] ?? "Externe" });
+    }
+    for (const id of userIds) result.push({ id: `user:${id}`, label: userName(id) });
+    return result;
+  }, [list.data, allUsers]);
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">Ménages</h1>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
@@ -376,8 +417,8 @@ export default function MenagesPage() {
               className="sm:max-w-xs"
             >
               <option value="">Tous les créateurs</option>
-              {creatorIds.map((id) => (
-                <option key={id} value={id}>{userName(id)}</option>
+              {creatorOptions.map((o) => (
+                <option key={o.id} value={o.id}>{o.label}</option>
               ))}
             </Select>
           </>
@@ -428,7 +469,9 @@ export default function MenagesPage() {
                     "transition-colors hover:border-blue-500/50",
                     isSelected
                       ? "border-blue-500 ring-2 ring-blue-500/40 dark:border-blue-400"
-                      : "",
+                      : m.needs_attention
+                        ? "border-rose-300 bg-rose-50 dark:border-rose-800/70 dark:bg-rose-950/30"
+                        : "",
                   )}
                 >
                   <div className="flex items-start justify-between gap-3">
@@ -476,7 +519,13 @@ export default function MenagesPage() {
                         )}
                       </div>
                     </div>
-                    <div className="flex flex-shrink-0 items-center gap-1">
+                    <div className="flex flex-shrink-0 flex-wrap items-center justify-end gap-1">
+                      {m.needs_attention ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-rose-700 dark:bg-rose-900/50 dark:text-rose-300">
+                          <AlertTriangle size={10} />
+                          Non pointé
+                        </span>
+                      ) : null}
                       {m.has_pending_reschedule ? (
                         <span
                           className="inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"

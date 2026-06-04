@@ -31,7 +31,7 @@ const SUPER_ADMIN_NAV = [
   { href: "/admin/errors", labelKey: "admin.errors", icon: ShieldCheck, key: "admin-errors" as const },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   const pathname = usePathname();
   const { user } = useAuth();
   const { t } = useI18n();
@@ -57,19 +57,35 @@ export default function Sidebar() {
   const showSuperAdmin = isSuperAdmin(user);
 
   return (
-    <aside className="hidden w-60 flex-col gap-1 border-r border-zinc-200 bg-white px-3 py-4 dark:border-zinc-800 dark:bg-zinc-900 md:flex">
-      <Link href="/dashboard" className="mb-4 flex items-center gap-2 px-3 py-2">
+    <>
+      {/* Overlay (mobile uniquement), visible quand le drawer est ouvert */}
+      <div
+        className={cn(
+          "fixed inset-0 z-40 bg-black/50 transition-opacity md:hidden",
+          open ? "opacity-100" : "pointer-events-none opacity-0",
+        )}
+        onClick={onClose}
+        aria-hidden
+      />
+      <aside
+        className={cn(
+          "fixed inset-y-0 left-0 z-50 flex w-60 flex-col gap-1 overflow-y-auto border-r border-zinc-200 bg-white px-3 py-4 transition-transform dark:border-zinc-800 dark:bg-zinc-900",
+          "md:static md:z-auto md:translate-x-0",
+          open ? "translate-x-0" : "-translate-x-full",
+        )}
+      >
+      <Link href="/dashboard" onClick={onClose} className="mb-4 flex items-center gap-2 px-3 py-2">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/logo-estia.svg"
           alt="Estia"
-          className="h-8 w-auto dark:hidden"
+          className="h-20 w-auto dark:hidden"
         />
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/logo-estia-blanc.svg"
           alt="Estia"
-          className="hidden h-8 w-auto dark:block"
+          className="hidden h-20 w-auto dark:block"
         />
       </Link>
 
@@ -87,6 +103,7 @@ export default function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
+              onClick={onClose}
               className={cn(
                 "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                 active
@@ -124,6 +141,7 @@ export default function Sidebar() {
                 <Link
                   key={item.href}
                   href={item.href}
+                  onClick={onClose}
                   className={cn(
                     "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                     active
@@ -139,6 +157,7 @@ export default function Sidebar() {
           </nav>
         </>
       ) : null}
-    </aside>
+      </aside>
+    </>
   );
 }

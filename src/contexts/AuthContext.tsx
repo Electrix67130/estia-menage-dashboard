@@ -26,8 +26,6 @@ export interface SignupOrgInput {
   phone?: string | null;
   billing_email?: string | null;
   website?: string | null;
-  insurance_provider?: string | null;
-  insurance_number?: string | null;
 }
 
 interface SignupInput {

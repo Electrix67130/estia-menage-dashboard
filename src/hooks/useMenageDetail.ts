@@ -26,6 +26,8 @@ export interface MenageDetail {
   date_prevue: string;
   /** True quand la date est verrouillée (reschedule appliqué ou PATCH manuel). La sync iCal ne l'écrasera pas. */
   date_locked?: boolean;
+  /** Calculé côté API : jour passé + aucun pointage + statut a_venir. */
+  needs_attention?: boolean;
   horaire_prevu: string | null;
   duree_estimee_min: number | null;
   date_realisation: string | null;
@@ -45,6 +47,10 @@ export interface MenageDetail {
   laundry_included: boolean;
   laundry_client_price_ht: string | number | null;
   laundry_provider_price: string | number | null;
+  n_lit_simple: number;
+  n_lit_double: number;
+  n_canape_lit: number;
+  n_lit_appoint: number;
   validated_at: string | null;
   validated_by: string | null;
   validated_price: string | number | null;
@@ -118,6 +124,10 @@ export interface UpdateMenageInput {
   laundry_included?: boolean;
   laundry_client_price_ht?: number | null;
   laundry_provider_price?: number | null;
+  n_lit_simple?: number;
+  n_lit_double?: number;
+  n_canape_lit?: number;
+  n_lit_appoint?: number;
   notes_intervention?: string | null;
   status?: "a_venir" | "en_cours" | "termine" | "valide" | "annule";
   arrived_at?: string | null;

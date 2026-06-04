@@ -19,8 +19,6 @@ export interface OrgLegalFields {
   phone: string;
   billing_email: string;
   website: string;
-  insurance_provider: string;
-  insurance_number: string;
 }
 
 export const EMPTY_LEGAL_FIELDS: OrgLegalFields = {
@@ -35,8 +33,6 @@ export const EMPTY_LEGAL_FIELDS: OrgLegalFields = {
   phone: "",
   billing_email: "",
   website: "",
-  insurance_provider: "",
-  insurance_number: "",
 };
 
 /** Convertit le state du formulaire en payload pour l'API (les strings vides deviennent null). */
@@ -192,25 +188,6 @@ export default function OrgLegalFieldset({ form, setForm, onAutofilledName }: Pr
             value={form.website}
             onChange={(e) => set("website", e.target.value)}
             className="sm:col-span-2"
-          />
-        </div>
-      </div>
-
-      <div className="border-t border-zinc-200 pt-4 dark:border-zinc-800">
-        <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-zinc-500">
-          {t("settings.legal.insurance")}
-        </h3>
-        <p className="-mt-1 mb-3 text-xs text-zinc-500">{t("settings.legal.insuranceHint")}</p>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Input
-            label={t("settings.legal.insuranceProvider")}
-            value={form.insurance_provider}
-            onChange={(e) => set("insurance_provider", e.target.value)}
-          />
-          <Input
-            label={t("settings.legal.insuranceNumber")}
-            value={form.insurance_number}
-            onChange={(e) => set("insurance_number", e.target.value)}
           />
         </div>
       </div>

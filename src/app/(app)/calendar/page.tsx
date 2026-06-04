@@ -1,9 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { usePersistedState } from "@/hooks/usePersistedState";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, CalendarDays, Plus, X, RefreshCw } from "lucide-react";
+import { ChevronLeft, ChevronRight, CalendarDays, Plus, X, RefreshCw, AlertTriangle } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Select from "@/components/ui/Select";
@@ -32,8 +33,14 @@ export default function CalendarPage() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
   const [cursor, setCursor] = useState(() => startOfMonth(new Date()));
-  const [prestataireFilter, setPrestataireFilter] = useState<string>(PRESTATAIRE_ALL);
-  const [logementFilter, setLogementFilter] = useState<string>(LOGEMENT_ALL);
+  const [prestataireFilter, setPrestataireFilter] = usePersistedState<string>(
+    "calendar.filter.prestataire",
+    PRESTATAIRE_ALL,
+  );
+  const [logementFilter, setLogementFilter] = usePersistedState<string>(
+    "calendar.filter.logement",
+    LOGEMENT_ALL,
+  );
 
   const { from, to } = useMemo(() => monthRange(cursor), [cursor]);
   const menages = useCalendarMenages({ from, to });
@@ -82,7 +89,7 @@ export default function CalendarPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <CalendarDays size={24} className="text-zinc-500" />
           <div>
@@ -257,7 +264,10 @@ export default function CalendarPage() {
                         <Link
                           key={m.id}
                           href={`/menages/${m.id}`}
-                          className="truncate rounded px-1 py-0.5 text-[10px] font-medium hover:opacity-90"
+                          title={m.needs_attention ? "Jour passé sans pointage" : undefined}
+                          className={`flex items-center gap-0.5 truncate rounded px-1 py-0.5 text-[10px] font-medium hover:opacity-90${
+                            m.needs_attention ? " ring-1 ring-rose-500 dark:ring-rose-400" : ""
+                          }`}
                           style={
                             hasColor
                               ? {
@@ -268,6 +278,9 @@ export default function CalendarPage() {
                               : undefined
                           }
                         >
+                          {m.needs_attention ? (
+                            <AlertTriangle size={9} className="flex-shrink-0 text-rose-500" />
+                          ) : null}
                           {m.horaire_prevu ? `${m.horaire_prevu.slice(0, 5)} · ` : ""}
                           {unassigned ? (
                             <span className="rounded bg-blue-100 px-1 py-px text-[9px] font-bold uppercase text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">

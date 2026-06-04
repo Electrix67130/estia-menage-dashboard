@@ -4,13 +4,13 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { LogOut, ChevronDown, ArrowRightLeft, Check, Building2 } from "lucide-react";
+import { LogOut, ChevronDown, ArrowRightLeft, Check, Building2, Menu } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useI18n } from "@/contexts/I18nContext";
 import Avatar from "@/components/ui/Avatar";
 import { apiFetch, ApiError } from "@/lib/api";
 
-export default function Topbar() {
+export default function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
   const { user, logout, refresh } = useAuth();
   const { t } = useI18n();
   const qc = useQueryClient();
@@ -64,8 +64,16 @@ export default function Topbar() {
   const showSwitcher = memberships.length > 1;
 
   return (
-    <header className="flex h-16 items-center justify-between border-b border-zinc-200 bg-white px-6 dark:border-zinc-800 dark:bg-zinc-900">
-      {showSwitcher ? (
+    <header className="flex h-16 items-center justify-between border-b border-zinc-200 bg-white px-4 dark:border-zinc-800 dark:bg-zinc-900 md:px-6">
+      <div className="flex min-w-0 items-center gap-2">
+        <button
+          onClick={onMenuClick}
+          aria-label="Ouvrir le menu"
+          className="-ml-1 rounded-lg p-2 text-zinc-600 hover:bg-zinc-100 md:hidden dark:text-zinc-300 dark:hover:bg-zinc-800"
+        >
+          <Menu size={22} />
+        </button>
+        {showSwitcher ? (
         <div ref={orgRef} className="relative">
           <button
             onClick={() => setOrgOpen((v) => !v)}
@@ -116,6 +124,8 @@ export default function Topbar() {
           <span>{activeOrg?.organization_name ?? "—"}</span>
         </div>
       )}
+
+      </div>
 
       <div ref={userRef} className="relative">
         <button

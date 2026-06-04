@@ -29,8 +29,6 @@ function pickInitial(org: Organization | undefined): OrgLegalFields {
     phone: org.phone ?? "",
     billing_email: org.billing_email ?? "",
     website: org.website ?? "",
-    insurance_provider: org.insurance_provider ?? "",
-    insurance_number: org.insurance_number ?? "",
   };
 }
 

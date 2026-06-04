@@ -3,7 +3,7 @@
 import { use, useState, FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, MapPin, Clock, Timer, User as UserIcon, Pencil, Trash2, CheckCircle2, ListChecks, Camera, MessageSquare, Send, Maximize2, Lock } from "lucide-react";
+import { ArrowLeft, MapPin, Clock, Timer, User as UserIcon, Pencil, Trash2, CheckCircle2, ListChecks, Camera, MessageSquare, Send, Maximize2, Lock, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
@@ -11,6 +11,8 @@ import Avatar from "@/components/ui/Avatar";
 import Select from "@/components/ui/Select";
 import Input from "@/components/ui/Input";
 import Modal from "@/components/ui/Modal";
+import PhotoLightbox from "@/components/PhotoLightbox";
+import { useI18n } from "@/contexts/I18nContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatDateFr } from "@/lib/date-fr";
 import {
@@ -100,6 +102,7 @@ export default function MenageDetailPage({
           <ResponsesSection menage={menage} isAdmin={isAdmin} />
           <ScheduleSection menage={menage} isAdmin={isAdmin} />
           {isAdmin ? <PointageProofSection menage={menage} /> : null}
+          <BedsSection menage={menage} />
           {menage.notes_intervention ? <NotesSection notes={menage.notes_intervention} /> : null}
           <FinancialsSection menage={menage} />
           <TabsSection menage={menage} />
@@ -220,6 +223,15 @@ function Header({ menage, isAdmin }: { menage: MenageDetail; isAdmin: boolean })
           >
             {STATUS_LABEL[menage.status]}
           </span>
+          {menage.needs_attention ? (
+            <span
+              className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider text-rose-700 dark:bg-rose-900/50 dark:text-rose-300"
+              title="Jour passé sans pointage"
+            >
+              <AlertTriangle size={12} />
+              Non pointé
+            </span>
+          ) : null}
           <span className="inline-flex items-center rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
             {menageSourceLabel(menage.external_source)}
           </span>
@@ -708,45 +720,42 @@ function PointageProofSection({ menage }: { menage: MenageDetail }) {
         {renderProof(departure)}
       </div>
 
-      {lightbox ? (
-        <Modal open onClose={() => setLightbox(null)} title={`Pointage — ${lightbox.label}`} size="lg">
-          <div className="flex flex-col gap-4">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={lightbox.photoUrl}
-              alt={lightbox.label}
-              className="max-h-[55vh] w-full rounded-lg object-contain"
-            />
-            {lightbox.lat != null && lightbox.lng != null ? (
-              <div className="flex flex-col gap-2">
-                <div className="overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-800">
-                  <iframe
-                    title="Lieu de la photo"
-                    className="h-64 w-full"
-                    src={`https://www.openstreetmap.org/export/embed.html?bbox=${lightbox.lng - 0.004}%2C${lightbox.lat - 0.0025}%2C${lightbox.lng + 0.004}%2C${lightbox.lat + 0.0025}&layer=mapnik&marker=${lightbox.lat}%2C${lightbox.lng}`}
-                  />
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-zinc-500">
-                    📍 {lightbox.lat.toFixed(5)}, {lightbox.lng.toFixed(5)}
-                    {lightbox.distance != null ? ` · ${formatDistance(lightbox.distance)} du logement` : ""}
-                  </span>
-                  <a
-                    href={`https://www.google.com/maps/search/?api=1&query=${lightbox.lat},${lightbox.lng}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="font-semibold text-blue-600 hover:underline"
-                  >
-                    Ouvrir dans Google Maps →
-                  </a>
-                </div>
-              </div>
-            ) : (
-              <p className="text-sm text-zinc-400">Coordonnées GPS indisponibles pour cette photo.</p>
-            )}
-          </div>
-        </Modal>
-      ) : null}
+      <PhotoLightbox
+        open={!!lightbox}
+        onClose={() => setLightbox(null)}
+        photoUrl={lightbox?.photoUrl ?? null}
+        title={lightbox ? `Pointage — ${lightbox.label}` : undefined}
+        subtitle={
+          lightbox?.at
+            ? new Date(lightbox.at).toLocaleString("fr-FR", {
+                day: "2-digit",
+                month: "short",
+                hour: "2-digit",
+                minute: "2-digit",
+              })
+            : undefined
+        }
+        footer={
+          lightbox?.lat != null && lightbox?.lng != null ? (
+            <div className="flex items-center justify-between gap-3 rounded-lg bg-white/10 px-3 py-2 text-sm text-white">
+              <span>
+                📍 {lightbox.lat.toFixed(5)}, {lightbox.lng.toFixed(5)}
+                {lightbox.distance != null ? ` · ${formatDistance(lightbox.distance)} du logement` : ""}
+              </span>
+              <a
+                href={`https://www.google.com/maps/search/?api=1&query=${lightbox.lat},${lightbox.lng}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-semibold text-blue-300 hover:underline"
+              >
+                Ouvrir dans Google Maps →
+              </a>
+            </div>
+          ) : lightbox ? (
+            <p className="text-sm text-white/60">Coordonnées GPS indisponibles pour cette photo.</p>
+          ) : null
+        }
+      />
     </Card>
   );
 }
@@ -932,6 +941,40 @@ function NotesSection({ notes }: { notes: string }) {
   );
 }
 
+function BedsSection({ menage }: { menage: MenageDetail }) {
+  const { t } = useI18n();
+  const total =
+    (menage.n_lit_simple ?? 0) +
+    (menage.n_lit_double ?? 0) +
+    (menage.n_canape_lit ?? 0) +
+    (menage.n_lit_appoint ?? 0);
+  if (total === 0) return null;
+  const cell = "flex flex-col items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-800/40";
+  const items: { value: number; label: string }[] = [
+    { value: menage.n_lit_simple ?? 0, label: t("beds.simple") },
+    { value: menage.n_lit_double ?? 0, label: t("beds.double") },
+    { value: menage.n_canape_lit ?? 0, label: t("beds.sofa") },
+    { value: menage.n_lit_appoint ?? 0, label: t("beds.extra") },
+  ];
+  return (
+    <Card className="p-6">
+      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-zinc-500">
+        {t("beds.section")}
+      </h2>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {items.map((it) => (
+          <div key={it.label} className={cell}>
+            <span className="text-2xl font-bold text-zinc-900 dark:text-white tabular-nums">
+              {it.value}
+            </span>
+            <span className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">{it.label}</span>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
 function FinancialsSection({ menage }: { menage: MenageDetail }) {
   const hasClientFields = menage.client_price_ht !== undefined;
   const hasProviderField = menage.provider_price !== undefined;
@@ -1008,7 +1051,7 @@ function TabsSection({ menage }: { menage: MenageDetail }) {
 
   return (
     <Card className="p-0">
-      <div className="flex border-b border-zinc-200 dark:border-zinc-800">
+      <div className="flex overflow-x-auto border-b border-zinc-200 dark:border-zinc-800">
         {tabs.map((t) => {
           const Icon = t.icon;
           const active = tab === t.key;
@@ -1018,7 +1061,7 @@ function TabsSection({ menage }: { menage: MenageDetail }) {
               type="button"
               onClick={() => setTab(t.key)}
               className={cn(
-                "flex flex-1 items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors",
+                "flex flex-1 shrink-0 items-center justify-center gap-2 whitespace-nowrap px-4 py-3 text-sm font-medium transition-colors",
                 active
                   ? "border-b-2 border-blue-600 text-blue-600 dark:text-blue-400"
                   : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100",
@@ -1059,42 +1102,42 @@ function ChecklistTab({ menageId }: { menageId: string }) {
     <div className="flex flex-col gap-6">
       {sections.map((s) => (
         <div key={s.id}>
-          <h3 className="mb-2 text-sm font-semibold text-zinc-900 dark:text-white">{s.title}</h3>
+          <h3 className="mb-2 text-sm font-semibold text-zinc-900 dark:text-white">
+            {s.section_label}
+          </h3>
           <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
-            {s.items.map((it) => (
-              <li key={it.id} className="flex items-start gap-3 py-2">
-                <div
-                  className={cn(
-                    "mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border",
-                    it.is_checked
-                      ? "border-blue-500 bg-blue-500 text-white"
-                      : "border-zinc-300 dark:border-zinc-700",
-                  )}
-                >
-                  {it.is_checked ? <CheckCircle2 size={12} /> : null}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p
+            {s.items.map((it) => {
+              const isChecked = !!it.validated_at;
+              return (
+                <li key={it.id} className="flex items-start gap-3 py-2">
+                  <div
                     className={cn(
-                      "text-sm",
-                      it.is_checked
-                        ? "text-zinc-500 line-through dark:text-zinc-500"
-                        : "text-zinc-900 dark:text-zinc-100",
+                      "mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border",
+                      isChecked
+                        ? "border-blue-500 bg-blue-500 text-white"
+                        : "border-zinc-300 dark:border-zinc-700",
                     )}
                   >
-                    {it.title}
-                    {it.required ? (
-                      <span className="ml-1 text-[10px] font-semibold uppercase text-blue-600">
-                        Requis
-                      </span>
+                    {isChecked ? <CheckCircle2 size={12} /> : null}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p
+                      className={cn(
+                        "text-sm",
+                        isChecked
+                          ? "text-zinc-500 line-through dark:text-zinc-500"
+                          : "text-zinc-900 dark:text-zinc-100",
+                      )}
+                    >
+                      {it.item_label}
+                    </p>
+                    {it.comment ? (
+                      <p className="mt-0.5 text-xs text-zinc-500">{it.comment}</p>
                     ) : null}
-                  </p>
-                  {it.notes ? (
-                    <p className="mt-0.5 text-xs text-zinc-500">{it.notes}</p>
-                  ) : null}
-                </div>
-              </li>
-            ))}
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         </div>
       ))}
@@ -1138,15 +1181,11 @@ function PhotosTab({ menageId }: { menageId: string }) {
           </button>
         ))}
       </div>
-      {lightbox ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
-          onClick={() => setLightbox(null)}
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={lightbox} alt="" className="max-h-full max-w-full object-contain" />
-        </div>
-      ) : null}
+      <PhotoLightbox
+        open={!!lightbox}
+        onClose={() => setLightbox(null)}
+        photoUrl={lightbox}
+      />
     </>
   );
 }
@@ -1199,11 +1238,11 @@ function CommentsTab({ menageId }: { menageId: string }) {
                   src={c.avatar_url}
                   size="sm"
                 />
-                <div className={cn("max-w-[80%] rounded-lg px-3 py-2", isOwn ? "bg-blue-100 dark:bg-blue-900/30" : "bg-zinc-100 dark:bg-zinc-800")}>
+                <div className={cn("min-w-0 max-w-[80%] rounded-lg px-3 py-2", isOwn ? "bg-blue-100 dark:bg-blue-900/30" : "bg-zinc-100 dark:bg-zinc-800")}>
                   <p className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
                     {c.first_name} {c.last_name}
                   </p>
-                  <p className="mt-1 whitespace-pre-wrap text-sm text-zinc-900 dark:text-zinc-100">
+                  <p className="mt-1 whitespace-pre-wrap break-words text-sm text-zinc-900 dark:text-zinc-100">
                     {c.content}
                   </p>
                   <p className="mt-1 text-[10px] text-zinc-500">

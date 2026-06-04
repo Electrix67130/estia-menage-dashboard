@@ -6,20 +6,20 @@ import { apiFetch } from "@/lib/api";
 export interface MenageCheckItem {
   id: string;
   section_id: string;
-  title: string;
-  description: string | null;
+  item_label: string;
   position: number;
-  required: boolean;
-  is_checked: boolean;
-  checked_at: string | null;
-  checked_by: string | null;
-  notes: string | null;
+  validated_at: string | null;
+  validated_by: string | null;
+  comment: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface MenageCheckSection {
   id: string;
   menage_id: string;
-  title: string;
+  section_type: string;
+  section_label: string;
   position: number;
   items: MenageCheckItem[];
 }

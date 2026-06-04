@@ -22,6 +22,8 @@ export interface CalendarMenage {
   duree_estimee_min: number | null;
   has_pending_reschedule?: boolean;
   date_locked?: boolean;
+  /** Calculé côté API : jour passé + aucun pointage + statut a_venir. */
+  needs_attention?: boolean;
 }
 
 export function logementLabel(m: {

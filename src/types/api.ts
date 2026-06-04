@@ -82,8 +82,6 @@ export interface Organization {
   billing_email?: string | null;
   website?: string | null;
   logo_url?: string | null;
-  insurance_provider?: string | null;
-  insurance_number?: string | null;
   created_at: string;
   updated_at: string;
 }

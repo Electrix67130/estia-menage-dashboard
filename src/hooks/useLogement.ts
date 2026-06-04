@@ -21,6 +21,10 @@ export interface Logement {
   n_kitchens: number;
   n_living_rooms: number;
   n_exterior_spaces: number;
+  n_lit_simple: number;
+  n_lit_double: number;
+  n_canape_lit: number;
+  n_lit_appoint: number;
   has_basement: boolean;
   has_laundry: boolean;
   surface_m2: number | null;
@@ -55,6 +59,10 @@ export interface UpdateLogementInput {
   n_kitchens?: number;
   n_living_rooms?: number;
   n_exterior_spaces?: number;
+  n_lit_simple?: number;
+  n_lit_double?: number;
+  n_canape_lit?: number;
+  n_lit_appoint?: number;
   has_basement?: boolean;
   has_laundry?: boolean;
   surface_m2?: number | null;
@@ -105,6 +113,10 @@ export interface CreateLogementInput {
   n_kitchens?: number;
   n_living_rooms?: number;
   n_exterior_spaces?: number;
+  n_lit_simple?: number;
+  n_lit_double?: number;
+  n_canape_lit?: number;
+  n_lit_appoint?: number;
   has_basement?: boolean;
   has_laundry?: boolean;
   surface_m2?: number;
