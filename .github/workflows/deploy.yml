@@ -1,0 +1,52 @@
+# Déploiement test Estia — Dashboard (self-hosted sur le VPS, cf. DEPLOYMENT.md §4).
+# Sur push master : gate typecheck, puis SSH sur le VPS → /home/estia/deploy.sh
+# (qui fait `git pull` + `npm ci` + `npm run build` + restart systemd du dashboard).
+#
+# Secrets GitHub requis (identiques à ceux du repo API) :
+#   SSH_HOST, SSH_USER, SSH_PRIVATE_KEY, SSH_PORT (optionnel)
+name: Deploy Dashboard (test)
+
+on:
+  push:
+    branches: [master]
+    paths-ignore:
+      - '**/*.md'
+      - '.github/**'
+  workflow_dispatch: {}
+
+# Même verrou que l'API : un seul déploiement VPS à la fois.
+concurrency:
+  group: deploy-vps
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npx tsc --noEmit
+
+  deploy:
+    name: Deploy over SSH
+    needs: check
+    runs-on: ubuntu-latest
+    # Désactivé tant que le VPS n'existe pas : passe la variable de repo
+    # DEPLOY_ENABLED=true une fois le VPS prêt et les secrets SSH renseignés.
+    if: ${{ vars.DEPLOY_ENABLED == 'true' }}
+    steps:
+      - name: Run deploy.sh on the VPS
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          command_timeout: 20m
+          script_stop: true
+          script: /home/estia/deploy.sh
