@@ -3,7 +3,8 @@
 import { use, useState, FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Building2, FileBarChart, Trash2 } from "lucide-react";
+import { Building2, FileBarChart, Trash2 } from "lucide-react";
+import BackLink from "@/components/BackLink";
 import { toast } from "sonner";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
@@ -84,13 +85,7 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
-        <Link
-          href="/clients"
-          className="flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-900 dark:hover:text-white"
-        >
-          <ArrowLeft size={16} />
-          Retour aux clients
-        </Link>
+        <BackLink fallback="/clients" label="Retour aux clients" />
         {isAdmin && !editing ? (
           <div className="flex gap-2">
             <Link href={`/clients/${id}/report`}>

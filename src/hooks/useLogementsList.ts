@@ -15,6 +15,8 @@ export interface LogementListItem {
   cover_photo_url: string | null;
   color: string | null;
   archived_at: string | null;
+  /** Calculé API : nb de consommables sous le seuil (stock courant). 0 = OK. */
+  consommables_alert?: number;
 }
 
 interface ApiResponse {

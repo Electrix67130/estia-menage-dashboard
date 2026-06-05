@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import BackLink from "@/components/BackLink";
 import { toast } from "sonner";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
@@ -343,13 +343,7 @@ function NewMenageForm() {
 export default function NewMenagePage() {
   return (
     <div className="flex flex-col gap-6 p-6">
-      <Link
-        href="/calendar"
-        className="flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-900 dark:hover:text-white"
-      >
-        <ArrowLeft size={16} />
-        Retour au calendrier
-      </Link>
+      <BackLink fallback="/menages" />
       <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">
         Nouveau ménage
       </h1>

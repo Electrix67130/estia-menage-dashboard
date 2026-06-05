@@ -5,8 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import BackLink from "@/components/BackLink";
 import {
-  ArrowLeft,
   Mail,
   Phone,
   Calendar,
@@ -84,13 +84,12 @@ export default function TeamDetailPage({ params }: { params: Promise<{ id: strin
   if (isLoading) {
     return (
       <div className="flex flex-col gap-6">
-        <Link
-          href="/team"
+        <BackLink
+          fallback="/team"
+          label={t("team.back")}
+          size={14}
           className="inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-900 dark:hover:text-white"
-        >
-          <ArrowLeft size={14} />
-          {t("team.back")}
-        </Link>
+        />
         <Card>
           <p className="text-sm text-zinc-500">{t("common.loading")}</p>
         </Card>
@@ -101,13 +100,12 @@ export default function TeamDetailPage({ params }: { params: Promise<{ id: strin
   if (error || !user) {
     return (
       <div className="flex flex-col gap-6">
-        <Link
-          href="/team"
+        <BackLink
+          fallback="/team"
+          label={t("team.back")}
+          size={14}
           className="inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-900 dark:hover:text-white"
-        >
-          <ArrowLeft size={14} />
-          {t("team.back")}
-        </Link>
+        />
         <Card>
           <p className="text-sm text-rose-600">{t("team.notFound")}</p>
         </Card>
@@ -121,13 +119,12 @@ export default function TeamDetailPage({ params }: { params: Promise<{ id: strin
 
   return (
     <div className="flex flex-col gap-6">
-      <Link
-        href="/team"
+      <BackLink
+        fallback="/team"
+        label={t("team.back")}
+        size={14}
         className="inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-900 dark:hover:text-white"
-      >
-        <ArrowLeft size={14} />
-        {t("team.back")}
-      </Link>
+      />
 
       <div className="flex flex-wrap items-center gap-4">
         <Avatar

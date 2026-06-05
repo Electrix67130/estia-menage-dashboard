@@ -5,7 +5,8 @@ import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowLeft, Ban, CheckCircle, LogIn } from "lucide-react";
+import { Ban, CheckCircle, LogIn } from "lucide-react";
+import BackLink from "@/components/BackLink";
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
@@ -79,13 +80,12 @@ export default function AdminOrgDetailPage({ params }: { params: Promise<{ id: s
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <Link
-          href="/admin/orgs"
+        <BackLink
+          fallback="/admin/orgs"
+          label="Retour aux organisations"
+          size={14}
           className="mb-3 inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-900 dark:hover:text-white"
-        >
-          <ArrowLeft size={14} />
-          Retour aux organisations
-        </Link>
+        />
         {isLoading ? (
           <h1 className="text-2xl font-bold text-zinc-400">Chargement…</h1>
         ) : error || !data ? (

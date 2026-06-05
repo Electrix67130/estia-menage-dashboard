@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Building2, Search, MapPin, Plus, ListChecks, RefreshCw } from "lucide-react";
+import { Building2, Search, MapPin, Plus, ListChecks, RefreshCw, AlertTriangle } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
@@ -167,11 +167,22 @@ export default function LogementsListPage() {
                           </p>
                         ) : null}
                       </div>
-                      {archived ? (
-                        <span className="inline-flex items-center rounded-full bg-zinc-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-700 dark:bg-zinc-800 dark:text-zinc-400">
-                          Archivé
-                        </span>
-                      ) : null}
+                      <div className="flex flex-shrink-0 flex-col items-end gap-1">
+                        {archived ? (
+                          <span className="inline-flex items-center rounded-full bg-zinc-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-700 dark:bg-zinc-800 dark:text-zinc-400">
+                            Archivé
+                          </span>
+                        ) : null}
+                        {l.consommables_alert && l.consommables_alert > 0 ? (
+                          <span
+                            className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-rose-700 dark:bg-rose-900/50 dark:text-rose-300"
+                            title="Consommables à racheter"
+                          >
+                            <AlertTriangle size={10} />
+                            {l.consommables_alert} à racheter
+                          </span>
+                        ) : null}
+                      </div>
                     </div>
                   </div>
                 </Card>

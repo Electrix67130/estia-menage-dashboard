@@ -3,7 +3,7 @@
 import { use, useEffect, useState, FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import BackLink from "@/components/BackLink";
 import { toast } from "sonner";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
@@ -164,13 +164,7 @@ export default function EditMenagePage({
 
   return (
     <div className="flex flex-col gap-6 p-6">
-      <Link
-        href={`/menages/${id}`}
-        className="flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-900 dark:hover:text-white"
-      >
-        <ArrowLeft size={16} />
-        {t("menage.edit.backToMenage")}
-      </Link>
+      <BackLink fallback={`/menages/${id}`} label={t("menage.edit.backToMenage")} />
       <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">{t("menage.edit.title")}</h1>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">

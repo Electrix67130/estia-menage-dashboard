@@ -43,6 +43,8 @@ export interface Logement {
   archived_at: string | null;
   created_at: string;
   updated_at: string;
+  /** Calculé API : nb de consommables sous le seuil (stock courant). 0 = OK. */
+  consommables_alert?: number;
 }
 
 export interface UpdateLogementInput {

@@ -1,8 +1,8 @@
 "use client";
 
 import { use, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import { ArrowLeft, Download, Printer } from "lucide-react";
+import { Download, Printer } from "lucide-react";
+import BackLink from "@/components/BackLink";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import { useAuth } from "@/contexts/AuthContext";
@@ -261,12 +261,12 @@ export default function ClientReportPage({ params }: { params: Promise<{ id: str
     <div className="space-y-4 p-6">
       <div className="flex flex-wrap items-center justify-between gap-3 no-print">
         <div>
-          <Link
-            href={`/clients/${id}`}
+          <BackLink
+            fallback={`/clients/${id}`}
+            label="Retour à la fiche"
+            size={14}
             className="inline-flex items-center gap-1 text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white"
-          >
-            <ArrowLeft size={14} /> Retour à la fiche
-          </Link>
+          />
           <h1 className="mt-1 text-2xl font-bold text-zinc-900 dark:text-white">
             Rapport compta — {titleName}
           </h1>

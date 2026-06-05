@@ -3,7 +3,8 @@
 import { use, useState, FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, MapPin, Clock, Timer, User as UserIcon, Pencil, Trash2, CheckCircle2, ListChecks, Camera, MessageSquare, Send, Maximize2, Lock, AlertTriangle } from "lucide-react";
+import { MapPin, Clock, Timer, User as UserIcon, Pencil, Trash2, CheckCircle2, ListChecks, Camera, MessageSquare, Send, Maximize2, Lock, AlertTriangle } from "lucide-react";
+import BackLink from "@/components/BackLink";
 import { toast } from "sonner";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
@@ -81,13 +82,7 @@ export default function MenageDetailPage({
 
   return (
     <div className="flex flex-col gap-6 p-6">
-      <Link
-        href="/calendar"
-        className="flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-900 dark:hover:text-white"
-      >
-        <ArrowLeft size={16} />
-        Retour au calendrier
-      </Link>
+      <BackLink fallback="/menages" />
 
       {detail.isLoading ? (
         <p className="text-sm text-zinc-500">Chargement…</p>

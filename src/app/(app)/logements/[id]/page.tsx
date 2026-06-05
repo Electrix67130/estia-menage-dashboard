@@ -2,7 +2,8 @@
 
 import { use, useRef, useState, FormEvent } from "react";
 import Link from "next/link";
-import { ArrowLeft, Plus, Trash2, Pencil, GripVertical, MapPin, ImagePlus, Camera, Clock } from "lucide-react";
+import { Plus, Trash2, Pencil, GripVertical, MapPin, ImagePlus, Camera, Clock, AlertTriangle, PackageCheck } from "lucide-react";
+import BackLink from "@/components/BackLink";
 import { toast } from "sonner";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
@@ -43,6 +44,13 @@ import {
   type Logement,
   type UpdateLogementInput,
 } from "@/hooks/useLogement";
+import {
+  useLogementConsommables,
+  useCreateConsommable,
+  useUpdateConsommable,
+  useDeleteConsommable,
+  type ConsommableLine,
+} from "@/hooks/useLogementConsommables";
 import { useClients, useClient } from "@/hooks/useClients";
 import { useChecklistTemplates, useApplyChecklistTemplate } from "@/hooks/useChecklistTemplates";
 import Select from "@/components/ui/Select";
@@ -82,18 +90,13 @@ export default function LogementSettingsPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <Link
-        href="/menages"
-        className="flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-900 dark:hover:text-white"
-      >
-        <ArrowLeft size={16} />
-        Retour
-      </Link>
+      <BackLink fallback="/logements" />
       <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">Paramètres logement</h1>
 
       <InfoSection logementId={id} isAdmin={isAdmin} />
       <PhotosSection logementId={id} isAdmin={isAdmin} />
       <RoomsSection logementId={id} isAdmin={isAdmin} />
+      <ConsommablesSection logementId={id} isAdmin={isAdmin} />
       <RoomPhotosSection logementId={id} isAdmin={isAdmin} />
       <MenagesLinkedSection logementId={id} />
       <TemplateSection logementId={id} isAdmin={isAdmin} />
@@ -567,6 +570,199 @@ function EditLogementModal({ logement, onClose }: { logement: Logement; onClose:
         </div>
       </form>
     </Modal>
+  );
+}
+
+function ConsommablesSection({ logementId, isAdmin }: { logementId: string; isAdmin: boolean }) {
+  const consommables = useLogementConsommables(logementId);
+  const create = useCreateConsommable();
+  const update = useUpdateConsommable(logementId);
+  const remove = useDeleteConsommable(logementId);
+  const [showCreate, setShowCreate] = useState(false);
+  const [editing, setEditing] = useState<ConsommableLine | null>(null);
+
+  const list = consommables.data ?? [];
+  const alertCount = list.filter((c) => c.needs_restock).length;
+
+  return (
+    <Card className="p-6">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div>
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-zinc-900 dark:text-white">
+            Consommables
+            {alertCount > 0 ? (
+              <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-rose-700 dark:bg-rose-900/50 dark:text-rose-300">
+                <AlertTriangle size={10} />
+                {alertCount} à racheter
+              </span>
+            ) : null}
+          </h2>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">
+            Stock mis à jour par le prestataire à chaque pointage de fin. Alerte si le stock
+            passe au niveau du seuil ou en dessous.
+          </p>
+        </div>
+        {isAdmin ? (
+          <Button size="sm" onClick={() => setShowCreate(true)}>
+            <Plus size={14} />
+            Ajouter
+          </Button>
+        ) : null}
+      </div>
+
+      {consommables.isLoading ? (
+        <p className="text-sm text-zinc-500">Chargement…</p>
+      ) : list.length > 0 ? (
+        <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
+          {list.map((c) => (
+            <li key={c.logement_consommable_id} className="flex items-center gap-3 py-3 text-sm">
+              <PackageCheck
+                size={16}
+                className={c.needs_restock ? "text-rose-500" : "text-zinc-300"}
+              />
+              <div className="min-w-0 flex-1">
+                <p className="font-medium text-zinc-900 dark:text-white">{c.label}</p>
+                <p className="text-xs text-zinc-500">
+                  Seuil d&apos;alerte : {c.seuil_alerte}
+                  {c.unit ? ` ${c.unit}` : ""}
+                </p>
+              </div>
+              {/* Stock courant */}
+              {c.qty === null ? (
+                <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-zinc-500 dark:bg-zinc-800">
+                  jamais relevé
+                </span>
+              ) : c.needs_restock ? (
+                <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-rose-700 dark:bg-rose-900/50 dark:text-rose-300">
+                  {c.qty}
+                  {c.unit ? ` ${c.unit}` : ""} · à racheter
+                </span>
+              ) : (
+                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                  {c.qty}
+                  {c.unit ? ` ${c.unit}` : ""}
+                </span>
+              )}
+              {isAdmin ? (
+                <>
+                  <button
+                    onClick={() => setEditing(c)}
+                    className="text-zinc-400 hover:text-blue-600"
+                    aria-label="Modifier"
+                  >
+                    <Pencil size={14} />
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (!confirm(`Supprimer le consommable "${c.label}" ?`)) return;
+                      try {
+                        await remove.mutateAsync(c.logement_consommable_id);
+                        toast.success("Consommable supprimé");
+                      } catch (err) {
+                        toast.error(err instanceof ApiError ? err.message : "Erreur");
+                      }
+                    }}
+                    className="text-zinc-400 hover:text-rose-600"
+                    aria-label="Supprimer"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-sm text-zinc-500">Aucun consommable défini.</p>
+      )}
+
+      {showCreate ? (
+        <Modal open onClose={() => setShowCreate(false)} title="Ajouter un consommable">
+          <ConsommableForm
+            onSubmit={(input) => create.mutateAsync({ logement_id: logementId, ...input })}
+            onSuccess={() => setShowCreate(false)}
+          />
+        </Modal>
+      ) : null}
+
+      {editing ? (
+        <Modal open onClose={() => setEditing(null)} title="Modifier le consommable">
+          <ConsommableForm
+            initial={editing}
+            onSubmit={(input) =>
+              update.mutateAsync({ id: editing.logement_consommable_id, input })
+            }
+            onSuccess={() => setEditing(null)}
+          />
+        </Modal>
+      ) : null}
+    </Card>
+  );
+}
+
+function ConsommableForm({
+  initial,
+  onSubmit,
+  onSuccess,
+}: {
+  initial?: ConsommableLine;
+  onSubmit: (input: {
+    label: string;
+    unit: string | null;
+    seuil_alerte: number;
+  }) => Promise<unknown>;
+  onSuccess: () => void;
+}) {
+  const [label, setLabel] = useState(initial?.label ?? "");
+  const [unit, setUnit] = useState(initial?.unit ?? "");
+  const [seuil, setSeuil] = useState(String(initial?.seuil_alerte ?? 1));
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!label.trim()) {
+      toast.error("Le nom est obligatoire");
+      return;
+    }
+    const seuilNum = parseInt(seuil, 10);
+    if (Number.isNaN(seuilNum) || seuilNum < 0) {
+      toast.error("Seuil invalide");
+      return;
+    }
+    setSaving(true);
+    try {
+      await onSubmit({ label: label.trim(), unit: unit.trim() || null, seuil_alerte: seuilNum });
+      toast.success(initial ? "Consommable modifié" : "Consommable créé");
+      onSuccess();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Erreur");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+      <label className="flex flex-col gap-1 text-sm">
+        <span className="font-medium">Nom</span>
+        <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Papier toilette" autoFocus />
+      </label>
+      <div className="grid grid-cols-2 gap-3">
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium">Unité (optionnel)</span>
+          <Input value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="rouleaux" />
+        </label>
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium">Seuil d&apos;alerte</span>
+          <Input type="number" min={0} value={seuil} onChange={(e) => setSeuil(e.target.value)} />
+        </label>
+      </div>
+      <div className="flex justify-end gap-2">
+        <Button type="submit" size="sm" loading={saving}>
+          {initial ? "Enregistrer" : "Ajouter"}
+        </Button>
+      </div>
+    </form>
   );
 }
 
