@@ -385,7 +385,6 @@ const pt: Dict = {
   "settings.legal.phone": "Telefone",
   "settings.legal.billingEmail": "Email de faturação",
   "settings.legal.billingEmailHint": "Se diferente do email do administrador.",
-  "settings.legal.website": "Website",
   "settings.orgUpdated": "Organização atualizada",
   "settings.appearance": "Aparência",
   "settings.theme": "Tema",

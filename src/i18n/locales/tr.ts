@@ -385,7 +385,6 @@ const tr: Dict = {
   "settings.legal.phone": "Telefon",
   "settings.legal.billingEmail": "Faturalama e-postası",
   "settings.legal.billingEmailHint": "Yönetici e-postasından farklıysa.",
-  "settings.legal.website": "Web sitesi",
   "settings.orgUpdated": "Organizasyon güncellendi",
   "settings.appearance": "Görünüm",
   "settings.theme": "Tema",

@@ -390,7 +390,6 @@ const en: Dict = {
   "settings.legal.phone": "Phone",
   "settings.legal.billingEmail": "Billing email",
   "settings.legal.billingEmailHint": "If different from the admin email.",
-  "settings.legal.website": "Website",
   "settings.orgUpdated": "Organization updated",
   "settings.appearance": "Appearance",
   "settings.theme": "Theme",
