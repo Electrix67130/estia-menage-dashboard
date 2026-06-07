@@ -5,15 +5,17 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string;
   error?: string;
   hint?: string;
+  /** Classe sur le conteneur (utile pour le placement en grille : col-span, etc.). */
+  wrapperClassName?: string;
 }
 
 const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
-  { className, label, error, hint, id, ...rest },
+  { className, wrapperClassName, label, error, hint, id, ...rest },
   ref,
 ) {
   const inputId = id || rest.name;
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className={cn("flex flex-col gap-1.5", wrapperClassName)}>
       {label ? (
         <label htmlFor={inputId} className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
           {label}

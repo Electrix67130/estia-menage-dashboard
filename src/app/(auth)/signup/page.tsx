@@ -124,7 +124,6 @@ export default function SignupPage() {
           </div>
           <Input
             label={t("auth.companyName")}
-            placeholder={t("auth.companyPlaceholder")}
             required
             value={account.company_name}
             onChange={(e) => update("company_name", e.target.value)}

@@ -80,7 +80,6 @@ export interface Organization {
   country?: string | null;
   phone?: string | null;
   billing_email?: string | null;
-  website?: string | null;
   logo_url?: string | null;
   created_at: string;
   updated_at: string;

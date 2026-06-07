@@ -25,7 +25,6 @@ export interface SignupOrgInput {
   country?: string | null;
   phone?: string | null;
   billing_email?: string | null;
-  website?: string | null;
 }
 
 interface SignupInput {

@@ -18,7 +18,6 @@ export interface OrgLegalFields {
   country: string;
   phone: string;
   billing_email: string;
-  website: string;
 }
 
 export const EMPTY_LEGAL_FIELDS: OrgLegalFields = {
@@ -32,7 +31,6 @@ export const EMPTY_LEGAL_FIELDS: OrgLegalFields = {
   country: "FR",
   phone: "",
   billing_email: "",
-  website: "",
 };
 
 /** Convertit le state du formulaire en payload pour l'API (les strings vides deviennent null). */
@@ -134,30 +132,30 @@ export default function OrgLegalFieldset({ form, setForm, onAutofilledName }: Pr
         <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-zinc-500">
           {t("settings.legal.address")}
         </h3>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-6">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-6 sm:items-start">
           <Input
             label={t("settings.legal.streetAddress")}
             value={form.address}
             onChange={(e) => set("address", e.target.value)}
-            className="sm:col-span-4"
+            wrapperClassName="sm:col-span-6"
           />
           <Input
             label={t("settings.legal.postalCode")}
             value={form.postal_code}
             onChange={(e) => set("postal_code", e.target.value)}
-            className="sm:col-span-2"
+            wrapperClassName="sm:col-span-2"
           />
           <Input
             label={t("settings.legal.city")}
             value={form.city}
             onChange={(e) => set("city", e.target.value)}
-            className="sm:col-span-4"
+            wrapperClassName="sm:col-span-2"
           />
           <Input
             label={t("settings.legal.country")}
             value={form.country}
             onChange={(e) => set("country", e.target.value.toUpperCase().slice(0, 2))}
-            className="sm:col-span-2"
+            wrapperClassName="sm:col-span-2"
             hint="ISO-2"
           />
         </div>
@@ -180,14 +178,6 @@ export default function OrgLegalFieldset({ form, setForm, onAutofilledName }: Pr
             value={form.billing_email}
             onChange={(e) => set("billing_email", e.target.value)}
             hint={t("settings.legal.billingEmailHint")}
-          />
-          <Input
-            label={t("settings.legal.website")}
-            type="url"
-            placeholder="https://"
-            value={form.website}
-            onChange={(e) => set("website", e.target.value)}
-            className="sm:col-span-2"
           />
         </div>
       </div>
