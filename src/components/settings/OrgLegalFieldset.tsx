@@ -59,8 +59,11 @@ export default function OrgLegalFieldset({ form, setForm, onAutofilledName }: Pr
   const set = <K extends keyof OrgLegalFields>(key: K, value: OrgLegalFields[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
-  // Tous les champs de ce bloc sont facultatifs → on accole « (optionnel) » au label.
-  const opt = (key: string) => `${t(key)} (${t("common.optional")})`;
+  // Tous les champs de ce bloc sont facultatifs → on l'indique en indice (hint)
+  // sous le champ, jamais dans le label (sinon le texte rallongé casse
+  // l'alignement dans les colonnes étroites).
+  const OPT = `(${t("common.optional")})`;
+  const optHint = (key?: string) => (key ? `${t(key)} · ${OPT}` : OPT);
 
   const siretClean = form.siret.replace(/\s/g, "");
   const siretValid = /^\d{14}$/.test(siretClean);
@@ -90,11 +93,11 @@ export default function OrgLegalFieldset({ form, setForm, onAutofilledName }: Pr
     <div className="flex flex-col gap-5">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
         <Input
-          label={opt("settings.legal.siret")}
+          label={t("settings.legal.siret")}
           placeholder="12345678901234"
           value={form.siret}
           onChange={(e) => set("siret", e.target.value.replace(/[^0-9 ]/g, "").slice(0, 17))}
-          hint={t("settings.legal.siretHint")}
+          hint={optHint("settings.legal.siretHint")}
         />
         <Button
           type="button"
@@ -110,24 +113,26 @@ export default function OrgLegalFieldset({ form, setForm, onAutofilledName }: Pr
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Input
-          label={opt("settings.legal.legalForm")}
+          label={t("settings.legal.legalForm")}
           placeholder="SAS, SARL, EI…"
           value={form.legal_form}
           onChange={(e) => set("legal_form", e.target.value)}
+          hint={optHint()}
         />
         <Input
-          label={opt("settings.legal.nafCode")}
+          label={t("settings.legal.nafCode")}
           placeholder="4120A"
           value={form.naf_code}
           onChange={(e) => set("naf_code", e.target.value.toUpperCase().slice(0, 6))}
-          hint={t("settings.legal.nafHint")}
+          hint={optHint("settings.legal.nafHint")}
         />
         <Input
-          label={opt("settings.legal.vatNumber")}
+          label={t("settings.legal.vatNumber")}
           placeholder="FR12345678901"
           value={form.vat_number}
           onChange={(e) => set("vat_number", e.target.value.toUpperCase())}
           className="sm:col-span-2"
+          hint={optHint()}
         />
       </div>
 
@@ -137,29 +142,32 @@ export default function OrgLegalFieldset({ form, setForm, onAutofilledName }: Pr
         </h3>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-6 sm:items-start">
           <Input
-            label={opt("settings.legal.streetAddress")}
+            label={t("settings.legal.streetAddress")}
             value={form.address}
             onChange={(e) => set("address", e.target.value)}
             wrapperClassName="sm:col-span-6"
+            hint={optHint()}
           />
           <Input
             label={t("settings.legal.postalCode")}
             value={form.postal_code}
             onChange={(e) => set("postal_code", e.target.value)}
             wrapperClassName="sm:col-span-2"
+            hint={optHint()}
           />
           <Input
             label={t("settings.legal.city")}
             value={form.city}
             onChange={(e) => set("city", e.target.value)}
             wrapperClassName="sm:col-span-2"
+            hint={optHint()}
           />
           <Input
             label={t("settings.legal.country")}
             value={form.country}
             onChange={(e) => set("country", e.target.value.toUpperCase().slice(0, 2))}
             wrapperClassName="sm:col-span-2"
-            hint="ISO-2"
+            hint={`ISO-2 · ${OPT}`}
           />
         </div>
       </div>
@@ -170,17 +178,18 @@ export default function OrgLegalFieldset({ form, setForm, onAutofilledName }: Pr
         </h3>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Input
-            label={opt("settings.legal.phone")}
+            label={t("settings.legal.phone")}
             type="tel"
             value={form.phone}
             onChange={(e) => set("phone", e.target.value)}
+            hint={optHint()}
           />
           <Input
-            label={opt("settings.legal.billingEmail")}
+            label={t("settings.legal.billingEmail")}
             type="email"
             value={form.billing_email}
             onChange={(e) => set("billing_email", e.target.value)}
-            hint={t("settings.legal.billingEmailHint")}
+            hint={optHint("settings.legal.billingEmailHint")}
           />
         </div>
       </div>
