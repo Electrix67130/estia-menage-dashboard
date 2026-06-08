@@ -9,6 +9,7 @@ const tr: Dict = {
   "common.add": "Ekle",
   "common.search": "Ara",
   "common.loading": "Yükleniyor…",
+  "common.optional": "isteğe bağlı",
   "common.error": "Hata",
   "common.confirm": "Onayla",
   "common.understood": "Anladım",

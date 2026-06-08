@@ -9,6 +9,7 @@ const fr: Dict = {
   "common.add": "Ajouter",
   "common.search": "Rechercher",
   "common.loading": "Chargement…",
+  "common.optional": "optionnel",
   "common.error": "Erreur",
   "common.confirm": "Confirmer",
   "common.understood": "J'ai compris",

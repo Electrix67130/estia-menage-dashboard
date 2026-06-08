@@ -9,6 +9,7 @@ const pl: Dict = {
   "common.add": "Dodaj",
   "common.search": "Szukaj",
   "common.loading": "Ładowanie…",
+  "common.optional": "opcjonalne",
   "common.error": "Błąd",
   "common.confirm": "Potwierdź",
   "common.understood": "Rozumiem",
