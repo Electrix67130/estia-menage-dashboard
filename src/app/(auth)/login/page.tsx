@@ -79,6 +79,7 @@ export default function LoginPage() {
         </Button>
       </form>
 
+      {/* Masqué pendant la phase de test (pas d'auto-inscription) — réactiver après le pilote.
       <p className="mt-6 text-center text-sm text-zinc-500 dark:text-zinc-400">
         {t("auth.noAccount")}{" "}
         <Link
@@ -88,6 +89,7 @@ export default function LoginPage() {
           {t("auth.createOrg")}
         </Link>
       </p>
+      */}
     </>
   );
 }
