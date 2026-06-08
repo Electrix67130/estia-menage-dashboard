@@ -53,6 +53,33 @@ interface ApiResponse {
   results?: ApiResult[];
 }
 
+/**
+ * Mappe le code INSEE de catégorie juridique (`nature_juridique`, ex. "5499")
+ * vers un libellé lisible (ex. "SARL"). Code inconnu → null (on ne pré-remplit
+ * pas plutôt que d'afficher un chiffre).
+ */
+function legalFormLabel(code?: string | null): string | null {
+  if (!code) return null;
+  const exact: Record<string, string> = {
+    "1000": "Entrepreneur individuel",
+    "5202": "SNC",
+    "5485": "EURL",
+    "5499": "SARL",
+    "5710": "SAS",
+    "5720": "SASU",
+    "6540": "SCI",
+    "9220": "Association",
+  };
+  if (exact[code]) return exact[code];
+  if (code.startsWith("10")) return "Entrepreneur individuel";
+  if (code.startsWith("54")) return "SARL";
+  if (code.startsWith("57")) return "SAS";
+  if (code.startsWith("55")) return "SA";
+  if (code.startsWith("65")) return "Société civile";
+  if (code.startsWith("92")) return "Association";
+  return null;
+}
+
 /** Calcule le numéro de TVA intracommunautaire FR à partir du SIREN (9 chiffres). */
 function computeFrVat(siren: string): string | null {
   if (!/^\d{9}$/.test(siren)) return null;
@@ -109,7 +136,7 @@ export function useSiretLookup() {
       return {
         siret,
         name: first.nom_raison_sociale || first.nom_complet || "",
-        legal_form: first.nature_juridique || null,
+        legal_form: legalFormLabel(first.nature_juridique),
         naf_code: (etab?.activite_principale || first.activite_principale || null)?.toUpperCase().replace(".", "") || null,
         address: street,
         postal_code: etab?.code_postal || null,

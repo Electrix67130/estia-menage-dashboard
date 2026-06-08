@@ -53,6 +53,8 @@ const de: Dict = {
   "auth.email": "E-Mail",
   "auth.password": "Passwort",
   "auth.passwordHint": "Mindestens 12 Zeichen, mit Buchstabe und Ziffer",
+  "auth.confirmPassword": "Passwort bestätigen",
+  "auth.passwordMismatch": "Die Passwörter stimmen nicht überein.",
   "auth.firstName": "Vorname",
   "auth.lastName": "Nachname",
   "auth.companyName": "Firmenname",

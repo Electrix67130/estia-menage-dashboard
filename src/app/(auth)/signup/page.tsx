@@ -27,6 +27,7 @@ export default function SignupPage() {
     company_name: "",
     password: "",
   });
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [legal, setLegal] = useState<OrgLegalFields>(EMPTY_LEGAL_FIELDS);
   const [loading, setLoading] = useState(false);
 
@@ -43,6 +44,10 @@ export default function SignupPage() {
     const pw = account.password;
     if (pw.length < 12 || !/\p{L}/u.test(pw) || !/[0-9]/.test(pw)) {
       toast.error(t("auth.passwordTooShort"));
+      return;
+    }
+    if (pw !== confirmPassword) {
+      toast.error(t("auth.passwordMismatch"));
       return;
     }
     setLoading(true);
@@ -113,6 +118,19 @@ export default function SignupPage() {
             hint={t("auth.passwordHint")}
             value={account.password}
             onChange={(e) => update("password", e.target.value)}
+          />
+          <Input
+            label={t("auth.confirmPassword")}
+            type="password"
+            autoComplete="new-password"
+            required
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            error={
+              confirmPassword.length > 0 && confirmPassword !== account.password
+                ? t("auth.passwordMismatch")
+                : undefined
+            }
           />
         </section>
 

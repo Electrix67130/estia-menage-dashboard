@@ -53,6 +53,8 @@ const tr: Dict = {
   "auth.email": "E-posta",
   "auth.password": "Şifre",
   "auth.passwordHint": "En az 12 karakter, harf ve rakam içermeli",
+  "auth.confirmPassword": "Parolayı doğrula",
+  "auth.passwordMismatch": "Parolalar eşleşmiyor.",
   "auth.firstName": "Ad",
   "auth.lastName": "Soyad",
   "auth.companyName": "Şirket adı",
