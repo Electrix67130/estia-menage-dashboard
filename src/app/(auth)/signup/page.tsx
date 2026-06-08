@@ -40,7 +40,8 @@ export default function SignupPage() {
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    if (account.password.length < 8) {
+    const pw = account.password;
+    if (pw.length < 12 || !/\p{L}/u.test(pw) || !/[0-9]/.test(pw)) {
       toast.error(t("auth.passwordTooShort"));
       return;
     }
@@ -108,7 +109,7 @@ export default function SignupPage() {
             type="password"
             autoComplete="new-password"
             required
-            minLength={8}
+            minLength={12}
             hint={t("auth.passwordHint")}
             value={account.password}
             onChange={(e) => update("password", e.target.value)}
