@@ -276,6 +276,8 @@ const fr: Dict = {
   "team.pendingInvites": "Invitations en attente ({count})",
   "team.expiresOn": "Expire le {date} — Rôle : {role}",
   "team.inviteCancelled": "Invitation annulée",
+  "team.inviteResent": "Invitation renvoyée",
+  "team.resendInvite": "Renvoyer l'invitation",
   "team.confirmDelete": "Supprimer définitivement {name} ?\n\nCette action est irréversible.",
   "team.deleted": "Membre supprimé",
   "team.roleUpdated": "Rôle mis à jour",

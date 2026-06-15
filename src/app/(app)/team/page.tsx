@@ -59,6 +59,15 @@ export default function TeamPage() {
     onError: () => toast.error(t("common.error")),
   });
 
+  const resendInvite = useMutation({
+    mutationFn: (id: string) => apiFetch(`/invitations/${id}/resend`, { method: "POST" }),
+    onSuccess: () => {
+      toast.success(t("team.inviteResent"));
+      qc.invalidateQueries({ queryKey: ["invitations"] });
+    },
+    onError: () => toast.error(t("common.error")),
+  });
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -247,6 +256,15 @@ export default function TeamPage() {
                       })}
                     </p>
                   </div>
+                  <button
+                    onClick={() => resendInvite.mutate(inv.id)}
+                    disabled={resendInvite.isPending}
+                    className="rounded-lg p-2 text-zinc-400 hover:bg-blue-50 hover:text-blue-600 disabled:opacity-50 dark:hover:bg-blue-900/20"
+                    aria-label={t("team.resendInvite")}
+                    title={t("team.resendInvite")}
+                  >
+                    <RefreshCw size={16} />
+                  </button>
                   <button
                     onClick={() => cancelInvite.mutate(inv.id)}
                     className="rounded-lg p-2 text-zinc-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-900/20"
