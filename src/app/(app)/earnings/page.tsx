@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { usePersistedState } from "@/hooks/usePersistedState";
-import { Wallet, RefreshCw } from "lucide-react";
+import { Wallet, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import { useQuery } from "@tanstack/react-query";
@@ -26,12 +26,12 @@ interface AdminEarnings {
   by_prestataire: Bucket[];
 }
 
-type Preset = "this-month" | "last-month" | "this-year" | "all";
+type Granularity = "week" | "month" | "year" | "all";
 
-const PRESETS: { key: Preset; label: string }[] = [
-  { key: "this-month", label: "Ce mois" },
-  { key: "last-month", label: "Mois dernier" },
-  { key: "this-year", label: "Cette année" },
+const GRANULARITIES: { key: Granularity; label: string }[] = [
+  { key: "week", label: "Semaine" },
+  { key: "month", label: "Mois" },
+  { key: "year", label: "Année" },
   { key: "all", label: "Tout" },
 ];
 
@@ -39,27 +39,30 @@ function ymd(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-function presetRange(p: Preset): { from?: string; to?: string } {
+/** Bornes + libellé d'une période selon granularité et décalage (0 = courante). */
+function computeRange(g: Granularity, offset: number): { from?: string; to?: string; label: string } {
+  if (g === "all") return { label: "" };
   const now = new Date();
-  if (p === "this-month") {
+  if (g === "week") {
+    const dow = (now.getDay() + 6) % 7;
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - dow + offset * 7);
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    const f = (d: Date) => d.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+    return { from: ymd(monday), to: ymd(sunday), label: `${f(monday)} – ${f(sunday)} ${sunday.getFullYear()}` };
+  }
+  if (g === "month") {
+    const first = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+    const last = new Date(now.getFullYear(), now.getMonth() + offset + 1, 0);
     return {
-      from: ymd(new Date(now.getFullYear(), now.getMonth(), 1)),
-      to: ymd(new Date(now.getFullYear(), now.getMonth() + 1, 0)),
+      from: ymd(first),
+      to: ymd(last),
+      label: first.toLocaleDateString("fr-FR", { month: "long", year: "numeric" }),
     };
   }
-  if (p === "last-month") {
-    return {
-      from: ymd(new Date(now.getFullYear(), now.getMonth() - 1, 1)),
-      to: ymd(new Date(now.getFullYear(), now.getMonth(), 0)),
-    };
-  }
-  if (p === "this-year") {
-    return {
-      from: ymd(new Date(now.getFullYear(), 0, 1)),
-      to: ymd(new Date(now.getFullYear(), 11, 31)),
-    };
-  }
-  return {};
+  const y = now.getFullYear() + offset;
+  return { from: `${y}-01-01`, to: `${y}-12-31`, label: String(y) };
 }
 
 function money(value: number, currency: string) {
@@ -68,8 +71,12 @@ function money(value: number, currency: string) {
 
 export default function EarningsPage() {
   const { user } = useAuth();
-  const [preset, setPreset] = usePersistedState<Preset>("earnings.filter.period", "this-month");
-  const range = useMemo(() => presetRange(preset), [preset]);
+  const [granularity, setGranularity] = usePersistedState<Granularity>(
+    "earnings.filter.granularity",
+    "month",
+  );
+  const [offset, setOffset] = useState(0);
+  const range = useMemo(() => computeRange(granularity, offset), [granularity, offset]);
   const isAdmin = user?.role === "admin";
 
   const query = useQuery({
@@ -120,20 +127,57 @@ export default function EarningsPage() {
       </div>
 
       <Card>
-        <div className="flex flex-wrap gap-2">
-          {PRESETS.map((p) => (
-            <button
-              key={p.key}
-              onClick={() => setPreset(p.key)}
-              className={
-                preset === p.key
-                  ? "rounded-full bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white"
-                  : "rounded-full border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
-              }
-            >
-              {p.label}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap gap-2">
+            {GRANULARITIES.map((p) => (
+              <button
+                key={p.key}
+                onClick={() => {
+                  setGranularity(p.key);
+                  setOffset(0);
+                }}
+                className={
+                  granularity === p.key
+                    ? "rounded-full bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white"
+                    : "rounded-full border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                }
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+          {granularity !== "all" ? (
+            <div className="inline-flex items-center gap-1 rounded-full border border-zinc-200 bg-white px-1 py-0.5 dark:border-zinc-800 dark:bg-zinc-900">
+              <button
+                type="button"
+                onClick={() => setOffset((o) => o - 1)}
+                aria-label="Période précédente"
+                className="rounded-full p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-white"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <span className="min-w-[9rem] text-center text-xs font-medium capitalize text-zinc-700 dark:text-zinc-300">
+                {range.label}
+              </span>
+              <button
+                type="button"
+                onClick={() => setOffset((o) => o + 1)}
+                aria-label="Période suivante"
+                className="rounded-full p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-white"
+              >
+                <ChevronRight size={16} />
+              </button>
+              {offset !== 0 ? (
+                <button
+                  type="button"
+                  onClick={() => setOffset(0)}
+                  className="rounded-full px-2 py-1 text-[11px] font-medium text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20"
+                >
+                  Aujourd&apos;hui
+                </button>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       </Card>
 
