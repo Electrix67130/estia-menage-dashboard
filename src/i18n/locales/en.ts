@@ -38,6 +38,7 @@ const en: Dict = {
   "nav.archives": "Archives",
   "nav.team": "Team",
   "nav.earnings": "Earnings",
+  "nav.invoices": "Invoices",
   "nav.templates": "Templates",
   "nav.billing": "Subscription",
   "nav.settings": "Settings",

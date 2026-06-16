@@ -38,6 +38,7 @@ const fr: Dict = {
   "nav.archives": "Archives",
   "nav.team": "Équipe",
   "nav.earnings": "Gains",
+  "nav.invoices": "Factures",
   "nav.templates": "Modèles checklist",
   "nav.billing": "Abonnement",
   "nav.settings": "Paramètres",
