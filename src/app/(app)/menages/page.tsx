@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { usePersistedState } from "@/hooks/usePersistedState";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { Plus, Search, Building2, User as UserIcon, Clock, List as ListIcon, Map as MapIcon, CheckSquare, X, Trash2, ClipboardCheck, CheckCircle2, Lock, AlertTriangle } from "lucide-react";
+import { Plus, Search, Building2, User as UserIcon, Clock, List as ListIcon, Map as MapIcon, CheckSquare, X, Trash2, ClipboardCheck, CheckCircle2, Lock, AlertTriangle, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { apiFetch, ApiError } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
@@ -72,10 +72,12 @@ export default function MenagesPage() {
   const [logementFilter, setLogementFilter] = usePersistedState("menages.filter.logement", "");
   const [prestaFilter, setPrestaFilter] = usePersistedState("menages.filter.presta", "");
   const [creatorFilter, setCreatorFilter] = usePersistedState("menages.filter.creator", "");
-  const [periodFilter, setPeriodFilter] = usePersistedState<"week" | "month" | "all">(
+  const [periodFilter, setPeriodFilter] = usePersistedState<"week" | "month" | "year" | "all">(
     "menages.filter.period",
     "all",
   );
+  // Décalage de période (0 = courante, -1 = précédente, +1 = suivante…).
+  const [periodOffset, setPeriodOffset] = useState(0);
   const [viewMode, setViewMode] = usePersistedState<ViewMode>("menages.filter.viewMode", "list");
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -147,26 +149,38 @@ export default function MenagesPage() {
     return u ? [u.first_name, u.last_name].filter(Boolean).join(" ") || u.email : "—";
   };
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    const todayDate = new Date();
-    let periodMin: string | null = null;
-    let periodMax: string | null = null;
+  // Période sélectionnée (bornes + libellé) selon granularité + décalage.
+  const period = useMemo<{ min: string | null; max: string | null; label: string }>(() => {
+    if (periodFilter === "all") return { min: null, max: null, label: "" };
+    const ymd = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const now = new Date();
     if (periodFilter === "week") {
-      const d = new Date(todayDate);
-      const dow = (d.getDay() + 6) % 7;
-      const monday = new Date(d);
-      monday.setDate(d.getDate() - dow);
+      const dow = (now.getDay() + 6) % 7;
+      const monday = new Date(now);
+      monday.setDate(now.getDate() - dow + periodOffset * 7);
       const sunday = new Date(monday);
       sunday.setDate(monday.getDate() + 6);
-      periodMin = monday.toISOString().slice(0, 10);
-      periodMax = sunday.toISOString().slice(0, 10);
-    } else if (periodFilter === "month") {
-      const y = todayDate.getFullYear();
-      const m = todayDate.getMonth();
-      periodMin = new Date(y, m, 1).toISOString().slice(0, 10);
-      periodMax = new Date(y, m + 1, 0).toISOString().slice(0, 10);
+      const f = (d: Date) => d.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+      return { min: ymd(monday), max: ymd(sunday), label: `${f(monday)} – ${f(sunday)} ${sunday.getFullYear()}` };
     }
+    if (periodFilter === "month") {
+      const first = new Date(now.getFullYear(), now.getMonth() + periodOffset, 1);
+      const last = new Date(now.getFullYear(), now.getMonth() + periodOffset + 1, 0);
+      return {
+        min: ymd(first),
+        max: ymd(last),
+        label: first.toLocaleDateString("fr-FR", { month: "long", year: "numeric" }),
+      };
+    }
+    const y = now.getFullYear() + periodOffset;
+    return { min: `${y}-01-01`, max: `${y}-12-31`, label: String(y) };
+  }, [periodFilter, periodOffset]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const periodMin = period.min;
+    const periodMax = period.max;
     return (list.data?.data ?? [])
       .filter((m) => {
         if (logementFilter && m.logement_id !== logementFilter) return false;
@@ -204,7 +218,7 @@ export default function MenagesPage() {
         if (!aUp && !bUp) return bd.localeCompare(ad);
         return aUp ? -1 : 1;
       });
-  }, [list.data, search, logementFilter, prestaFilter, creatorFilter, periodFilter]);
+  }, [list.data, search, logementFilter, prestaFilter, creatorFilter, period.min, period.max]);
 
   const total = list.data?.meta.total ?? 0;
 
@@ -346,13 +360,17 @@ export default function MenagesPage() {
             [
               { key: "week" as const, label: "Semaine" },
               { key: "month" as const, label: "Mois" },
+              { key: "year" as const, label: "Année" },
               { key: "all" as const, label: "Tout" },
             ]
           ).map((p) => (
             <button
               key={p.key}
               type="button"
-              onClick={() => setPeriodFilter(p.key)}
+              onClick={() => {
+                setPeriodFilter(p.key);
+                setPeriodOffset(0);
+              }}
               className={
                 periodFilter === p.key
                   ? "rounded-full bg-white px-3 py-1 text-xs font-semibold text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-white"
@@ -363,6 +381,38 @@ export default function MenagesPage() {
             </button>
           ))}
         </div>
+        {periodFilter !== "all" ? (
+          <div className="inline-flex items-center gap-1 rounded-full border border-zinc-200 bg-white px-1 py-0.5 dark:border-zinc-800 dark:bg-zinc-900">
+            <button
+              type="button"
+              onClick={() => setPeriodOffset((o) => o - 1)}
+              aria-label="Période précédente"
+              className="rounded-full p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-white"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <span className="min-w-[9rem] text-center text-xs font-medium capitalize text-zinc-700 dark:text-zinc-300">
+              {period.label}
+            </span>
+            <button
+              type="button"
+              onClick={() => setPeriodOffset((o) => o + 1)}
+              aria-label="Période suivante"
+              className="rounded-full p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-white"
+            >
+              <ChevronRight size={16} />
+            </button>
+            {periodOffset !== 0 ? (
+              <button
+                type="button"
+                onClick={() => setPeriodOffset(0)}
+                className="rounded-full px-2 py-1 text-[11px] font-medium text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20"
+              >
+                Aujourd'hui
+              </button>
+            ) : null}
+          </div>
+        ) : null}
         <div className="flex flex-wrap gap-1.5 rounded-lg border border-zinc-200 bg-white p-1 dark:border-zinc-800 dark:bg-zinc-900">
           {FILTERS.map((f) => (
             <button
