@@ -181,6 +181,7 @@ export interface Invitation {
   role: UserRole;
   token: string;
   invited_by: string;
+  status: "pending" | "accepted" | "expired";
   expires_at: string;
   accepted_at?: string;
   created_at: string;

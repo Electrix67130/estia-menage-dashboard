@@ -52,13 +52,15 @@ export default function TeamPage() {
 
   // Invitations dédupliquées par email (on garde la plus récente).
   const pendingInvites = Object.values(
-    (invitations.data?.data ?? []).reduce<Record<string, Invitation>>((acc, inv) => {
-      const existing = acc[inv.email];
-      if (!existing || new Date(inv.created_at) > new Date(existing.created_at)) {
-        acc[inv.email] = inv;
-      }
-      return acc;
-    }, {}),
+    (invitations.data?.data ?? [])
+      .filter((inv) => inv.status === "pending")
+      .reduce<Record<string, Invitation>>((acc, inv) => {
+        const existing = acc[inv.email];
+        if (!existing || new Date(inv.created_at) > new Date(existing.created_at)) {
+          acc[inv.email] = inv;
+        }
+        return acc;
+      }, {}),
   );
 
   const cancelInvite = useMutation({
