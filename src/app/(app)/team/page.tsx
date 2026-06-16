@@ -50,6 +50,17 @@ export default function TeamPage() {
     enabled: isAdmin,
   });
 
+  // Invitations dédupliquées par email (on garde la plus récente).
+  const pendingInvites = Object.values(
+    (invitations.data?.data ?? []).reduce<Record<string, Invitation>>((acc, inv) => {
+      const existing = acc[inv.email];
+      if (!existing || new Date(inv.created_at) > new Date(existing.created_at)) {
+        acc[inv.email] = inv;
+      }
+      return acc;
+    }, {}),
+  );
+
   const cancelInvite = useMutation({
     mutationFn: (id: string) => apiFetch(`/invitations/${id}`, { method: "DELETE" }),
     onSuccess: () => {
@@ -237,14 +248,14 @@ export default function TeamPage() {
       </Card>
       )}
 
-      {tab === "members" && isAdmin && invitations.data && invitations.data.data.length > 0 ? (
+      {tab === "members" && isAdmin && pendingInvites.length > 0 ? (
         <div>
           <h2 className="mb-3 text-sm font-semibold text-zinc-900 dark:text-white">
-            {t("team.pendingInvites", { count: invitations.data.data.length })}
+            {t("team.pendingInvites", { count: pendingInvites.length })}
           </h2>
           <Card className="p-0">
             <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
-              {invitations.data.data.map((inv) => (
+              {pendingInvites.map((inv) => (
                 <li key={inv.id} className="flex items-center gap-3 px-6 py-4">
                   <Mail size={18} className="text-zinc-400" />
                   <div className="min-w-0 flex-1">
