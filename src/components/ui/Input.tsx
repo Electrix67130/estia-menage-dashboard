@@ -31,7 +31,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
           id={inputId}
           type={effectiveType}
           className={cn(
-            "h-10 w-full rounded-lg border bg-white px-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder:text-zinc-600",
+            "h-10 w-full rounded-lg border bg-white px-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder:text-zinc-600 dark:[color-scheme:dark]",
             isPassword && "pr-10",
             error
               ? "border-rose-500 focus:border-rose-500"
