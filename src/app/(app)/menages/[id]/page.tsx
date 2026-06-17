@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState, FormEvent } from "react";
+import { use, useState, useEffect, FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { MapPin, Clock, Timer, User as UserIcon, Pencil, Trash2, CheckCircle2, ListChecks, Camera, MessageSquare, Send, Maximize2, Lock, AlertTriangle } from "lucide-react";
@@ -33,6 +33,7 @@ import {
   useDeleteMenage,
 } from "@/hooks/useMenageCheck";
 import { useMenageResponses } from "@/hooks/useMenageResponses";
+import { useUnreadCounts, useMarkTabViewed, type MenageTab } from "@/hooks/useMenageViews";
 import {
   useMenagePrestataires,
   useSetMenagePrestataires,
@@ -1036,13 +1037,38 @@ function Row({
 
 type TabKey = "check" | "photos" | "comments";
 
+// Onglet → catégorie de non-lus correspondante (les commentaires d'étapes
+// vivent dans la checklist).
+const TAB_UNREAD: Record<TabKey, MenageTab> = {
+  check: "comments_steps",
+  photos: "photos",
+  comments: "comments",
+};
+
 function TabsSection({ menage }: { menage: MenageDetail }) {
   const [tab, setTab] = useState<TabKey>("check");
+  const counts = useUnreadCounts(menage.id);
+  const markViewed = useMarkTabViewed();
   const tabs: { key: TabKey; label: string; icon: typeof ListChecks }[] = [
     { key: "check", label: "Checklist", icon: ListChecks },
     { key: "photos", label: "Photos", icon: Camera },
     { key: "comments", label: "Commentaires", icon: MessageSquare },
   ];
+
+  // Marque l'onglet ouvert comme lu → vide la pastille correspondante (et le
+  // total dans la sidebar / la liste).
+  useEffect(() => {
+    markViewed.mutate({ menage_id: menage.id, tab: TAB_UNREAD[tab] });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, menage.id]);
+
+  const unreadFor = (key: TabKey): number => {
+    const d = counts.data;
+    if (!d) return 0;
+    if (key === "comments") return d.comments;
+    if (key === "photos") return d.photos;
+    return d.comments_steps;
+  };
 
   return (
     <Card className="p-0">
@@ -1050,6 +1076,7 @@ function TabsSection({ menage }: { menage: MenageDetail }) {
         {tabs.map((t) => {
           const Icon = t.icon;
           const active = tab === t.key;
+          const unread = unreadFor(t.key);
           return (
             <button
               key={t.key}
@@ -1064,6 +1091,11 @@ function TabsSection({ menage }: { menage: MenageDetail }) {
             >
               <Icon size={16} />
               {t.label}
+              {unread > 0 && !active ? (
+                <span className="inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold leading-none text-white">
+                  {unread > 99 ? "99+" : unread}
+                </span>
+              ) : null}
             </button>
           );
         })}
