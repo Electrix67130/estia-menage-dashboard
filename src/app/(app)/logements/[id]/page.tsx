@@ -30,6 +30,7 @@ import {
   useDeleteLogementRoom,
   useUpdateLogementRoom,
   type RoomKind,
+  type LogementRoom,
 } from "@/hooks/useLogementRooms";
 import {
   useCheckTemplate,
@@ -97,7 +98,6 @@ export default function LogementSettingsPage({
       <PhotosSection logementId={id} isAdmin={isAdmin} />
       <RoomsSection logementId={id} isAdmin={isAdmin} />
       <ConsommablesSection logementId={id} isAdmin={isAdmin} />
-      <RoomPhotosSection logementId={id} isAdmin={isAdmin} />
       <MenagesLinkedSection logementId={id} />
       <TemplateSection logementId={id} isAdmin={isAdmin} />
     </div>
@@ -778,7 +778,7 @@ function RoomsSection({ logementId, isAdmin }: { logementId: string; isAdmin: bo
         <div>
           <h2 className="text-lg font-semibold text-zinc-900 dark:text-white">Pièces</h2>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            Permet d&apos;associer photos et items de checklist à des pièces précises.
+            Ajoute des photos et gère chaque pièce du logement au même endroit.
           </p>
         </div>
         {isAdmin ? (
@@ -794,34 +794,21 @@ function RoomsSection({ logementId, isAdmin }: { logementId: string; isAdmin: bo
       ) : rooms.data && rooms.data.length > 0 ? (
         <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
           {rooms.data.map((r) => (
-            <li
+            <RoomItem
               key={r.id}
-              className="flex items-center gap-3 py-3 text-sm"
-            >
-              <GripVertical size={14} className="text-zinc-300" />
-              <div className="flex-1">
-                <p className="font-medium text-zinc-900 dark:text-white">{r.name}</p>
-                {r.kind ? (
-                  <p className="text-xs text-zinc-500">{labelForKind(r.kind)}</p>
-                ) : null}
-              </div>
-              {isAdmin ? (
-                <button
-                  onClick={async () => {
-                    if (!confirm(`Supprimer la pièce "${r.name}" ?`)) return;
-                    try {
-                      await remove.mutateAsync({ id: r.id, logement_id: logementId });
-                      toast.success("Pièce supprimée");
-                    } catch (err) {
-                      toast.error(err instanceof ApiError ? err.message : "Erreur");
-                    }
-                  }}
-                  className="text-zinc-400 hover:text-rose-600"
-                >
-                  <Trash2 size={14} />
-                </button>
-              ) : null}
-            </li>
+              room={r}
+              logementId={logementId}
+              isAdmin={isAdmin}
+              onDelete={async () => {
+                if (!confirm(`Supprimer la pièce "${r.name}" ?`)) return;
+                try {
+                  await remove.mutateAsync({ id: r.id, logement_id: logementId });
+                  toast.success("Pièce supprimée");
+                } catch (err) {
+                  toast.error(err instanceof ApiError ? err.message : "Erreur");
+                }
+              }}
+            />
           ))}
         </ul>
       ) : (
@@ -1215,62 +1202,22 @@ function PhotosSection({ logementId, isAdmin }: { logementId: string; isAdmin: b
   );
 }
 
-function RoomPhotosSection({ logementId, isAdmin }: { logementId: string; isAdmin: boolean }) {
-  const rooms = useLogementRooms(logementId);
-  const photos = useLogementPhotos(logementId);
-
-  const photosByRoom = new Map<string, typeof photos.data extends { data: infer A } ? A : never>();
-  for (const p of photos.data?.data ?? []) {
-    if (p.logement_room_id) {
-      const existing = (photosByRoom.get(p.logement_room_id) ?? []) as Array<typeof p>;
-      existing.push(p);
-      photosByRoom.set(p.logement_room_id, existing as never);
-    }
-  }
-
-  if (rooms.isLoading) return null;
-  const list = rooms.data ?? [];
-  if (list.length === 0) return null;
-
-  return (
-    <Card className="p-6">
-      <div className="mb-4">
-        <h2 className="text-lg font-semibold text-zinc-900 dark:text-white">Photos par pièce</h2>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">
-          Photos rattachées à chaque pièce du logement.
-        </p>
-      </div>
-      <div className="flex flex-col gap-6">
-        {list.map((r) => (
-          <RoomPhotosBlock
-            key={r.id}
-            logementId={logementId}
-            roomId={r.id}
-            roomName={r.name}
-            isAdmin={isAdmin}
-          />
-        ))}
-      </div>
-    </Card>
-  );
-}
-
-function RoomPhotosBlock({
+function RoomItem({
+  room,
   logementId,
-  roomId,
-  roomName,
   isAdmin,
+  onDelete,
 }: {
+  room: LogementRoom;
   logementId: string;
-  roomId: string;
-  roomName: string;
   isAdmin: boolean;
+  onDelete: () => void;
 }) {
-  const photos = useLogementPhotos(logementId, roomId);
+  const photos = useLogementPhotos(logementId, room.id);
   const create = useCreatePhoto();
   const remove = useDeletePhoto();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const items = (photos.data?.data ?? []).filter((p) => p.logement_room_id === roomId);
+  const items = (photos.data?.data ?? []).filter((p) => p.logement_room_id === room.id);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
@@ -1280,14 +1227,14 @@ function RoomPhotosBlock({
         const uploaded = await uploadFile(file);
         await create.mutateAsync({
           logement_id: logementId,
-          logement_room_id: roomId,
+          logement_room_id: room.id,
           url: uploaded.url,
           file_size: uploaded.file_size,
           mime_type: uploaded.mime_type,
           taken_at: new Date().toISOString(),
         });
       }
-      toast.success(`Ajouté à ${roomName}`);
+      toast.success(`Ajouté à ${room.name}`);
       if (fileInputRef.current) fileInputRef.current.value = "";
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Échec");
@@ -1295,9 +1242,13 @@ function RoomPhotosBlock({
   };
 
   return (
-    <div>
-      <div className="mb-2 flex items-center justify-between">
-        <p className="text-sm font-semibold text-zinc-900 dark:text-white">{roomName}</p>
+    <li className="py-3 text-sm">
+      <div className="flex items-center gap-3">
+        <GripVertical size={14} className="text-zinc-300" />
+        <div className="flex-1">
+          <p className="font-medium text-zinc-900 dark:text-white">{room.name}</p>
+          {room.kind ? <p className="text-xs text-zinc-500">{labelForKind(room.kind)}</p> : null}
+        </div>
         {isAdmin ? (
           <>
             <input
@@ -1315,15 +1266,21 @@ function RoomPhotosBlock({
               className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline disabled:opacity-50"
             >
               <Camera size={12} />
-              Ajouter
+              Photo
+            </button>
+            <button
+              type="button"
+              onClick={onDelete}
+              className="text-zinc-400 hover:text-rose-600"
+              aria-label="Supprimer la pièce"
+            >
+              <Trash2 size={14} />
             </button>
           </>
         ) : null}
       </div>
-      {items.length === 0 ? (
-        <p className="text-xs text-zinc-500">Aucune photo.</p>
-      ) : (
-        <div className="grid grid-cols-3 gap-2 sm:grid-cols-5 lg:grid-cols-8">
+      {items.length > 0 ? (
+        <div className="mt-3 grid grid-cols-3 gap-2 pl-7 sm:grid-cols-5 lg:grid-cols-8">
           {items.map((p) => (
             <div key={p.id} className="group relative aspect-square overflow-hidden rounded border border-zinc-200 dark:border-zinc-800">
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -1344,8 +1301,8 @@ function RoomPhotosBlock({
             </div>
           ))}
         </div>
-      )}
-    </div>
+      ) : null}
+    </li>
   );
 }
 
