@@ -29,7 +29,7 @@ export function useLogementMembers(logementId: string | undefined) {
     queryKey: ["logement-members", logementId],
     queryFn: () =>
       apiFetch<{ data: LogementMember[] }>(
-        `/logement-members/by-logement?logement_id=${logementId}&limit=200`,
+        `/logement-members/by-logement?logement_id=${logementId}&limit=100`,
       ).then((r) => r.data),
     enabled: !!logementId,
   });

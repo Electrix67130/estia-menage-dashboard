@@ -189,7 +189,7 @@ export function useLogementPrestataires(logementId: string | undefined) {
     queryKey: ["logement-prestataires", logementId],
     queryFn: () =>
       apiFetch<{ data: LogementPrestataireMember[] }>(
-        `/logement-members/by-logement?logement_id=${logementId}&limit=200`,
+        `/logement-members/by-logement?logement_id=${logementId}&limit=100`,
       ).then((r) => r.data.filter((m) => m.role === "prestataire")),
     enabled: !!logementId,
   });
