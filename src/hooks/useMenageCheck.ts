@@ -82,7 +82,9 @@ interface CommentResponse {
 export function useMenageComments(menageId: string | undefined) {
   return useQuery({
     queryKey: ["menage-comments", menageId],
-    queryFn: () => apiFetch<CommentResponse>(`/comments?menage_id=${menageId}&limit=100`),
+    // order=asc : plus anciens en haut, derniers en bas (style discussion,
+    // cohérent avec l'app mobile).
+    queryFn: () => apiFetch<CommentResponse>(`/comments?menage_id=${menageId}&limit=100&order=asc`),
     enabled: !!menageId,
   });
 }
