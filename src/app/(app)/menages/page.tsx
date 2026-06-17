@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { usePersistedState } from "@/hooks/usePersistedState";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { Plus, Search, Building2, User as UserIcon, Clock, List as ListIcon, Map as MapIcon, CheckSquare, X, Trash2, ClipboardCheck, CheckCircle2, Lock, AlertTriangle, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Search, Building2, User as UserIcon, Clock, List as ListIcon, Map as MapIcon, CheckSquare, X, Trash2, ClipboardCheck, CheckCircle2, Lock, AlertTriangle, ChevronLeft, ChevronRight, Bell } from "lucide-react";
 import { toast } from "sonner";
 import { apiFetch, ApiError } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
@@ -18,6 +18,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useMenages, type MenageFilter } from "@/hooks/useMenages";
 import { logementLabel, prestataireLabel, type CalendarMenage } from "@/hooks/useCalendarMenages";
 import { useLogementsList } from "@/hooks/useLogementsList";
+import { useUnreadSummary } from "@/hooks/useMenageViews";
 import { useQuery } from "@tanstack/react-query";
 import type { User, PaginatedResponse } from "@/types/api";
 import { formatDateFr } from "@/lib/date-fr";
@@ -65,6 +66,12 @@ const FILTERS: { value: MenageFilter; label: string }[] = [
 export default function MenagesPage() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
+
+  // Non-lus par ménage (mêmes données que le badge sidebar) → indicateur sur
+  // chaque carte pour savoir où aller lire la nouveauté. Se vide quand on ouvre
+  // le ménage (mark-tab-viewed invalide cette même query).
+  const unreadSummary = useUnreadSummary(!!user);
+  const unreadByMenage = unreadSummary.data?.by_menage ?? {};
 
   // Filtres persistés en localStorage : reprend l'état au prochain chargement.
   const [filter, setFilter] = usePersistedState<MenageFilter>("menages.filter.status", "all");
@@ -342,15 +349,16 @@ export default function MenagesPage() {
         </div>
       ) : null}
 
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-        <div className="relative flex-1 lg:max-w-md">
+      <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center">
+        <div className="relative w-full lg:w-72 lg:flex-none">
           <Search
             size={16}
-            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400"
+            className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-zinc-400"
           />
           <Input
             placeholder="Logement, ville, prestataire…"
             className="pl-9"
+            wrapperClassName="w-full"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -570,6 +578,15 @@ export default function MenagesPage() {
                       </div>
                     </div>
                     <div className="flex flex-shrink-0 flex-wrap items-center justify-end gap-1">
+                      {unreadByMenage[m.id] ? (
+                        <span
+                          className="inline-flex items-center gap-1 rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-bold text-white"
+                          title="Nouvelle activité non lue — ouvre le ménage pour la consulter"
+                        >
+                          <Bell size={10} />
+                          {unreadByMenage[m.id] > 99 ? "99+" : unreadByMenage[m.id]}
+                        </span>
+                      ) : null}
                       {m.needs_attention ? (
                         <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-rose-700 dark:bg-rose-900/50 dark:text-rose-300">
                           <AlertTriangle size={10} />
