@@ -50,10 +50,18 @@ export default function TeamPage() {
     enabled: isAdmin,
   });
 
-  // Invitations dédupliquées par email (on garde la plus récente).
+  // Emails déjà membres de l'org → leurs invitations (souvent restées "pending"
+  // car la personne a rejoint autrement) ne doivent plus s'afficher.
+  const memberEmails = new Set(
+    (members.data?.data ?? []).map((u) => u.email.toLowerCase()),
+  );
+
+  // Invitations en attente, hors membres existants, dédupliquées par email.
   const pendingInvites = Object.values(
     (invitations.data?.data ?? [])
-      .filter((inv) => inv.status === "pending")
+      .filter(
+        (inv) => inv.status === "pending" && !memberEmails.has(inv.email.toLowerCase()),
+      )
       .reduce<Record<string, Invitation>>((acc, inv) => {
         const existing = acc[inv.email];
         if (!existing || new Date(inv.created_at) > new Date(existing.created_at)) {
