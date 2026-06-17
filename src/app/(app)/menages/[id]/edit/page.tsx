@@ -8,6 +8,8 @@ import { toast } from "sonner";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
+import DatePicker from "@/components/ui/DatePicker";
+import TimePicker from "@/components/ui/TimePicker";
 import Select from "@/components/ui/Select";
 import Textarea from "@/components/ui/Textarea";
 import DurationPicker from "@/components/ui/DurationPicker";
@@ -173,8 +175,8 @@ export default function EditMenagePage({
             {t("menage.edit.sectionPlanning")}
           </h2>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Input label={t("menage.fields.datePrevue")} type="date" value={datePrevue} onChange={(e) => setDatePrevue(e.target.value)} required />
-            <Input label={t("menage.fields.horaire")} type="time" value={horairePrevu} onChange={(e) => setHorairePrevu(e.target.value)} />
+            <DatePicker label={t("menage.fields.datePrevue")} value={datePrevue} onChange={setDatePrevue} required />
+            <TimePicker label={t("menage.fields.horaire")} value={horairePrevu} onChange={setHorairePrevu} />
           </div>
           <DurationPicker label={t("menage.fields.dureeEstimee")} value={dureeEstimee} onChange={setDureeEstimee} />
           <Select

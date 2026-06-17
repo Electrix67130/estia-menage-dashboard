@@ -9,6 +9,8 @@ import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Select from "@/components/ui/Select";
+import DatePicker from "@/components/ui/DatePicker";
+import TimePicker from "@/components/ui/TimePicker";
 import Textarea from "@/components/ui/Textarea";
 import DurationPicker from "@/components/ui/DurationPicker";
 import { useAuth } from "@/contexts/AuthContext";
@@ -193,18 +195,16 @@ function NewMenageForm() {
         )}
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Input
+          <DatePicker
             label="Date prévue"
-            type="date"
             value={datePrevue}
-            onChange={(e) => setDatePrevue(e.target.value)}
+            onChange={setDatePrevue}
             required
           />
-          <Input
+          <TimePicker
             label="Horaire (optionnel)"
-            type="time"
             value={horairePrevu}
-            onChange={(e) => setHorairePrevu(e.target.value)}
+            onChange={setHorairePrevu}
           />
         </div>
 
