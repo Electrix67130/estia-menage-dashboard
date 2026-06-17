@@ -53,6 +53,14 @@ import {
   type ConsommableLine,
 } from "@/hooks/useLogementConsommables";
 import { useClients, useClient } from "@/hooks/useClients";
+import Avatar from "@/components/ui/Avatar";
+import {
+  useLogementMembers,
+  useAddLogementMember,
+  useRemoveLogementMember,
+  useOrgPrestataires,
+  type LogementMember,
+} from "@/hooks/useLogementMembers";
 import { useChecklistTemplates, useApplyChecklistTemplate } from "@/hooks/useChecklistTemplates";
 import Select from "@/components/ui/Select";
 import CityAddressAutocomplete from "@/components/ui/CityAddressAutocomplete";
@@ -95,6 +103,7 @@ export default function LogementSettingsPage({
       <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">Paramètres logement</h1>
 
       <InfoSection logementId={id} isAdmin={isAdmin} />
+      <LogementMembersSection logementId={id} isAdmin={isAdmin} />
       <PhotosSection logementId={id} isAdmin={isAdmin} />
       <RoomsSection logementId={id} isAdmin={isAdmin} />
       <ConsommablesSection logementId={id} isAdmin={isAdmin} />
@@ -1303,6 +1312,104 @@ function RoomItem({
         </div>
       ) : null}
     </li>
+  );
+}
+
+function LogementMembersSection({ logementId, isAdmin }: { logementId: string; isAdmin: boolean }) {
+  const members = useLogementMembers(logementId);
+  const orgPrestataires = useOrgPrestataires();
+  const add = useAddLogementMember();
+  const remove = useRemoveLogementMember();
+
+  const prestataires = (members.data ?? []).filter((m) => m.role === "prestataire");
+  const memberIds = new Set(prestataires.map((m) => m.user_id));
+  const candidates = (orgPrestataires.data ?? []).filter((u) => !memberIds.has(u.id));
+
+  const handleAdd = async (userId: string) => {
+    if (!userId) return;
+    try {
+      await add.mutateAsync({ logement_id: logementId, user_id: userId, role: "prestataire" });
+      toast.success("Prestataire rattaché");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Erreur");
+    }
+  };
+
+  const handleRemove = async (m: LogementMember) => {
+    if (!confirm(`Retirer ${m.first_name} ${m.last_name} de ce logement ?`)) return;
+    try {
+      await remove.mutateAsync({ id: m.id, logement_id: logementId });
+      toast.success("Prestataire retiré");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Erreur");
+    }
+  };
+
+  return (
+    <Card className="p-6">
+      <div className="mb-4">
+        <h2 className="text-lg font-semibold text-zinc-900 dark:text-white">Prestataires</h2>
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">
+          Les prestataires rattachés peuvent être affectés aux ménages de ce logement.
+        </p>
+      </div>
+
+      {members.isLoading ? (
+        <p className="text-sm text-zinc-500">Chargement…</p>
+      ) : prestataires.length > 0 ? (
+        <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
+          {prestataires.map((m) => (
+            <li key={m.id} className="flex items-center gap-3 py-2.5">
+              <Avatar firstName={m.first_name} lastName={m.last_name} src={m.avatar_url ?? undefined} size="sm" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-zinc-900 dark:text-white">
+                  {m.first_name} {m.last_name}
+                </p>
+                <p className="truncate text-xs text-zinc-500">{m.email}</p>
+              </div>
+              {isAdmin ? (
+                <button
+                  type="button"
+                  onClick={() => handleRemove(m)}
+                  className="text-zinc-400 hover:text-rose-600"
+                  aria-label="Retirer du logement"
+                >
+                  <Trash2 size={14} />
+                </button>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-sm text-zinc-500">Aucun prestataire rattaché à ce logement.</p>
+      )}
+
+      {isAdmin ? (
+        <div className="mt-4 border-t border-zinc-200 pt-4 dark:border-zinc-800">
+          {candidates.length > 0 ? (
+            <Select
+              label="Rattacher un prestataire"
+              value=""
+              onChange={(e) => handleAdd(e.target.value)}
+              disabled={add.isPending}
+            >
+              <option value="">— Choisir un prestataire —</option>
+              {candidates.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.first_name} {u.last_name}
+                </option>
+              ))}
+            </Select>
+          ) : (
+            <p className="text-xs text-zinc-500">
+              {orgPrestataires.isLoading
+                ? "Chargement…"
+                : "Tous tes prestataires sont déjà rattachés. Invite-en d'autres depuis Équipe."}
+            </p>
+          )}
+        </div>
+      ) : null}
+    </Card>
   );
 }
 
