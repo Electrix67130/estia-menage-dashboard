@@ -178,9 +178,33 @@ export default function TeamDetailPage({ params }: { params: Promise<{ id: strin
               <Detail
                 icon={<Building2 size={14} />}
                 label={t("team.company")}
-                value={user.company_name || ""}
+                value={
+                  (user.role === "prestataire" ? user.provider_company : user.company_name) || ""
+                }
                 copyLabel={t("team.company")}
               />
+              {user.role === "prestataire" ? (
+                <>
+                  <Detail
+                    icon={<Building2 size={14} />}
+                    label="SIRET"
+                    value={user.provider_siret || ""}
+                    copyLabel="SIRET"
+                  />
+                  <Detail
+                    icon={<Building2 size={14} />}
+                    label="N° TVA"
+                    value={user.provider_vat_number || ""}
+                    copyLabel="N° TVA"
+                  />
+                  <Detail
+                    icon={<Building2 size={14} />}
+                    label="Adresse entreprise"
+                    value={user.provider_address || ""}
+                    copyLabel="Adresse entreprise"
+                  />
+                </>
+              ) : null}
               <Detail
                 icon={<Calendar size={14} />}
                 label={t("team.joinedOn")}

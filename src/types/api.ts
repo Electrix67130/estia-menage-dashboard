@@ -28,6 +28,11 @@ export interface User {
   avatar_url?: string;
   role: UserRole;
   company_name?: string;
+  /** Entreprise propre du prestataire (indépendante de l'org). */
+  provider_company?: string | null;
+  provider_siret?: string | null;
+  provider_vat_number?: string | null;
+  provider_address?: string | null;
   is_active: boolean;
   is_super_admin?: boolean;
   push_enabled: boolean;
