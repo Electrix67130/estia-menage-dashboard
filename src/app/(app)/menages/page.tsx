@@ -53,15 +53,15 @@ const STATUS_LABEL: Record<CalendarMenage["status"], string> = {
   annule: "Annulé",
 };
 
+// Validé/Annulé ne sont plus listés ici : les ménages clôturés vivent dans les
+// Archives (où ils sont filtrables par statut). La liste Ménages = worklist active.
 const FILTERS: { value: MenageFilter; label: string }[] = [
   { value: "all", label: "Tous" },
   { value: "a_venir", label: "À venir" },
   { value: "en_cours", label: "En cours" },
   { value: "termine", label: "Terminé" },
-  { value: "valide", label: "Validé" },
   { value: "to_validate", label: "À valider" },
   { value: "unassigned", label: "Non assignés" },
-  { value: "annule", label: "Annulés" },
 ];
 
 export default function MenagesPage() {
