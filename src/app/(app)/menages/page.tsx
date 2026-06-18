@@ -193,6 +193,10 @@ export default function MenagesPage() {
     const periodMax = period.max;
     return (list.data?.data ?? [])
       .filter((m) => {
+        // Vue « Tous » = worklist active : les ménages clôturés (validés/annulés)
+        // vivent dans les Archives. Les filtres explicites « Validé »/« Annulés »
+        // restent accessibles pour les retrouver.
+        if (filter === "all" && (m.status === "valide" || m.status === "annule")) return false;
         if (logementFilter && m.logement_id !== logementFilter) return false;
         if (prestaFilter && m.prestataire_user_id !== prestaFilter) return false;
         if (creatorFilter) {
@@ -228,7 +232,7 @@ export default function MenagesPage() {
         if (!aUp && !bUp) return bd.localeCompare(ad);
         return aUp ? -1 : 1;
       });
-  }, [list.data, search, logementFilter, prestaFilter, creatorFilter, period.min, period.max]);
+  }, [list.data, search, filter, logementFilter, prestaFilter, creatorFilter, period.min, period.max]);
 
   const total = list.data?.meta.total ?? 0;
 
