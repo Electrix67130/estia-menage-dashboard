@@ -42,9 +42,11 @@ import {
 import {
   useLogement,
   useUpdateLogement,
+  useDeleteLogement,
   type Logement,
   type UpdateLogementInput,
 } from "@/hooks/useLogement";
+import { useRouter } from "next/navigation";
 import {
   useLogementConsommables,
   useCreateConsommable,
@@ -119,6 +121,27 @@ function InfoSection({ logementId, isAdmin }: { logementId: string; isAdmin: boo
   const logement = useLogement(logementId);
   const client = useClient(logement.data?.client_id ?? undefined);
   const [editOpen, setEditOpen] = useState(false);
+  const router = useRouter();
+  const del = useDeleteLogement();
+  const { confirm } = useDialog();
+
+  const handleDelete = async () => {
+    const ok = await confirm({
+      title: "Supprimer ce logement ?",
+      description:
+        "Le logement sera archivé (retiré des listes). Ses ménages passés restent dans l'historique.",
+      tone: "danger",
+      confirmLabel: "Supprimer",
+    });
+    if (!ok) return;
+    try {
+      await del.mutateAsync(logementId);
+      toast.success("Logement supprimé");
+      router.push("/logements");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Erreur");
+    }
+  };
 
   if (logement.isLoading) {
     return (
@@ -150,10 +173,16 @@ function InfoSection({ logementId, isAdmin }: { logementId: string; isAdmin: boo
           ) : null}
         </div>
         {isAdmin ? (
-          <Button size="sm" variant="secondary" onClick={() => setEditOpen(true)}>
-            <Pencil size={14} />
-            Modifier
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="secondary" onClick={() => setEditOpen(true)}>
+              <Pencil size={14} />
+              Modifier
+            </Button>
+            <Button size="sm" variant="ghost" onClick={handleDelete} disabled={del.isPending}>
+              <Trash2 size={14} />
+              Supprimer
+            </Button>
+          </div>
         ) : null}
       </div>
 

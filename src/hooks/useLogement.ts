@@ -148,3 +148,14 @@ export function useCreateLogement() {
     },
   });
 }
+
+/** Supprime (archive) un logement — admin only. */
+export function useDeleteLogement() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiFetch<void>(`/logements/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["logements-list"] });
+    },
+  });
+}
