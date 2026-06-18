@@ -181,9 +181,9 @@ function InfoSection({ logementId, isAdmin }: { logementId: string; isAdmin: boo
         <Stat label="Extérieurs" value={l.n_exterior_spaces} />
         <Stat label="Surface" value={l.surface_m2 !== null ? `${l.surface_m2} m²` : "—"} />
         <Stat
-          label="Équipements"
+          label="Annexes"
           value={
-            [l.has_basement ? "cave" : null, l.has_laundry ? "buanderie" : null]
+            [l.has_basement ? "Cave" : null, l.has_laundry ? "Buanderie" : null]
               .filter(Boolean)
               .join(", ") || "—"
           }
