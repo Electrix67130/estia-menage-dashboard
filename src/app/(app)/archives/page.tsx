@@ -2,54 +2,103 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Archive, Search, Clock, Building2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { usePersistedState } from "@/hooks/usePersistedState";
+import { Archive, Search, Clock, Building2, ChevronLeft, ChevronRight } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
+import Select from "@/components/ui/Select";
 import EmptyState from "@/components/ui/EmptyState";
 import Avatar from "@/components/ui/Avatar";
+import { useAuth } from "@/contexts/AuthContext";
+import { apiFetch } from "@/lib/api";
 import { useMenages } from "@/hooks/useMenages";
+import { useLogementsList } from "@/hooks/useLogementsList";
 import { logementLabel, prestataireLabel, type CalendarMenage } from "@/hooks/useCalendarMenages";
+import type { User, PaginatedResponse } from "@/types/api";
 import { formatDateFr } from "@/lib/date-fr";
 import { cn } from "@/lib/utils";
 
-const STATUS_PILL: Record<CalendarMenage["status"], string> = {
-  a_venir: "bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300",
-  en_cours: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
-  termine: "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300",
+const STATUS_PILL: Record<"valide" | "annule", string> = {
   valide: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
   annule: "bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-400",
 };
 
-const STATUS_LABEL: Record<CalendarMenage["status"], string> = {
-  a_venir: "À venir",
-  en_cours: "En cours",
-  termine: "Terminé",
-  valide: "Validé",
-  annule: "Annulé",
-};
+type StatusFilter = "all" | "valide" | "annule";
+type Granularity = "week" | "month" | "year" | "all";
 
-function todayIso(): string {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+const STATUSES: { key: StatusFilter; label: string }[] = [
+  { key: "all", label: "Tous" },
+  { key: "valide", label: "Validés" },
+  { key: "annule", label: "Annulés" },
+];
+
+const GRANULARITIES: { key: Granularity; label: string }[] = [
+  { key: "week", label: "Semaine" },
+  { key: "month", label: "Mois" },
+  { key: "year", label: "Année" },
+  { key: "all", label: "Tout" },
+];
+
+function ymd(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function computeRange(g: Granularity, offset: number): { min?: string; max?: string; label: string } {
+  if (g === "all") return { label: "" };
+  const now = new Date();
+  if (g === "week") {
+    const dow = (now.getDay() + 6) % 7;
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - dow + offset * 7);
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    const f = (d: Date) => d.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+    return { min: ymd(monday), max: ymd(sunday), label: `${f(monday)} – ${f(sunday)} ${sunday.getFullYear()}` };
+  }
+  if (g === "month") {
+    const first = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+    const last = new Date(now.getFullYear(), now.getMonth() + offset + 1, 0);
+    return { min: ymd(first), max: ymd(last), label: first.toLocaleDateString("fr-FR", { month: "long", year: "numeric" }) };
+  }
+  const y = now.getFullYear() + offset;
+  return { min: `${y}-01-01`, max: `${y}-12-31`, label: String(y) };
 }
 
 export default function ArchivesPage() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
   const list = useMenages({ limit: 500 });
+  const logements = useLogementsList();
+  const usersQuery = useQuery({
+    queryKey: ["users", "list"],
+    queryFn: () => apiFetch<PaginatedResponse<User>>("/users?limit=200"),
+    enabled: isAdmin,
+    staleTime: 60_000,
+  });
+
   const [search, setSearch] = useState("");
-  const today = todayIso();
+  const [statusFilter, setStatusFilter] = usePersistedState<StatusFilter>("archives.filter.status", "all");
+  const [logementFilter, setLogementFilter] = usePersistedState("archives.filter.logement", "");
+  const [prestaFilter, setPrestaFilter] = usePersistedState("archives.filter.presta", "");
+  const [granularity, setGranularity] = usePersistedState<Granularity>("archives.filter.period", "all");
+  const [offset, setOffset] = useState(0);
+  const range = useMemo(() => computeRange(granularity, offset), [granularity, offset]);
+
+  const prestaOptions = (usersQuery.data?.data ?? []).filter((u) => u.role === "prestataire");
 
   const archived = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const all = list.data?.data ?? [];
-    return all
+    return (list.data?.data ?? [])
+      .filter((m) => m.status === "valide" || m.status === "annule")
+      .filter((m) => (statusFilter === "all" ? true : m.status === statusFilter))
+      .filter((m) => (logementFilter ? m.logement_id === logementFilter : true))
+      .filter((m) => (prestaFilter ? m.prestataire_user_id === prestaFilter : true))
       .filter((m) => {
         const d = m.date_prevue.slice(0, 10);
-        const isPast = d < today;
-        const isFinal = m.status === "valide" || m.status === "annule";
-        return isPast || isFinal;
+        if (range.min && d < range.min) return false;
+        if (range.max && d > range.max) return false;
+        return true;
       })
       .filter((m) => {
         if (!q) return true;
@@ -61,7 +110,7 @@ export default function ArchivesPage() {
         );
       })
       .sort((a, b) => b.date_prevue.slice(0, 10).localeCompare(a.date_prevue.slice(0, 10)));
-  }, [list.data, search, today]);
+  }, [list.data, search, statusFilter, logementFilter, prestaFilter, range.min, range.max]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -72,23 +121,95 @@ export default function ArchivesPage() {
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
             {list.isLoading
               ? "Chargement…"
-              : `${archived.length} ménage${archived.length > 1 ? "s" : ""} passé${archived.length > 1 ? "s" : ""} ou clôturé${archived.length > 1 ? "s" : ""}`}
+              : `${archived.length} ménage${archived.length > 1 ? "s" : ""} clôturé${archived.length > 1 ? "s" : ""}`}
           </p>
         </div>
       </div>
 
-      <div className="relative max-w-md">
-        <Search
-          size={16}
-          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400"
-        />
-        <Input
-          placeholder="Logement, ville, prestataire…"
-          className="pl-9"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-      </div>
+      {/* Filtres */}
+      <Card>
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative w-full sm:w-72">
+              <Search size={16} className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-zinc-400" />
+              <Input
+                placeholder="Logement, ville, prestataire…"
+                className="pl-9"
+                wrapperClassName="w-full"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {STATUSES.map((s) => (
+                <button
+                  key={s.key}
+                  onClick={() => setStatusFilter(s.key)}
+                  className={
+                    statusFilter === s.key
+                      ? "rounded-full bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white"
+                      : "rounded-full border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                  }
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="w-full sm:w-56">
+              <Select value={logementFilter} onChange={(e) => setLogementFilter(e.target.value)}>
+                <option value="">Tous les logements</option>
+                {(logements.data?.data ?? []).filter((l) => !l.archived_at).map((l) => (
+                  <option key={l.id} value={l.id}>{l.name}</option>
+                ))}
+              </Select>
+            </div>
+            {isAdmin ? (
+              <div className="w-full sm:w-56">
+                <Select value={prestaFilter} onChange={(e) => setPrestaFilter(e.target.value)}>
+                  <option value="">Tous les prestataires</option>
+                  {prestaOptions.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {[u.first_name, u.last_name].filter(Boolean).join(" ") || u.email}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            ) : null}
+            <div className="flex flex-wrap gap-2">
+              {GRANULARITIES.map((p) => (
+                <button
+                  key={p.key}
+                  onClick={() => {
+                    setGranularity(p.key);
+                    setOffset(0);
+                  }}
+                  className={
+                    granularity === p.key
+                      ? "rounded-full bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white"
+                      : "rounded-full border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                  }
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            {granularity !== "all" ? (
+              <div className="inline-flex items-center gap-1 rounded-full border border-zinc-200 bg-white px-1 py-0.5 dark:border-zinc-800 dark:bg-zinc-900">
+                <button type="button" onClick={() => setOffset((o) => o - 1)} aria-label="Période précédente" className="rounded-full p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-white">
+                  <ChevronLeft size={16} />
+                </button>
+                <span className="min-w-[9rem] text-center text-xs font-medium capitalize text-zinc-700 dark:text-zinc-300">{range.label}</span>
+                <button type="button" onClick={() => setOffset((o) => o + 1)} aria-label="Période suivante" className="rounded-full p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-white">
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </Card>
 
       {list.error ? (
         <Card className="border-rose-200 bg-rose-50 p-4 text-sm text-rose-800 dark:border-rose-900 dark:bg-rose-900/20 dark:text-rose-300">
@@ -104,17 +225,14 @@ export default function ArchivesPage() {
         <EmptyState
           icon={<Archive size={32} />}
           title="Aucun ménage archivé"
-          description={
-            search
-              ? "Aucun résultat pour cette recherche."
-              : "Les ménages passés ou clôturés apparaîtront ici."
-          }
+          description="Les ménages validés ou annulés apparaissent ici."
         />
       ) : (
         <Card className="p-0">
           <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
             {archived.map((m) => {
               const unassigned = !m.prestataire_user_id;
+              const pill = m.status === "valide" ? STATUS_PILL.valide : STATUS_PILL.annule;
               return (
                 <li key={m.id}>
                   <Link
@@ -127,9 +245,7 @@ export default function ArchivesPage() {
                         <p className="text-sm font-semibold capitalize text-zinc-900 dark:text-white">
                           {formatDateFr(m.date_prevue.slice(0, 10), "long")}
                           {m.horaire_prevu ? (
-                            <span className="ml-2 text-xs font-normal text-zinc-500">
-                              {m.horaire_prevu.slice(0, 5)}
-                            </span>
+                            <span className="ml-2 text-xs font-normal text-zinc-500">{m.horaire_prevu.slice(0, 5)}</span>
                           ) : null}
                         </p>
                       </div>
@@ -150,18 +266,11 @@ export default function ArchivesPage() {
                             src={m.prestataire_avatar_url ?? undefined}
                             size="sm"
                           />
-                          <span className="text-xs text-zinc-600 dark:text-zinc-400">
-                            {prestataireLabel(m)}
-                          </span>
+                          <span className="text-xs text-zinc-600 dark:text-zinc-400">{prestataireLabel(m)}</span>
                         </div>
                       )}
-                      <span
-                        className={cn(
-                          "inline-flex flex-shrink-0 items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
-                          STATUS_PILL[m.status],
-                        )}
-                      >
-                        {STATUS_LABEL[m.status]}
+                      <span className={cn("inline-flex flex-shrink-0 items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider", pill)}>
+                        {m.status === "valide" ? "Validé" : "Annulé"}
                       </span>
                     </div>
                   </Link>
