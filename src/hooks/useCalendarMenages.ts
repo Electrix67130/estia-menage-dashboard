@@ -18,6 +18,8 @@ export interface CalendarMenage {
   logement_color: string | null;
   status: "a_venir" | "en_cours" | "termine" | "valide" | "annule";
   date_prevue: string;
+  /** Prochain check-in du logement (arrivée du prochain voyageur, via iCal). */
+  next_checkin_at?: string | null;
   horaire_prevu: string | null;
   duree_estimee_min: number | null;
   has_pending_reschedule?: boolean;

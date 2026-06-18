@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarRange, ChevronLeft, ChevronRight, AlertTriangle, Clock } from "lucide-react";
+import { CalendarRange, ChevronLeft, ChevronRight, AlertTriangle, Clock, Key } from "lucide-react";
 import {
   DndContext,
   DragOverlay,
@@ -73,7 +73,14 @@ const STATUS_TINT: Record<CalendarMenage["status"], string> = {
   annule: "bg-zinc-100 dark:bg-zinc-800/40",
 };
 
+function frShort(d: string): string {
+  const [, m, day] = d.slice(0, 10).split("-");
+  return `${day}/${m}`;
+}
+
 function ChipInner({ m, conflict }: { m: CalendarMenage; conflict: boolean }) {
+  const checkin = m.next_checkin_at ? m.next_checkin_at.slice(0, 10) : null;
+  const sameDay = checkin !== null && checkin === m.date_prevue.slice(0, 10);
   return (
     <>
       <span className="flex items-center gap-1 font-semibold text-zinc-800 dark:text-zinc-100">
@@ -87,6 +94,18 @@ function ChipInner({ m, conflict }: { m: CalendarMenage; conflict: boolean }) {
         />
         <span className="truncate">{logementLabel(m)}</span>
       </span>
+      {checkin ? (
+        <span
+          className={cn(
+            "flex items-center gap-1 text-[10px]",
+            sameDay ? "font-semibold text-amber-600 dark:text-amber-400" : "text-zinc-400",
+          )}
+          title={`Prochain check-in : ${frShort(checkin)}`}
+        >
+          <Key size={9} />
+          {sameDay ? "check-in le jour même" : `avant le ${frShort(checkin)}`}
+        </span>
+      ) : null}
     </>
   );
 }
@@ -336,15 +355,19 @@ export default function PlanningPage() {
           >
             <ChevronRight size={16} />
           </button>
-          {offset !== 0 ? (
-            <button
-              type="button"
-              onClick={() => setOffset(0)}
-              className="rounded-full px-2 py-1 text-[11px] font-medium text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20"
-            >
-              Cette semaine
-            </button>
-          ) : null}
+          {/* Toujours rendu (largeur réservée) pour ne pas décaler les flèches. */}
+          <button
+            type="button"
+            onClick={() => setOffset(0)}
+            aria-hidden={offset === 0}
+            tabIndex={offset === 0 ? -1 : 0}
+            className={cn(
+              "rounded-full px-2 py-1 text-[11px] font-medium text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20",
+              offset === 0 && "invisible",
+            )}
+          >
+            Cette semaine
+          </button>
         </div>
       </div>
 
