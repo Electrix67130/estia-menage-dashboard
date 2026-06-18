@@ -14,7 +14,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch } from "@/lib/api";
 import { useMenages } from "@/hooks/useMenages";
 import { useLogementsList } from "@/hooks/useLogementsList";
-import { logementLabel, prestataireLabel, type CalendarMenage } from "@/hooks/useCalendarMenages";
+import { logementLabel, prestataireLabel } from "@/hooks/useCalendarMenages";
 import type { User, PaginatedResponse } from "@/types/api";
 import { formatDateFr } from "@/lib/date-fr";
 import { cn } from "@/lib/utils";
@@ -127,90 +127,86 @@ export default function ArchivesPage() {
         </div>
       </div>
 
-      {/* Filtres */}
-      <Card>
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="relative w-full sm:w-72">
-              <Search size={16} className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-zinc-400" />
-              <Input
-                placeholder="Logement, ville, prestataire…"
-                className="pl-9"
-                wrapperClassName="w-full"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {STATUSES.map((s) => (
-                <button
-                  key={s.key}
-                  onClick={() => setStatusFilter(s.key)}
-                  className={
-                    statusFilter === s.key
-                      ? "rounded-full bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white"
-                      : "rounded-full border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
-                  }
-                >
-                  {s.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="w-full sm:w-56">
-              <Select value={logementFilter} onChange={(e) => setLogementFilter(e.target.value)}>
-                <option value="">Tous les logements</option>
-                {(logements.data?.data ?? []).filter((l) => !l.archived_at).map((l) => (
-                  <option key={l.id} value={l.id}>{l.name}</option>
-                ))}
-              </Select>
-            </div>
-            {isAdmin ? (
-              <div className="w-full sm:w-56">
-                <Select value={prestaFilter} onChange={(e) => setPrestaFilter(e.target.value)}>
-                  <option value="">Tous les prestataires</option>
-                  {prestaOptions.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {[u.first_name, u.last_name].filter(Boolean).join(" ") || u.email}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-            ) : null}
-            <div className="flex flex-wrap gap-2">
-              {GRANULARITIES.map((p) => (
-                <button
-                  key={p.key}
-                  onClick={() => {
-                    setGranularity(p.key);
-                    setOffset(0);
-                  }}
-                  className={
-                    granularity === p.key
-                      ? "rounded-full bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white"
-                      : "rounded-full border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
-                  }
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
-            {granularity !== "all" ? (
-              <div className="inline-flex items-center gap-1 rounded-full border border-zinc-200 bg-white px-1 py-0.5 dark:border-zinc-800 dark:bg-zinc-900">
-                <button type="button" onClick={() => setOffset((o) => o - 1)} aria-label="Période précédente" className="rounded-full p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-white">
-                  <ChevronLeft size={16} />
-                </button>
-                <span className="min-w-[9rem] text-center text-xs font-medium capitalize text-zinc-700 dark:text-zinc-300">{range.label}</span>
-                <button type="button" onClick={() => setOffset((o) => o + 1)} aria-label="Période suivante" className="rounded-full p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-white">
-                  <ChevronRight size={16} />
-                </button>
-              </div>
-            ) : null}
-          </div>
+      {/* Filtres — même style que la liste Ménages */}
+      <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center">
+        <div className="relative w-full lg:w-72 lg:flex-none">
+          <Search size={16} className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-zinc-400" />
+          <Input
+            placeholder="Logement, ville, prestataire…"
+            className="pl-9"
+            wrapperClassName="w-full"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
         </div>
-      </Card>
+        <div className="inline-flex rounded-full bg-zinc-100 p-1 dark:bg-zinc-800">
+          {GRANULARITIES.map((p) => (
+            <button
+              key={p.key}
+              type="button"
+              onClick={() => {
+                setGranularity(p.key);
+                setOffset(0);
+              }}
+              className={
+                granularity === p.key
+                  ? "rounded-full bg-white px-3 py-1 text-xs font-semibold text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-white"
+                  : "rounded-full px-3 py-1 text-xs font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white"
+              }
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+        {granularity !== "all" ? (
+          <div className="inline-flex items-center gap-1 rounded-full border border-zinc-200 bg-white px-1 py-0.5 dark:border-zinc-800 dark:bg-zinc-900">
+            <button type="button" onClick={() => setOffset((o) => o - 1)} aria-label="Période précédente" className="rounded-full p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-white">
+              <ChevronLeft size={16} />
+            </button>
+            <span className="min-w-[9rem] text-center text-xs font-medium capitalize text-zinc-700 dark:text-zinc-300">{range.label}</span>
+            <button type="button" onClick={() => setOffset((o) => o + 1)} aria-label="Période suivante" className="rounded-full p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-white">
+              <ChevronRight size={16} />
+            </button>
+          </div>
+        ) : null}
+        <div className="flex flex-wrap gap-1.5 rounded-lg border border-zinc-200 bg-white p-1 dark:border-zinc-800 dark:bg-zinc-900">
+          {STATUSES.map((s) => (
+            <button
+              key={s.key}
+              type="button"
+              onClick={() => setStatusFilter(s.key)}
+              className={cn(
+                "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                statusFilter === s.key
+                  ? "bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300"
+                  : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100",
+              )}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Filtres avancés : logement + prestataire (admin) */}
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <Select aria-label="Filtrer par logement" value={logementFilter} onChange={(e) => setLogementFilter(e.target.value)} className="sm:max-w-xs">
+          <option value="">Tous les logements</option>
+          {(logements.data?.data ?? []).filter((l) => !l.archived_at).map((l) => (
+            <option key={l.id} value={l.id}>{l.name}</option>
+          ))}
+        </Select>
+        {isAdmin ? (
+          <Select aria-label="Filtrer par prestataire" value={prestaFilter} onChange={(e) => setPrestaFilter(e.target.value)} className="sm:max-w-xs">
+            <option value="">Tous les prestataires</option>
+            {prestaOptions.map((u) => (
+              <option key={u.id} value={u.id}>
+                {[u.first_name, u.last_name].filter(Boolean).join(" ") || u.email}
+              </option>
+            ))}
+          </Select>
+        ) : null}
+      </div>
 
       {list.error ? (
         <Card className="border-rose-200 bg-rose-50 p-4 text-sm text-rose-800 dark:border-rose-900 dark:bg-rose-900/20 dark:text-rose-300">
