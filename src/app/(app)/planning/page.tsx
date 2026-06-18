@@ -24,7 +24,7 @@ import {
   logementLabel,
   type CalendarMenage,
 } from "@/hooks/useCalendarMenages";
-import { useOrgPrestataires, useLogementMembers } from "@/hooks/useLogementMembers";
+import { useOrgPrestataires } from "@/hooks/useLogementMembers";
 import { ApiError } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -238,18 +238,6 @@ export default function PlanningPage() {
   const prestataires = useOrgPrestataires();
   const todayYmd = ymd(new Date());
 
-  // Pendant un drag : membres du logement du ménage tiré → on grise les prestas
-  // non éligibles (l'API refuse un presta non membre du logement).
-  const activeMembers = useLogementMembers(activeMenage?.logement_id ?? undefined);
-  const eligible = useMemo<Set<string> | null>(() => {
-    if (!activeMenage || !activeMembers.data) return null;
-    const set = new Set(
-      activeMembers.data.filter((m) => m.role === "prestataire").map((m) => m.user_id),
-    );
-    if (activeMenage.prestataire_user_id) set.add(activeMenage.prestataire_user_id);
-    return set;
-  }, [activeMenage, activeMembers.data]);
-
   const grid = useMemo(() => {
     const map = new Map<string, Map<string, CalendarMenage[]>>();
     for (const m of menages.data?.data ?? []) {
@@ -411,7 +399,6 @@ export default function PlanningPage() {
                   byDay={grid.get(row.key)}
                   conflicts={conflicts}
                   onOpen={(id) => router.push(`/menages/${id}`)}
-                  disabled={eligible !== null && row.key !== UNASSIGNED && !eligible.has(row.key)}
                 />
               ))
             )}

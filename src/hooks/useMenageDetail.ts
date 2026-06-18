@@ -66,6 +66,8 @@ export interface MenageDetail {
   logement_name?: string | null;
   logement_address?: string | null;
   logement_city?: string | null;
+  /** Code de la boîte à clés du logement (pour le presta affecté). */
+  logement_key_safe_code?: string | null;
   logement_latitude?: string | number | null;
   logement_longitude?: string | number | null;
 }

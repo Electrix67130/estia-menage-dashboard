@@ -249,6 +249,7 @@ function EditLogementModal({ logement, onClose }: { logement: Logement; onClose:
     logement.surface_m2 !== null ? String(logement.surface_m2) : "",
   );
   const [notes, setNotes] = useState(logement.notes ?? "");
+  const [keySafeCode, setKeySafeCode] = useState(logement.key_safe_code ?? "");
   const toStr = (v: number | string | null | undefined) =>
     v === null || v === undefined || v === "" ? "" : String(v);
   const [defDuration, setDefDuration] = useState(toStr(logement.default_duration_min));
@@ -318,6 +319,7 @@ function EditLogementModal({ logement, onClose }: { logement: Logement; onClose:
       has_laundry: hasLaundry,
       surface_m2: surface,
       notes: notes.trim() || null,
+      key_safe_code: keySafeCode.trim() || null,
       default_duration_min: parseIntOrNull(defDuration),
       default_client_price_ht: parseMoneyOrNull(defClientPrice),
       default_client_vat_rate: parseMoneyOrNull(defClientVat),
@@ -470,6 +472,14 @@ function EditLogementModal({ logement, onClose }: { logement: Logement; onClose:
             <Input label={t("beds.extra")} type="number" min={0} value={nLitAppoint} onChange={(e) => setNLitAppoint(e.target.value)} />
           </div>
         </div>
+
+        <Input
+          label="Code boîte à clés"
+          value={keySafeCode}
+          onChange={(e) => setKeySafeCode(e.target.value)}
+          maxLength={50}
+          placeholder="Ex. 1984"
+        />
 
         <Textarea
           label="Notes"

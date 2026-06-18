@@ -16,10 +16,8 @@ import DurationPicker from "@/components/ui/DurationPicker";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLogementsList } from "@/hooks/useLogementsList";
 import { useLogement } from "@/hooks/useLogement";
-import {
-  useCreateMenage,
-  useLogementPrestataires,
-} from "@/hooks/useMenageDetail";
+import { useCreateMenage } from "@/hooks/useMenageDetail";
+import { useOrgPrestataires } from "@/hooks/useLogementMembers";
 import { ApiError } from "@/lib/api";
 
 function todayIso(): string {
@@ -58,7 +56,7 @@ function NewMenageForm() {
   const [laundryClientPriceHt, setLaundryClientPriceHt] = useState<string>("");
   const [laundryProviderPrice, setLaundryProviderPrice] = useState<string>("");
 
-  const prestataires = useLogementPrestataires(logementId || undefined);
+  const prestataires = useOrgPrestataires();
   const selectedLogement = useLogement(logementId || undefined);
 
   // Quand on change de logement, pré-remplir avec ses defaults SANS écraser ce
@@ -214,18 +212,12 @@ function NewMenageForm() {
           label="Prestataire (optionnel)"
           value={prestataireUserId}
           onChange={(e) => setPrestataireUserId(e.target.value)}
-          disabled={!logementId || prestataires.isLoading}
-          hint={
-            logementId && prestataires.data && prestataires.data.length === 0
-              ? "Aucun prestataire dans ce logement. Tu pourras l'affecter plus tard."
-              : !logementId
-                ? "Choisis d'abord un logement"
-                : undefined
-          }
+          disabled={prestataires.isLoading}
+          hint="Tout prestataire de l'organisation (remplacement possible même hors logement)."
         >
           <option value="">— Non assigné —</option>
           {(prestataires.data ?? []).map((p) => (
-            <option key={p.user_id} value={p.user_id}>
+            <option key={p.id} value={p.id}>
               {p.first_name} {p.last_name}
             </option>
           ))}

@@ -29,6 +29,8 @@ export interface Logement {
   has_laundry: boolean;
   surface_m2: number | null;
   notes: string | null;
+  /** Code de la boîte à clés (accès logement pour le presta affecté). */
+  key_safe_code: string | null;
   /** Valeurs par défaut utilisées pour pré-remplir la création d'un ménage. */
   default_duration_min: number | null;
   default_client_price_ht: number | string | null;
@@ -69,6 +71,7 @@ export interface UpdateLogementInput {
   has_laundry?: boolean;
   surface_m2?: number | null;
   notes?: string | null;
+  key_safe_code?: string | null;
   default_duration_min?: number | null;
   default_client_price_ht?: number | null;
   default_client_vat_rate?: number | null;

@@ -245,6 +245,15 @@ function Header({ menage, isAdmin }: { menage: MenageDetail; isAdmin: boolean })
 
       <CheckinInfo menage={menage} />
 
+      {menage.logement_key_safe_code ? (
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1 font-medium text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-200">
+            <Key size={14} />
+            Boîte à clés : <span className="font-mono tracking-wider">{menage.logement_key_safe_code}</span>
+          </span>
+        </div>
+      ) : null}
+
       {isAdmin ? (
         <div className="flex flex-wrap items-center gap-2">
           {canForceComplete ? (
