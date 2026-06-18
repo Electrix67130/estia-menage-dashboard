@@ -54,6 +54,7 @@ import {
 } from "@/hooks/useLogementConsommables";
 import { useClients, useClient } from "@/hooks/useClients";
 import Avatar from "@/components/ui/Avatar";
+import StatusBadge from "@/components/StatusBadge";
 import {
   useLogementMembers,
   useAddLogementMember,
@@ -1455,7 +1456,7 @@ function MenagesLinkedSection({ logementId }: { logementId: string }) {
                       <span className="text-zinc-400">· {m.horaire_prevu.slice(0, 5)}</span>
                     ) : null}
                   </div>
-                  <span className="text-xs uppercase tracking-wider text-zinc-500">{m.status}</span>
+                  <StatusBadge status={m.status} />
                 </Link>
               </li>
             ))}
