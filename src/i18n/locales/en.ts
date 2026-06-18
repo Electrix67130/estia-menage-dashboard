@@ -32,6 +32,7 @@ const en: Dict = {
   "nav.menages": "Sites",
   "nav.logements": "Properties",
   "nav.calendar": "Calendar",
+  "nav.planning": "Planning",
   "nav.map": "Map",
   "nav.clients": "Clients",
   "nav.rescheduleRequests": "Reschedule requests",

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Building2, Archive, Users, FileText, CreditCard, Settings, ShieldCheck, CalendarClock, CalendarDays, Home, Wallet, Receipt } from "lucide-react";
+import { LayoutDashboard, Building2, Archive, Users, FileText, CreditCard, Settings, ShieldCheck, CalendarClock, CalendarDays, CalendarRange, Home, Wallet, Receipt } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useI18n } from "@/contexts/I18nContext";
@@ -15,6 +15,7 @@ const NAV_ALL = [
   { href: "/menages", labelKey: "nav.menages", icon: Building2, key: "menages" as const },
   { href: "/logements", labelKey: "nav.logements", icon: Home, key: "logements" as const },
   { href: "/calendar", labelKey: "nav.calendar", icon: CalendarDays, key: "calendar" as const },
+  { href: "/planning", labelKey: "nav.planning", icon: CalendarRange, key: "planning" as const },
   { href: "/reschedule-requests", labelKey: "nav.rescheduleRequests", icon: CalendarClock, key: "rescheduleRequests" as const },
   { href: "/archives", labelKey: "nav.archives", icon: Archive, key: "archives" as const },
   { href: "/team", labelKey: "nav.team", icon: Users, key: "team" as const },
@@ -50,7 +51,12 @@ export default function Sidebar({ open, onClose }: { open: boolean; onClose: () 
   const visible = NAV_ALL.filter((item) => {
     if (item.key === "team") return canSeeOrgTeamSection(user);
     if (item.key === "billing") return canSeeBillingSection(user);
-    if (item.key === "rescheduleRequests" || item.key === "earnings" || item.key === "invoices") {
+    if (
+      item.key === "rescheduleRequests" ||
+      item.key === "earnings" ||
+      item.key === "invoices" ||
+      item.key === "planning"
+    ) {
       return user?.role === "admin";
     }
     return true;
