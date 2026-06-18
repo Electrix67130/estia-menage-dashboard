@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery, keepPreviousData } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 
 export interface CalendarMenage {
@@ -76,5 +76,20 @@ export function useCalendarMenages({ from, to, managerOnly }: Params) {
     placeholderData: keepPreviousData,
     // Cache 30s : changer de mois plusieurs fois aller-retour ne re-fetch pas.
     staleTime: 30_000,
+  });
+}
+
+/**
+ * Réaffecte (ou désaffecte si null) le prestataire d'un ménage — utilisé par le
+ * drag-and-drop du planning. Invalide le cache calendrier/ménages.
+ */
+export function useAssignMenagePrestataire() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ menageId, prestataire_user_id }: { menageId: string; prestataire_user_id: string | null }) =>
+      apiFetch(`/menages/${menageId}`, { method: "PATCH", body: { prestataire_user_id } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["calendar-menages"] });
+    },
   });
 }
