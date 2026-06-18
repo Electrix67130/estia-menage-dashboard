@@ -17,6 +17,7 @@ import {
   useUpdateClient,
 } from "@/hooks/useClients";
 import { useAuth } from "@/contexts/AuthContext";
+import { useDialog } from "@/contexts/DialogContext";
 import { ApiError } from "@/lib/api";
 import { formatDateFr } from "@/lib/date-fr";
 import { clientDisplayName } from "../page";
@@ -43,6 +44,7 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
   const { id } = use(params);
   const router = useRouter();
   const { user } = useAuth();
+  const { confirm } = useDialog();
   const isAdmin = user?.role === "admin";
   const client = useClient(id);
   const logements = useClientLogements(id);
@@ -71,7 +73,12 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
   };
 
   const handleArchive = async () => {
-    if (!confirm(`Archiver "${clientDisplayName(c)}" ?`)) return;
+    const ok = await confirm({
+      title: `Archiver "${clientDisplayName(c)}" ?`,
+      tone: "danger",
+      confirmLabel: "Archiver",
+    });
+    if (!ok) return;
     try {
       await archive.mutateAsync(id);
       toast.success("Client archivé");

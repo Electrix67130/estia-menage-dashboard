@@ -13,3 +13,15 @@ Exceptions connues (ne PAS dupliquer) :
 - **Pointages photo géolocalisés (capture)** → mobile uniquement (le dashboard se contente d'afficher les preuves).
 
 En cas de doute, demander avant de ne traiter qu'une seule des deux plateformes.
+
+# Confirmations & alertes (UI)
+
+**Jamais de `confirm()` / `alert()` natifs du navigateur** (ni `window.confirm`). Utiliser le dialogue de l'app : `useDialog()` (`@/contexts/DialogContext`).
+
+```ts
+const { confirm, alert } = useDialog();
+const ok = await confirm({ title: "Supprimer ?", description: "…", confirmLabel: "Supprimer", tone: "danger" });
+if (!ok) return;
+```
+
+Côté mobile (`estia-menage-ui`), même règle : `useDialog()` (jamais `Alert.alert` natif) — `confirm({ title, message?, destructive })` / `alert({ title, message })`.

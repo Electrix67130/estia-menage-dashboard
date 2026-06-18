@@ -15,6 +15,7 @@ import Select from "@/components/ui/Select";
 import EmptyState from "@/components/ui/EmptyState";
 import Avatar from "@/components/ui/Avatar";
 import { useAuth } from "@/contexts/AuthContext";
+import { useDialog } from "@/contexts/DialogContext";
 import { useMenages, type MenageFilter } from "@/hooks/useMenages";
 import { logementLabel, prestataireLabel, type CalendarMenage } from "@/hooks/useCalendarMenages";
 import { useLogementsList } from "@/hooks/useLogementsList";
@@ -65,6 +66,7 @@ const FILTERS: { value: MenageFilter; label: string }[] = [
 
 export default function MenagesPage() {
   const { user } = useAuth();
+  const { confirm } = useDialog();
   const isAdmin = user?.role === "admin";
 
   // Non-lus par ménage (mêmes données que le badge sidebar) → indicateur sur
@@ -108,12 +110,13 @@ export default function MenagesPage() {
   const handleBulkDelete = async () => {
     const ids = Array.from(selectedIds);
     if (ids.length === 0) return;
-    if (
-      !confirm(
-        `Supprimer ${ids.length} ménage${ids.length > 1 ? "s" : ""} ? Action irréversible (photos, checklist, commentaires perdus).`,
-      )
-    )
-      return;
+    const ok = await confirm({
+      title: `Supprimer ${ids.length} ménage${ids.length > 1 ? "s" : ""} ?`,
+      description: "Action irréversible (photos, checklist, commentaires perdus).",
+      tone: "danger",
+      confirmLabel: "Supprimer",
+    });
+    if (!ok) return;
     setDeleting(true);
     let succeeded = 0;
     for (const id of ids) {

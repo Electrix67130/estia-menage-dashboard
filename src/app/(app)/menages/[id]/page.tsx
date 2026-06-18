@@ -15,6 +15,7 @@ import Modal from "@/components/ui/Modal";
 import PhotoLightbox from "@/components/PhotoLightbox";
 import { useI18n } from "@/contexts/I18nContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { useDialog } from "@/contexts/DialogContext";
 import { formatDateFr } from "@/lib/date-fr";
 import {
   useMenageDetail,
@@ -110,6 +111,7 @@ export default function MenageDetailPage({
 
 function Header({ menage, isAdmin }: { menage: MenageDetail; isAdmin: boolean }) {
   const router = useRouter();
+  const { confirm } = useDialog();
   const logementLabel =
     menage.logement_name ||
     [menage.logement_address, menage.logement_city].filter(Boolean).join(" ") ||
@@ -132,12 +134,13 @@ function Header({ menage, isAdmin }: { menage: MenageDetail; isAdmin: boolean })
   const [departedAt, setDepartedAt] = useState(toLocalInput(menage.departed_at));
 
   const handleForceComplete = async () => {
-    if (
-      !confirm(
-        'Marquer ce ménage comme "terminé" ? Les heures d\'arrivée/départ manquantes seront remplies avec l\'heure actuelle.',
-      )
-    )
-      return;
+    const ok = await confirm({
+      title: 'Marquer ce ménage comme "terminé" ?',
+      description:
+        "Les heures d'arrivée/départ manquantes seront remplies avec l'heure actuelle.",
+      confirmLabel: "Marquer terminé",
+    });
+    if (!ok) return;
     const now = new Date().toISOString();
     try {
       await update.mutateAsync({
@@ -166,7 +169,13 @@ function Header({ menage, isAdmin }: { menage: MenageDetail; isAdmin: boolean })
   };
 
   const handleDelete = async () => {
-    if (!confirm("Supprimer ce ménage ? Cette action est irréversible (photos, checklist, commentaires perdus).")) return;
+    const ok = await confirm({
+      title: "Supprimer ce ménage ?",
+      description: "Cette action est irréversible (photos, checklist, commentaires perdus).",
+      tone: "danger",
+      confirmLabel: "Supprimer",
+    });
+    if (!ok) return;
     try {
       await remove.mutateAsync();
       toast.success("Ménage supprimé");
@@ -759,15 +768,16 @@ function PointageProofSection({ menage }: { menage: MenageDetail }) {
 }
 
 function ScheduleSection({ menage, isAdmin }: { menage: MenageDetail; isAdmin: boolean }) {
+  const { confirm } = useDialog();
   const [editing, setEditing] = useState<"arrived_at" | "departed_at" | null>(null);
   const unlock = useUpdateMenage(menage.id);
   const handleUnlock = async () => {
-    if (
-      !window.confirm(
-        "Déverrouiller la date ? La prochaine synchronisation iCal pourra écraser cette date.",
-      )
-    )
-      return;
+    const ok = await confirm({
+      title: "Déverrouiller la date ?",
+      description: "La prochaine synchronisation iCal pourra écraser cette date.",
+      confirmLabel: "Déverrouiller",
+    });
+    if (!ok) return;
     try {
       await unlock.mutateAsync({ date_locked: false });
       toast.success("Date déverrouillée");

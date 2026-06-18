@@ -14,6 +14,7 @@ import Input from "@/components/ui/Input";
 import Textarea from "@/components/ui/Textarea";
 import EmptyState from "@/components/ui/EmptyState";
 import { useAuth } from "@/contexts/AuthContext";
+import { useDialog } from "@/contexts/DialogContext";
 import { ApiError } from "@/lib/api";
 import { formatDateFr, formatCurrencyFr } from "@/lib/date-fr";
 import { useClients } from "@/hooks/useClients";
@@ -63,6 +64,7 @@ function currentMonthRange(): { start: string; end: string } {
 
 export default function InvoicesPage() {
   const { user } = useAuth();
+  const { confirm } = useDialog();
   const isAdmin = user?.role === "admin";
   const [type, setType] = usePersistedState<InvoiceType>("invoices.type", "invoice");
   const [showCreate, setShowCreate] = useState(false);
@@ -115,8 +117,13 @@ export default function InvoicesPage() {
     );
   };
 
-  const handleDelete = (inv: Invoice) => {
-    if (!window.confirm("Supprimer ce brouillon ?")) return;
+  const handleDelete = async (inv: Invoice) => {
+    const ok = await confirm({
+      title: "Supprimer ce brouillon ?",
+      tone: "danger",
+      confirmLabel: "Supprimer",
+    });
+    if (!ok) return;
     del.mutate(inv.id, {
       onSuccess: () => toast.success("Brouillon supprimé"),
       onError: (err) => toast.error(err instanceof ApiError ? err.message : "Suppression impossible"),

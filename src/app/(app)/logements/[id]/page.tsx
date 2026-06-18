@@ -66,6 +66,7 @@ import { useChecklistTemplates, useApplyChecklistTemplate } from "@/hooks/useChe
 import Select from "@/components/ui/Select";
 import CityAddressAutocomplete from "@/components/ui/CityAddressAutocomplete";
 import { useAuth } from "@/contexts/AuthContext";
+import { useDialog } from "@/contexts/DialogContext";
 import { ApiError } from "@/lib/api";
 
 function clientDisplayName(c: { company_name?: string | null; first_name?: string | null; last_name?: string | null }) {
@@ -584,6 +585,7 @@ function EditLogementModal({ logement, onClose }: { logement: Logement; onClose:
 }
 
 function ConsommablesSection({ logementId, isAdmin }: { logementId: string; isAdmin: boolean }) {
+  const { confirm } = useDialog();
   const consommables = useLogementConsommables(logementId);
   const create = useCreateConsommable();
   const update = useUpdateConsommable(logementId);
@@ -664,7 +666,12 @@ function ConsommablesSection({ logementId, isAdmin }: { logementId: string; isAd
                   </button>
                   <button
                     onClick={async () => {
-                      if (!confirm(`Supprimer le consommable "${c.label}" ?`)) return;
+                      const ok = await confirm({
+                        title: `Supprimer le consommable "${c.label}" ?`,
+                        tone: "danger",
+                        confirmLabel: "Supprimer",
+                      });
+                      if (!ok) return;
                       try {
                         await remove.mutateAsync(c.logement_consommable_id);
                         toast.success("Consommable supprimé");
@@ -777,6 +784,7 @@ function ConsommableForm({
 }
 
 function RoomsSection({ logementId, isAdmin }: { logementId: string; isAdmin: boolean }) {
+  const { confirm } = useDialog();
   const rooms = useLogementRooms(logementId);
   const create = useCreateLogementRoom();
   const remove = useDeleteLogementRoom();
@@ -810,7 +818,12 @@ function RoomsSection({ logementId, isAdmin }: { logementId: string; isAdmin: bo
               logementId={logementId}
               isAdmin={isAdmin}
               onDelete={async () => {
-                if (!confirm(`Supprimer la pièce "${r.name}" ?`)) return;
+                const ok = await confirm({
+                  title: `Supprimer la pièce "${r.name}" ?`,
+                  tone: "danger",
+                  confirmLabel: "Supprimer",
+                });
+                if (!ok) return;
                 try {
                   await remove.mutateAsync({ id: r.id, logement_id: logementId });
                   toast.success("Pièce supprimée");
@@ -915,6 +928,7 @@ function TemplateSection({
   logementId: string;
   isAdmin: boolean;
 }) {
+  const { confirm } = useDialog();
   const template = useCheckTemplate(logementId);
   const createSection = useCreateTemplateSection();
   const deleteSection = useDeleteTemplateSection(logementId);
@@ -940,7 +954,12 @@ function TemplateSection({
   const handleClearAll = async () => {
     const sections = template.data ?? [];
     if (sections.length === 0) return;
-    if (!confirm("Vider toute la checklist personnalisée de ce logement ?")) return;
+    const ok = await confirm({
+      title: "Vider toute la checklist personnalisée de ce logement ?",
+      tone: "danger",
+      confirmLabel: "Vider",
+    });
+    if (!ok) return;
     try {
       for (const s of sections) {
         await deleteSection.mutateAsync(s.id);
@@ -1042,7 +1061,12 @@ function TemplateSection({
                 {isAdmin ? (
                   <button
                     onClick={async () => {
-                      if (!confirm(`Supprimer "${section.label}" et tous ses items ?`)) return;
+                      const ok = await confirm({
+                        title: `Supprimer "${section.label}" et tous ses items ?`,
+                        tone: "danger",
+                        confirmLabel: "Supprimer",
+                      });
+                      if (!ok) return;
                       try {
                         await deleteSection.mutateAsync(section.id);
                       } catch (err) {
@@ -1131,6 +1155,7 @@ function labelForKind(kind: RoomKind): string {
 }
 
 function PhotosSection({ logementId, isAdmin }: { logementId: string; isAdmin: boolean }) {
+  const { confirm } = useDialog();
   const photos = useLogementPhotos(logementId);
   const create = useCreatePhoto();
   const remove = useDeletePhoto();
@@ -1160,7 +1185,12 @@ function PhotosSection({ logementId, isAdmin }: { logementId: string; isAdmin: b
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Supprimer cette photo ?")) return;
+    const ok = await confirm({
+      title: "Supprimer cette photo ?",
+      tone: "danger",
+      confirmLabel: "Supprimer",
+    });
+    if (!ok) return;
     try {
       await remove.mutateAsync(id);
       toast.success("Photo supprimée");
@@ -1251,6 +1281,7 @@ function RoomItem({
   isAdmin: boolean;
   onDelete: () => void;
 }) {
+  const { confirm } = useDialog();
   const photos = useLogementPhotos(logementId, room.id);
   const create = useCreatePhoto();
   const remove = useDeletePhoto();
@@ -1327,7 +1358,12 @@ function RoomItem({
                 <button
                   type="button"
                   onClick={async () => {
-                    if (!confirm("Supprimer cette photo ?")) return;
+                    const ok = await confirm({
+                      title: "Supprimer cette photo ?",
+                      tone: "danger",
+                      confirmLabel: "Supprimer",
+                    });
+                    if (!ok) return;
                     await remove.mutateAsync(p.id);
                   }}
                   className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-white opacity-0 transition-opacity hover:bg-rose-600 group-hover:opacity-100"
@@ -1345,6 +1381,7 @@ function RoomItem({
 }
 
 function LogementMembersSection({ logementId, isAdmin }: { logementId: string; isAdmin: boolean }) {
+  const { confirm } = useDialog();
   const members = useLogementMembers(logementId);
   const orgPrestataires = useOrgPrestataires();
   const add = useAddLogementMember();
@@ -1365,7 +1402,12 @@ function LogementMembersSection({ logementId, isAdmin }: { logementId: string; i
   };
 
   const handleRemove = async (m: LogementMember) => {
-    if (!confirm(`Retirer ${m.first_name} ${m.last_name} de ce logement ?`)) return;
+    const ok = await confirm({
+      title: `Retirer ${m.first_name} ${m.last_name} de ce logement ?`,
+      tone: "danger",
+      confirmLabel: "Retirer",
+    });
+    if (!ok) return;
     try {
       await remove.mutateAsync({ id: m.id, logement_id: logementId });
       toast.success("Prestataire retiré");

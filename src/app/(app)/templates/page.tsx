@@ -9,6 +9,7 @@ import Input from "@/components/ui/Input";
 import Modal from "@/components/ui/Modal";
 import EmptyState from "@/components/ui/EmptyState";
 import { useAuth } from "@/contexts/AuthContext";
+import { useDialog } from "@/contexts/DialogContext";
 import { ApiError } from "@/lib/api";
 import {
   useChecklistTemplates,
@@ -21,6 +22,7 @@ import {
 
 export default function TemplatesPage() {
   const { user } = useAuth();
+  const { confirm } = useDialog();
   const isAdmin = user?.role === "admin";
   const list = useChecklistTemplates();
   const remove = useDeleteChecklistTemplate();
@@ -39,7 +41,12 @@ export default function TemplatesPage() {
   const templates = list.data?.data ?? [];
 
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Supprimer le modèle "${name}" ?`)) return;
+    const ok = await confirm({
+      title: `Supprimer le modèle "${name}" ?`,
+      tone: "danger",
+      confirmLabel: "Supprimer",
+    });
+    if (!ok) return;
     try {
       await remove.mutateAsync(id);
       toast.success("Modèle supprimé");
