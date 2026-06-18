@@ -68,7 +68,6 @@ function computeRange(g: Granularity, offset: number): { min?: string; max?: str
 export default function ArchivesPage() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
-  const list = useMenages({ limit: 500 });
   const logements = useLogementsList();
   const usersQuery = useQuery({
     queryKey: ["users", "list"],
@@ -85,21 +84,23 @@ export default function ArchivesPage() {
   const [offset, setOffset] = useState(0);
   const range = useMemo(() => computeRange(granularity, offset), [granularity, offset]);
 
+  // Filtrage server-side : ménages clôturés (closed=true) + logement/prestataire/
+  // période. Le statut (validé/annulé) et la recherche texte restent côté client.
+  const list = useMenages({
+    closed: true,
+    logement_id: logementFilter || undefined,
+    prestataire_user_id: prestaFilter || undefined,
+    from: range.min,
+    to: range.max,
+    limit: 500,
+  });
+
   const prestaOptions = (usersQuery.data?.data ?? []).filter((u) => u.role === "prestataire");
 
   const archived = useMemo(() => {
     const q = search.trim().toLowerCase();
     return (list.data?.data ?? [])
-      .filter((m) => m.status === "valide" || m.status === "annule")
       .filter((m) => (statusFilter === "all" ? true : m.status === statusFilter))
-      .filter((m) => (logementFilter ? m.logement_id === logementFilter : true))
-      .filter((m) => (prestaFilter ? m.prestataire_user_id === prestaFilter : true))
-      .filter((m) => {
-        const d = m.date_prevue.slice(0, 10);
-        if (range.min && d < range.min) return false;
-        if (range.max && d > range.max) return false;
-        return true;
-      })
       .filter((m) => {
         if (!q) return true;
         return (
@@ -110,7 +111,7 @@ export default function ArchivesPage() {
         );
       })
       .sort((a, b) => b.date_prevue.slice(0, 10).localeCompare(a.date_prevue.slice(0, 10)));
-  }, [list.data, search, statusFilter, logementFilter, prestaFilter, range.min, range.max]);
+  }, [list.data, search, statusFilter]);
 
   return (
     <div className="flex flex-col gap-6">

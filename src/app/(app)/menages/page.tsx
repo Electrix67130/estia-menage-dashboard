@@ -139,7 +139,7 @@ export default function MenagesPage() {
   };
 
   const queryParams = useMemo(() => {
-    if (filter === "all") return {};
+    if (filter === "all") return { closed: false };
     if (filter === "to_validate") return { status: "termine" as const, validated: false };
     if (filter === "unassigned") return { unassigned: true };
     return { status: filter };
@@ -193,10 +193,6 @@ export default function MenagesPage() {
     const periodMax = period.max;
     return (list.data?.data ?? [])
       .filter((m) => {
-        // Vue « Tous » = worklist active : les ménages clôturés (validés/annulés)
-        // vivent dans les Archives. Les filtres explicites « Validé »/« Annulés »
-        // restent accessibles pour les retrouver.
-        if (filter === "all" && (m.status === "valide" || m.status === "annule")) return false;
         if (logementFilter && m.logement_id !== logementFilter) return false;
         if (prestaFilter && m.prestataire_user_id !== prestaFilter) return false;
         if (creatorFilter) {
