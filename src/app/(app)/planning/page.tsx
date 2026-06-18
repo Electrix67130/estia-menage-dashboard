@@ -247,10 +247,10 @@ export default function PlanningPage() {
         last_name: u.last_name,
         avatar_url: u.avatar_url ?? undefined,
       }));
-    return grid.has(UNASSIGNED)
-      ? [{ key: UNASSIGNED, label: "Non assigné", first_name: "", last_name: "" }, ...presta]
-      : presta;
-  }, [prestataires.data, grid]);
+    // Toujours afficher « Non assigné » (même vide) : sert de zone de dépôt pour
+    // désassigner un ménage.
+    return [{ key: UNASSIGNED, label: "Non assigné", first_name: "", last_name: "" }, ...presta];
+  }, [prestataires.data]);
 
   const onDragStart = (e: DragStartEvent) => {
     setActiveMenage((e.active.data.current?.menage as CalendarMenage) ?? null);
