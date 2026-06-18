@@ -937,6 +937,20 @@ function TemplateSection({
     }
   };
 
+  const handleClearAll = async () => {
+    const sections = template.data ?? [];
+    if (sections.length === 0) return;
+    if (!confirm("Vider toute la checklist personnalisée de ce logement ?")) return;
+    try {
+      for (const s of sections) {
+        await deleteSection.mutateAsync(s.id);
+      }
+      toast.success("Checklist vidée");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Erreur");
+    }
+  };
+
   const handleAddSection = async (e: FormEvent) => {
     e.preventDefault();
     const label = newSectionLabel.trim();
@@ -963,12 +977,26 @@ function TemplateSection({
   return (
     <Card className="p-6">
       <div className="mb-4">
-        <h2 className="text-lg font-semibold text-zinc-900 dark:text-white">
-          Checklist personnalisée
-        </h2>
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold text-zinc-900 dark:text-white">
+            Checklist personnalisée
+          </h2>
+          {isAdmin && (template.data ?? []).length > 0 ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleClearAll}
+              disabled={deleteSection.isPending}
+            >
+              <Trash2 size={14} />
+              Tout vider
+            </Button>
+          ) : null}
+        </div>
         <p className="text-sm text-zinc-500 dark:text-zinc-400">
           Si tu définis au moins une section ici, elle sera utilisée à la création d&apos;un ménage
-          (à la place du plan automatique basé sur les attributs du logement).
+          (à la place du plan automatique basé sur les attributs du logement). Sinon, le plan
+          automatique (basé sur les pièces/attributs) s&apos;applique.
         </p>
         {isAdmin && (checklistTemplates.data?.data ?? []).length > 0 ? (
           <div className="mt-3 flex items-end gap-2">
