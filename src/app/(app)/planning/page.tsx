@@ -24,7 +24,7 @@ import {
   logementLabel,
   type CalendarMenage,
 } from "@/hooks/useCalendarMenages";
-import { useOrgPrestataires } from "@/hooks/useLogementMembers";
+import { useOrgPrestataires, useLogementMembers } from "@/hooks/useLogementMembers";
 import { ApiError } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -138,21 +138,25 @@ function PrestaRow({
   byDay,
   conflicts,
   onOpen,
+  disabled = false,
 }: {
   row: RowDef;
   days: Date[];
   byDay: Map<string, CalendarMenage[]> | undefined;
   conflicts: Set<string>;
   onOpen: (id: string) => void;
+  disabled?: boolean;
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id: row.key });
+  const { setNodeRef, isOver } = useDroppable({ id: row.key, disabled });
   return (
     <div
       ref={setNodeRef}
       className={cn(
         "grid grid-cols-[160px_repeat(7,1fr)] border-b border-zinc-100 transition-colors dark:border-zinc-800/60",
-        isOver && "bg-blue-50/70 ring-1 ring-inset ring-blue-300 dark:bg-blue-950/30",
+        isOver && !disabled && "bg-blue-50/70 ring-1 ring-inset ring-blue-300 dark:bg-blue-950/30",
+        disabled && "opacity-40 grayscale",
       )}
+      title={disabled ? "Pas membre du logement de ce ménage" : undefined}
     >
       <div className="flex items-center gap-2 p-3">
         {row.key === UNASSIGNED ? (
@@ -211,6 +215,18 @@ export default function PlanningPage() {
   const menages = useCalendarMenages({ from: week.from, to: week.to });
   const prestataires = useOrgPrestataires();
   const todayYmd = ymd(new Date());
+
+  // Pendant un drag : membres du logement du ménage tiré → on grise les prestas
+  // non éligibles (l'API refuse un presta non membre du logement).
+  const activeMembers = useLogementMembers(activeMenage?.logement_id ?? undefined);
+  const eligible = useMemo<Set<string> | null>(() => {
+    if (!activeMenage || !activeMembers.data) return null;
+    const set = new Set(
+      activeMembers.data.filter((m) => m.role === "prestataire").map((m) => m.user_id),
+    );
+    if (activeMenage.prestataire_user_id) set.add(activeMenage.prestataire_user_id);
+    return set;
+  }, [activeMenage, activeMembers.data]);
 
   const grid = useMemo(() => {
     const map = new Map<string, Map<string, CalendarMenage[]>>();
@@ -369,6 +385,7 @@ export default function PlanningPage() {
                   byDay={grid.get(row.key)}
                   conflicts={conflicts}
                   onOpen={(id) => router.push(`/menages/${id}`)}
+                  disabled={eligible !== null && row.key !== UNASSIGNED && !eligible.has(row.key)}
                 />
               ))
             )}
