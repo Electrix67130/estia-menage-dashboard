@@ -24,6 +24,10 @@ export interface MenageDetail {
   prestataire_user_id: string | null;
   status: "a_venir" | "en_cours" | "termine" | "valide" | "annule";
   date_prevue: string;
+  /** Prochain check-in du logement (arrivée du prochain voyageur, via iCal). */
+  next_checkin_at?: string | null;
+  /** Nb de nuits du séjour nettoyé (via iCal). */
+  stay_nights?: number | null;
   /** True quand la date est verrouillée (reschedule appliqué ou PATCH manuel). La sync iCal ne l'écrasera pas. */
   date_locked?: boolean;
   /** Calculé côté API : jour passé + aucun pointage + statut a_venir. */

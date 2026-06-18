@@ -3,7 +3,7 @@
 import { use, useState, useEffect, FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { MapPin, Clock, Timer, User as UserIcon, Pencil, Trash2, CheckCircle2, ListChecks, Camera, MessageSquare, Send, Maximize2, Lock, AlertTriangle } from "lucide-react";
+import { MapPin, Clock, Timer, User as UserIcon, Pencil, Trash2, CheckCircle2, ListChecks, Camera, MessageSquare, Send, Maximize2, Lock, AlertTriangle, Key, Moon } from "lucide-react";
 import BackLink from "@/components/BackLink";
 import { toast } from "sonner";
 import Card from "@/components/ui/Card";
@@ -233,6 +233,8 @@ function Header({ menage, isAdmin }: { menage: MenageDetail; isAdmin: boolean })
           </span>
         </div>
       </div>
+
+      <CheckinInfo menage={menage} />
 
       {isAdmin ? (
         <div className="flex flex-wrap items-center gap-2">
@@ -1044,6 +1046,43 @@ const TAB_UNREAD: Record<TabKey, MenageTab> = {
   photos: "photos",
   comments: "comments",
 };
+
+function CheckinInfo({ menage }: { menage: MenageDetail }) {
+  const checkin = menage.next_checkin_at ? menage.next_checkin_at.slice(0, 10) : null;
+  const nights = menage.stay_nights ?? null;
+  if (!checkin && !nights) return null;
+  const d = menage.date_prevue.slice(0, 10);
+
+  let checkinClass =
+    "border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-300";
+  let checkinText = checkin ? `Prochain check-in : ${formatDateFr(checkin, "weekday")}` : "";
+  if (checkin && d > checkin) {
+    checkinClass =
+      "border-rose-300 bg-rose-50 text-rose-700 dark:border-rose-800 dark:bg-rose-950/30 dark:text-rose-300";
+    checkinText = `Planifié après le prochain check-in (${formatDateFr(checkin, "weekday")})`;
+  } else if (checkin && d === checkin) {
+    checkinClass =
+      "border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300";
+    checkinText = `Rotation le jour même · check-in ${formatDateFr(checkin, "weekday")}`;
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-sm">
+      {checkin ? (
+        <span className={cn("inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 font-medium", checkinClass)}>
+          {checkin && d > checkin ? <AlertTriangle size={14} /> : <Key size={14} />}
+          {checkinText}
+        </span>
+      ) : null}
+      {nights ? (
+        <span className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 px-2.5 py-1 text-zinc-600 dark:border-zinc-800 dark:text-zinc-300">
+          <Moon size={14} />
+          Séjour : {nights} nuit{nights > 1 ? "s" : ""}
+        </span>
+      ) : null}
+    </div>
+  );
+}
 
 function TabsSection({ menage }: { menage: MenageDetail }) {
   const [tab, setTab] = useState<TabKey>("check");

@@ -92,7 +92,10 @@ function ChipInner({ m, conflict }: { m: CalendarMenage; conflict: boolean }) {
           className="inline-block h-2 w-2 flex-shrink-0 rounded-full"
           style={{ backgroundColor: m.logement_color ?? "#3b82f6" }}
         />
-        <span className="truncate">{logementLabel(m)}</span>
+        <span className="truncate">
+          {logementLabel(m)}
+          {m.stay_nights ? ` · ${m.stay_nights}n` : ""}
+        </span>
       </span>
       {checkin ? (
         <span

@@ -20,6 +20,8 @@ export interface CalendarMenage {
   date_prevue: string;
   /** Prochain check-in du logement (arrivée du prochain voyageur, via iCal). */
   next_checkin_at?: string | null;
+  /** Nb de nuits du séjour nettoyé (via iCal). */
+  stay_nights?: number | null;
   horaire_prevu: string | null;
   duree_estimee_min: number | null;
   has_pending_reschedule?: boolean;
