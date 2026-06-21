@@ -559,7 +559,7 @@ export default function MenagesPage() {
                           <span className="text-zinc-400"> · {m.logement_city}</span>
                         ) : null}
                       </p>
-                      <div className="mt-2 flex items-center gap-2">
+                      <div className="mt-2 flex min-h-8 items-center gap-2">
                         {unassigned ? (
                           <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
                             <UserIcon size={10} />
