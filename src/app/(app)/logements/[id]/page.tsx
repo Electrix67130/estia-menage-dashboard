@@ -128,6 +128,25 @@ function InfoSection({ logementId, isAdmin }: { logementId: string; isAdmin: boo
   const router = useRouter();
   const del = useDeleteLogement();
   const { confirm } = useDialog();
+  const updateCover = useUpdateLogement(logementId);
+  const coverInputRef = useRef<HTMLInputElement>(null);
+  const [coverUploading, setCoverUploading] = useState(false);
+
+  const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (coverInputRef.current) coverInputRef.current.value = "";
+    if (!file) return;
+    setCoverUploading(true);
+    try {
+      const uploaded = await uploadFile(file);
+      await updateCover.mutateAsync({ cover_photo_url: uploaded.url });
+      toast.success("Photo de couverture mise à jour");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Erreur");
+    } finally {
+      setCoverUploading(false);
+    }
+  };
 
   const handleDelete = async () => {
     const ok = await confirm({
@@ -166,6 +185,38 @@ function InfoSection({ logementId, isAdmin }: { logementId: string; isAdmin: boo
 
   return (
     <Card className="p-6">
+      {/* Photo de couverture (affichée dans la liste des logements) */}
+      <div className="relative mb-4 h-40 overflow-hidden rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900">
+        {l.cover_photo_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={l.cover_photo_url} alt={l.name} className="h-full w-full object-cover" />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-sm text-zinc-400">
+            Aucune photo de couverture
+          </div>
+        )}
+        {isAdmin ? (
+          <>
+            <input
+              ref={coverInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleCoverUpload}
+              className="hidden"
+            />
+            <button
+              type="button"
+              onClick={() => coverInputRef.current?.click()}
+              disabled={coverUploading}
+              className="absolute bottom-2 right-2 inline-flex items-center gap-1.5 rounded-md bg-black/60 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-black/75 disabled:opacity-60"
+            >
+              <Camera size={13} />
+              {coverUploading ? "Envoi…" : l.cover_photo_url ? "Changer la couverture" : "Ajouter une couverture"}
+            </button>
+          </>
+        ) : null}
+      </div>
+
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold text-zinc-900 dark:text-white">{l.name}</h2>
