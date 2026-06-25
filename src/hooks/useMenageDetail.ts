@@ -43,6 +43,9 @@ export interface MenageDetail {
   departure_photo_url: string | null;
   departure_lat: string | number | null;
   departure_lng: string | number | null;
+  traveler_rating: number | null;
+  has_degradation: boolean;
+  degradation_note: string | null;
   prix_prevu: string | number | null;
   client_price_ht: string | number | null;
   client_vat_rate: string | number | null;

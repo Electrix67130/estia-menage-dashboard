@@ -43,6 +43,7 @@ export interface MenagePhoto {
   caption: string | null;
   taken_at: string;
   uploaded_by: string;
+  is_degradation?: boolean;
   created_at: string;
   first_name?: string;
   last_name?: string;

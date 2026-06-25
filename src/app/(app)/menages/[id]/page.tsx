@@ -660,6 +660,8 @@ interface ProofView {
 
 function PointageProofSection({ menage }: { menage: MenageDetail }) {
   const [lightbox, setLightbox] = useState<ProofView | null>(null);
+  const photos = useMenagePhotos(menage.id);
+  const degradationPhotos = (photos.data?.data ?? []).filter((p) => p.is_degradation);
   if (!menage.arrival_photo_url && !menage.departure_photo_url) return null;
   const logLat = menage.logement_latitude != null ? Number(menage.logement_latitude) : null;
   const logLng = menage.logement_longitude != null ? Number(menage.logement_longitude) : null;
@@ -736,6 +738,50 @@ function PointageProofSection({ menage }: { menage: MenageDetail }) {
         {renderProof(arrival)}
         {renderProof(departure)}
       </div>
+
+      {/* Déclaration d'arrivée : note voyageurs + dégradation */}
+      {menage.traveler_rating != null || menage.has_degradation ? (
+        <div className="mt-4 flex flex-col gap-3 border-t border-zinc-200 pt-4 dark:border-zinc-800">
+          {menage.traveler_rating != null ? (
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-zinc-500">Note des voyageurs :</span>
+              <span className="text-amber-500">
+                {"★".repeat(menage.traveler_rating)}
+                <span className="text-zinc-300 dark:text-zinc-600">{"★".repeat(5 - menage.traveler_rating)}</span>
+              </span>
+              <span className="text-zinc-500">{menage.traveler_rating}/5</span>
+            </div>
+          ) : null}
+          {menage.has_degradation ? (
+            <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 dark:border-rose-900/50 dark:bg-rose-900/20">
+              <p className="flex items-center gap-1.5 text-sm font-semibold text-rose-700 dark:text-rose-300">
+                <AlertTriangle size={14} />
+                Dégradation déclarée à l&apos;arrivée
+              </p>
+              {menage.degradation_note ? (
+                <p className="mt-1 text-sm text-rose-700/90 dark:text-rose-200/90">{menage.degradation_note}</p>
+              ) : null}
+              {degradationPhotos.length > 0 ? (
+                <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-5">
+                  {degradationPhotos.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() =>
+                        setLightbox({ label: "Dégradation", photoUrl: p.url, at: p.taken_at, lat: null, lng: null, distance: null })
+                      }
+                      className="relative aspect-square overflow-hidden rounded border border-rose-200 dark:border-rose-900/50"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={p.thumbnail_url ?? p.url} alt="" className="h-full w-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       <PhotoLightbox
         open={!!lightbox}
