@@ -11,6 +11,7 @@ import Button from "@/components/ui/Button";
 import Avatar from "@/components/ui/Avatar";
 import Select from "@/components/ui/Select";
 import Input from "@/components/ui/Input";
+import Textarea from "@/components/ui/Textarea";
 import Modal from "@/components/ui/Modal";
 import PhotoLightbox from "@/components/PhotoLightbox";
 import { useI18n } from "@/contexts/I18nContext";
@@ -118,11 +119,13 @@ function Header({ menage, isAdmin }: { menage: MenageDetail; isAdmin: boolean })
     [menage.logement_address, menage.logement_city].filter(Boolean).join(" ") ||
     "Logement";
   const validate = useValidateMenage(menage.id);
+  const createComment = useCreateComment(menage.id);
   const remove = useDeleteMenage(menage.id);
   const update = useUpdateMenage(menage.id);
   const reportPhotos = useMenagePhotos(menage.id);
   const [validateOpen, setValidateOpen] = useState(false);
   const [validatePrice, setValidatePrice] = useState<string>("");
+  const [validateComment, setValidateComment] = useState<string>("");
   const [pointageOpen, setPointageOpen] = useState(false);
 
   // Pour les inputs datetime-local : ISO → "YYYY-MM-DDTHH:MM" en heure locale.
@@ -196,8 +199,18 @@ function Header({ menage, isAdmin }: { menage: MenageDetail; isAdmin: boolean })
     }
     try {
       await validate.mutateAsync(price);
+      // Commentaire optionnel : posté directement dans la discussion du ménage.
+      if (validateComment.trim()) {
+        try {
+          await createComment.mutateAsync({ content: validateComment.trim() });
+        } catch {
+          /* le ménage est validé : on n'échoue pas si le commentaire échoue */
+        }
+      }
       toast.success("Ménage validé");
       setValidateOpen(false);
+      setValidatePrice("");
+      setValidateComment("");
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Erreur");
     }
@@ -380,6 +393,14 @@ function Header({ menage, isAdmin }: { menage: MenageDetail; isAdmin: boolean })
             <p className="text-xs text-zinc-500">
               Si vide, le prix prestataire prévu sera utilisé.
             </p>
+
+            <Textarea
+              label="Commentaire (optionnel)"
+              rows={3}
+              placeholder="Sera posté directement dans la discussion du ménage…"
+              value={validateComment}
+              onChange={(e) => setValidateComment(e.target.value)}
+            />
           </form>
         </Modal>
       ) : null}
