@@ -109,3 +109,27 @@ export function useDeleteTemplateItem(logementId: string) {
     onSuccess: () => qc.invalidateQueries({ queryKey: [...KEY, logementId] }),
   });
 }
+
+export function useReorderTemplateSections(logementId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (orderedIds: string[]) =>
+      apiFetch<void>(`/logement-check-templates/${logementId}/reorder-sections`, {
+        method: "POST",
+        body: { ordered_ids: orderedIds },
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [...KEY, logementId] }),
+  });
+}
+
+export function useReorderTemplateItems(logementId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ sectionId, orderedIds }: { sectionId: string; orderedIds: string[] }) =>
+      apiFetch<void>(`/logement-check-template-sections/${sectionId}/reorder-items`, {
+        method: "POST",
+        body: { ordered_ids: orderedIds },
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [...KEY, logementId] }),
+  });
+}

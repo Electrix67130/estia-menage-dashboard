@@ -35,9 +35,12 @@ import {
 import {
   useCheckTemplate,
   useCreateTemplateSection,
+  useUpdateTemplateSection,
   useDeleteTemplateSection,
   useCreateTemplateItem,
+  useUpdateTemplateItem,
   useDeleteTemplateItem,
+  useReorderTemplateSections,
 } from "@/hooks/useCheckTemplate";
 import {
   useLogement,
@@ -65,7 +68,7 @@ import {
   useOrgPrestataires,
   type LogementMember,
 } from "@/hooks/useLogementMembers";
-import { useChecklistTemplates, useApplyChecklistTemplate } from "@/hooks/useChecklistTemplates";
+import { useChecklistTemplates, useApplyChecklistTemplate, useCreateChecklistTemplate } from "@/hooks/useChecklistTemplates";
 import Select from "@/components/ui/Select";
 import CityAddressAutocomplete from "@/components/ui/CityAddressAutocomplete";
 import { useAuth } from "@/contexts/AuthContext";
@@ -1100,14 +1103,65 @@ function TemplateSection({
   const { confirm } = useDialog();
   const template = useCheckTemplate(logementId);
   const createSection = useCreateTemplateSection();
+  const updateSection = useUpdateTemplateSection(logementId);
   const deleteSection = useDeleteTemplateSection(logementId);
   const createItem = useCreateTemplateItem(logementId);
+  const updateItem = useUpdateTemplateItem(logementId);
   const deleteItem = useDeleteTemplateItem(logementId);
+  const reorderSections = useReorderTemplateSections(logementId);
   const checklistTemplates = useChecklistTemplates();
   const applyTemplate = useApplyChecklistTemplate(logementId);
+  const createOrgTemplate = useCreateChecklistTemplate();
+  const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
+  const [saveTemplateName, setSaveTemplateName] = useState("");
   const [newSectionLabel, setNewSectionLabel] = useState("");
   const [newItemBySection, setNewItemBySection] = useState<Record<string, string>>({});
   const [applyId, setApplyId] = useState("");
+  // Édition inline + drag-and-drop des sections
+  const [editingSectionId, setEditingSectionId] = useState<string | null>(null);
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [editLabel, setEditLabel] = useState("");
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [overId, setOverId] = useState<string | null>(null);
+
+  const sections = template.data ?? [];
+
+  const saveSectionLabel = async () => {
+    const id = editingSectionId;
+    const label = editLabel.trim();
+    setEditingSectionId(null);
+    if (!id || !label) return;
+    try {
+      await updateSection.mutateAsync({ id, input: { label } });
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Erreur");
+    }
+  };
+
+  const saveItemLabel = async () => {
+    const id = editingItemId;
+    const label = editLabel.trim();
+    setEditingItemId(null);
+    if (!id || !label) return;
+    try {
+      await updateItem.mutateAsync({ id, input: { label } });
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Erreur");
+    }
+  };
+
+  const handleDropOnSection = (targetId: string) => {
+    const sourceId = dragId;
+    setDragId(null);
+    setOverId(null);
+    if (!sourceId || sourceId === targetId) return;
+    const ids = sections.map((s) => s.id);
+    const from = ids.indexOf(sourceId);
+    const to = ids.indexOf(targetId);
+    if (from < 0 || to < 0) return;
+    ids.splice(to, 0, ids.splice(from, 1)[0]);
+    reorderSections.mutate(ids);
+  };
 
   const handleApplyTemplate = async () => {
     if (!applyId) return;
@@ -1134,6 +1188,24 @@ function TemplateSection({
         await deleteSection.mutateAsync(s.id);
       }
       toast.success("Checklist vidée");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Erreur");
+    }
+  };
+
+  const handleSaveAsTemplate = async (e: FormEvent) => {
+    e.preventDefault();
+    const name = saveTemplateName.trim();
+    if (!name) return;
+    const payloadSections = sections.map((s) => ({
+      label: s.label,
+      items: s.items.map((it) => ({ label: it.label, required: it.required })),
+    }));
+    try {
+      await createOrgTemplate.mutateAsync({ name, sections: payloadSections });
+      setSaveTemplateOpen(false);
+      setSaveTemplateName("");
+      toast.success("Modèle d'organisation créé");
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Erreur");
     }
@@ -1170,15 +1242,27 @@ function TemplateSection({
             Checklist personnalisée
           </h2>
           {isAdmin && (template.data ?? []).length > 0 ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleClearAll}
-              disabled={deleteSection.isPending}
-            >
-              <Trash2 size={14} />
-              Tout vider
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  setSaveTemplateName("");
+                  setSaveTemplateOpen(true);
+                }}
+              >
+                Enregistrer comme modèle
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleClearAll}
+                disabled={deleteSection.isPending}
+              >
+                <Trash2 size={14} />
+                Tout vider
+              </Button>
+            </div>
           ) : null}
         </div>
         <p className="text-sm text-zinc-500 dark:text-zinc-400">
@@ -1220,48 +1304,132 @@ function TemplateSection({
         <p className="text-sm text-zinc-500">Chargement…</p>
       ) : (
         <div className="flex flex-col gap-4">
-          {(template.data ?? []).map((section) => (
+          {sections.map((section) => (
             <div
               key={section.id}
-              className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800"
+              draggable={isAdmin && editingSectionId !== section.id}
+              onDragStart={() => setDragId(section.id)}
+              onDragOver={(e) => {
+                if (!dragId) return;
+                e.preventDefault();
+                if (overId !== section.id) setOverId(section.id);
+              }}
+              onDragEnd={() => {
+                setDragId(null);
+                setOverId(null);
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                handleDropOnSection(section.id);
+              }}
+              className={[
+                "rounded-lg border p-4 dark:border-zinc-800",
+                overId === section.id && dragId && dragId !== section.id
+                  ? "border-blue-400 ring-2 ring-blue-300"
+                  : "border-zinc-200",
+                dragId === section.id ? "opacity-50" : "",
+              ].join(" ")}
             >
-              <div className="mb-3 flex items-center justify-between">
-                <h3 className="font-medium text-zinc-900 dark:text-white">{section.label}</h3>
-                {isAdmin ? (
-                  <button
-                    onClick={async () => {
-                      const ok = await confirm({
-                        title: `Supprimer "${section.label}" et tous ses items ?`,
-                        tone: "danger",
-                        confirmLabel: "Supprimer",
-                      });
-                      if (!ok) return;
-                      try {
-                        await deleteSection.mutateAsync(section.id);
-                      } catch (err) {
-                        toast.error(err instanceof ApiError ? err.message : "Erreur");
+              <div className="mb-3 flex items-center gap-2">
+                {isAdmin ? <GripVertical size={14} className="cursor-grab text-zinc-300" /> : null}
+                {editingSectionId === section.id ? (
+                  <Input
+                    autoFocus
+                    value={editLabel}
+                    onChange={(e) => setEditLabel(e.target.value)}
+                    onBlur={saveSectionLabel}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        saveSectionLabel();
                       }
+                      if (e.key === "Escape") setEditingSectionId(null);
                     }}
-                    className="text-zinc-400 hover:text-rose-600"
-                  >
-                    <Trash2 size={14} />
-                  </button>
+                    className="flex-1"
+                  />
+                ) : (
+                  <h3 className="flex-1 font-medium text-zinc-900 dark:text-white">{section.label}</h3>
+                )}
+                {isAdmin && editingSectionId !== section.id ? (
+                  <>
+                    <button
+                      onClick={() => {
+                        setEditingItemId(null);
+                        setEditingSectionId(section.id);
+                        setEditLabel(section.label);
+                      }}
+                      className="text-zinc-400 hover:text-blue-600"
+                      aria-label="Renommer la section"
+                    >
+                      <Pencil size={14} />
+                    </button>
+                    <button
+                      onClick={async () => {
+                        const ok = await confirm({
+                          title: `Supprimer "${section.label}" et tous ses items ?`,
+                          tone: "danger",
+                          confirmLabel: "Supprimer",
+                        });
+                        if (!ok) return;
+                        try {
+                          await deleteSection.mutateAsync(section.id);
+                        } catch (err) {
+                          toast.error(err instanceof ApiError ? err.message : "Erreur");
+                        }
+                      }}
+                      className="text-zinc-400 hover:text-rose-600"
+                      aria-label="Supprimer la section"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </>
                 ) : null}
               </div>
               <ul className="mb-3 flex flex-col gap-1">
                 {section.items.map((it) => (
                   <li
                     key={it.id}
-                    className="flex items-center justify-between rounded px-2 py-1 text-sm text-zinc-700 hover:bg-zinc-50 dark:text-zinc-200 dark:hover:bg-zinc-900/40"
+                    className="flex items-center justify-between gap-2 rounded px-2 py-1 text-sm text-zinc-700 hover:bg-zinc-50 dark:text-zinc-200 dark:hover:bg-zinc-900/40"
                   >
-                    <span>• {it.label}</span>
-                    {isAdmin ? (
-                      <button
-                        onClick={() => deleteItem.mutate(it.id)}
-                        className="text-zinc-300 hover:text-rose-600"
-                      >
-                        <Trash2 size={12} />
-                      </button>
+                    {editingItemId === it.id ? (
+                      <Input
+                        autoFocus
+                        value={editLabel}
+                        onChange={(e) => setEditLabel(e.target.value)}
+                        onBlur={saveItemLabel}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            saveItemLabel();
+                          }
+                          if (e.key === "Escape") setEditingItemId(null);
+                        }}
+                        className="flex-1"
+                      />
+                    ) : (
+                      <span className="flex-1">• {it.label}</span>
+                    )}
+                    {isAdmin && editingItemId !== it.id ? (
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => {
+                            setEditingSectionId(null);
+                            setEditingItemId(it.id);
+                            setEditLabel(it.label);
+                          }}
+                          className="text-zinc-300 hover:text-blue-600"
+                          aria-label="Renommer l'item"
+                        >
+                          <Pencil size={12} />
+                        </button>
+                        <button
+                          onClick={() => deleteItem.mutate(it.id)}
+                          className="text-zinc-300 hover:text-rose-600"
+                          aria-label="Supprimer l'item"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
                     ) : null}
                   </li>
                 ))}
@@ -1315,6 +1483,35 @@ function TemplateSection({
           ) : null}
         </div>
       )}
+
+      {saveTemplateOpen ? (
+        <Modal
+          open
+          onClose={() => setSaveTemplateOpen(false)}
+          title="Enregistrer comme modèle d'organisation"
+        >
+          <form onSubmit={handleSaveAsTemplate} className="flex flex-col gap-3">
+            <p className="text-sm text-zinc-500">
+              Crée un modèle réutilisable (sur d&apos;autres logements) à partir des{" "}
+              {sections.length} section{sections.length > 1 ? "s" : ""} de cette checklist.
+            </p>
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="font-medium">Nom du modèle</span>
+              <Input
+                value={saveTemplateName}
+                onChange={(e) => setSaveTemplateName(e.target.value)}
+                placeholder="Ex. Appartement T2 standard"
+                autoFocus
+              />
+            </label>
+            <div className="flex justify-end">
+              <Button type="submit" size="sm" loading={createOrgTemplate.isPending}>
+                Créer le modèle
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      ) : null}
     </Card>
   );
 }
