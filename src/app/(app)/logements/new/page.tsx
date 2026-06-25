@@ -65,6 +65,7 @@ export default function NewLogementPage() {
   const [hasPool, setHasPool] = useState(false);
   const [hasJacuzzi, setHasJacuzzi] = useState(false);
   const [surfaceM2, setSurfaceM2] = useState("");
+  const [keySafeCode, setKeySafeCode] = useState("");
   const [notes, setNotes] = useState("");
   const [color, setColor] = useState<string | null>(null);
   const [defDuration, setDefDuration] = useState("");
@@ -145,6 +146,7 @@ export default function NewLogementPage() {
       has_pool: hasPool,
       has_jacuzzi: hasJacuzzi,
       surface_m2: surface,
+      key_safe_code: keySafeCode.trim() || undefined,
       notes: notes.trim() || undefined,
       color: color || undefined,
       default_duration_min: parseIntOrUndef(defDuration),
@@ -442,7 +444,14 @@ export default function NewLogementPage() {
         </Card>
 
         <Card className="flex flex-col gap-4 p-6">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">Notes</h2>
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">Accès & notes</h2>
+          <Input
+            label="Code boîte à clés (optionnel)"
+            value={keySafeCode}
+            onChange={(e) => setKeySafeCode(e.target.value)}
+            maxLength={50}
+            placeholder="Ex. 1984"
+          />
           <Textarea
             label="Notes (optionnel)"
             value={notes}

@@ -135,6 +135,7 @@ export interface CreateLogementInput {
   has_jacuzzi?: boolean;
   surface_m2?: number;
   notes?: string;
+  key_safe_code?: string;
   default_duration_min?: number;
   default_client_price_ht?: number;
   default_client_vat_rate?: number;

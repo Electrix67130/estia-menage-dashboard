@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useRef, useState, FormEvent } from "react";
+import { use, useEffect, useRef, useState, FormEvent } from "react";
 import Link from "next/link";
 import { Plus, Trash2, Pencil, GripVertical, MapPin, ImagePlus, Camera, Clock, AlertTriangle, PackageCheck } from "lucide-react";
 import BackLink from "@/components/BackLink";
@@ -124,7 +124,6 @@ export default function LogementSettingsPage({
 function InfoSection({ logementId, isAdmin }: { logementId: string; isAdmin: boolean }) {
   const logement = useLogement(logementId);
   const client = useClient(logement.data?.client_id ?? undefined);
-  const [editOpen, setEditOpen] = useState(false);
   const router = useRouter();
   const del = useDeleteLogement();
   const { confirm } = useDialog();
@@ -228,72 +227,61 @@ function InfoSection({ logementId, isAdmin }: { logementId: string; isAdmin: boo
           ) : null}
         </div>
         {isAdmin ? (
-          <div className="flex items-center gap-2">
-            <Button size="sm" variant="secondary" onClick={() => setEditOpen(true)}>
-              <Pencil size={14} />
-              Modifier
-            </Button>
-            <Button size="sm" variant="ghost" onClick={handleDelete} disabled={del.isPending}>
-              <Trash2 size={14} />
-              Supprimer
-            </Button>
-          </div>
+          <Button size="sm" variant="ghost" onClick={handleDelete} disabled={del.isPending}>
+            <Trash2 size={14} />
+            Supprimer
+          </Button>
         ) : null}
       </div>
 
-      <dl className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
-        <Stat
-          label="Client"
-          value={
-            l.client_id ? (
-              <Link
-                href={`/clients/${l.client_id}`}
-                className="text-blue-600 hover:underline"
-              >
-                {client.data ? clientDisplayName(client.data) : "…"}
-              </Link>
-            ) : (
-              "—"
-            )
-          }
-        />
-        <Stat label="Chambres" value={l.n_bedrooms} />
-        <Stat label="Salles de bain" value={l.n_bathrooms} />
-        <Stat label="WC" value={l.n_wc} />
-        <Stat label="Cuisines" value={l.n_kitchens} />
-        <Stat label="Salons" value={l.n_living_rooms} />
-        <Stat label="Extérieurs" value={l.n_exterior_spaces} />
-        <Stat label="Surface" value={l.surface_m2 !== null ? `${l.surface_m2} m²` : "—"} />
-        <Stat
-          label="Annexes"
-          value={
-            [
-              l.has_basement ? "Cave" : null,
-              l.has_laundry ? "Buanderie" : null,
-              l.has_pool ? "Piscine" : null,
-              l.has_jacuzzi ? "Jacuzzi" : null,
-            ]
-              .filter(Boolean)
-              .join(", ") || "—"
-          }
-        />
-      </dl>
-
-      {l.notes ? (
-        <div className="mt-4 border-t border-zinc-200 pt-4 dark:border-zinc-800">
-          <p className="text-xs uppercase tracking-wider text-zinc-500">Notes</p>
-          <p className="mt-1 whitespace-pre-wrap text-sm text-zinc-700 dark:text-zinc-300">
-            {l.notes}
-          </p>
-        </div>
-      ) : null}
-
-      {editOpen ? (
-        <EditLogementModal
-          logement={l}
-          onClose={() => setEditOpen(false)}
-        />
-      ) : null}
+      {isAdmin ? (
+        <LogementInfoForm logement={l} />
+      ) : (
+        <>
+          <dl className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
+            <Stat
+              label="Client"
+              value={
+                l.client_id ? (
+                  <Link href={`/clients/${l.client_id}`} className="text-blue-600 hover:underline">
+                    {client.data ? clientDisplayName(client.data) : "…"}
+                  </Link>
+                ) : (
+                  "—"
+                )
+              }
+            />
+            <Stat label="Chambres" value={l.n_bedrooms} />
+            <Stat label="Salles de bain" value={l.n_bathrooms} />
+            <Stat label="WC" value={l.n_wc} />
+            <Stat label="Cuisines" value={l.n_kitchens} />
+            <Stat label="Salons" value={l.n_living_rooms} />
+            <Stat label="Extérieurs" value={l.n_exterior_spaces} />
+            <Stat label="Surface" value={l.surface_m2 !== null ? `${l.surface_m2} m²` : "—"} />
+            <Stat
+              label="Annexes"
+              value={
+                [
+                  l.has_basement ? "Cave" : null,
+                  l.has_laundry ? "Buanderie" : null,
+                  l.has_pool ? "Piscine" : null,
+                  l.has_jacuzzi ? "Jacuzzi" : null,
+                ]
+                  .filter(Boolean)
+                  .join(", ") || "—"
+              }
+            />
+          </dl>
+          {l.notes ? (
+            <div className="mt-4 border-t border-zinc-200 pt-4 dark:border-zinc-800">
+              <p className="text-xs uppercase tracking-wider text-zinc-500">Notes</p>
+              <p className="mt-1 whitespace-pre-wrap text-sm text-zinc-700 dark:text-zinc-300">
+                {l.notes}
+              </p>
+            </div>
+          ) : null}
+        </>
+      )}
     </Card>
   );
 }
@@ -307,8 +295,9 @@ function Stat({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
-function EditLogementModal({ logement, onClose }: { logement: Logement; onClose: () => void }) {
+function LogementInfoForm({ logement }: { logement: Logement }) {
   const update = useUpdateLogement(logement.id);
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const { t } = useI18n();
   const clients = useClients({ limit: 200 });
   const [name, setName] = useState(logement.name);
@@ -360,16 +349,11 @@ function EditLogementModal({ logement, onClose }: { logement: Logement; onClose:
     return Number.isNaN(n) || n < 0 ? 0 : n;
   };
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!name.trim()) {
-      toast.error("Le nom est requis");
-      return;
-    }
+  const buildBody = (): UpdateLogementInput | null => {
+    if (!name.trim()) return null;
     const surface = surfaceM2.trim() ? parseInt(surfaceM2.trim(), 10) : null;
     if (surfaceM2.trim() && (surface === null || Number.isNaN(surface) || surface < 0)) {
-      toast.error("Surface invalide");
-      return;
+      return null;
     }
     const parseMoneyOrNull = (s: string): number | null => {
       const t = s.trim();
@@ -428,38 +412,58 @@ function EditLogementModal({ logement, onClose }: { logement: Logement; onClose:
       default_horaire_fin: normalizeTime(defHoraireFin),
       color: color,
     };
-    try {
-      await update.mutateAsync(body);
-      toast.success("Logement mis à jour");
-      onClose();
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Erreur");
-    }
+    return body;
   };
 
+  // Auto-save : à chaque modification d'un champ, on enregistre (debounce 700ms).
+  // On ignore le tout premier rendu (montage) pour ne pas sauver inutilement.
+  const isFirstRender = useRef(true);
+  const stateKey = [
+    name, clientId, address, postalCode, city, latitude, longitude,
+    nBedrooms, nBathrooms, nWc, nKitchens, nLivingRooms, nExteriorSpaces,
+    nLitSimple, nLitDouble, nCanapeLit, nLitAppoint,
+    hasBasement, hasLaundry, hasPool, hasJacuzzi,
+    surfaceM2, notes, keySafeCode, color,
+    defDuration, defClientPrice, defClientVat, defProviderPrice,
+    defLaundryIncluded, defLaundryClient, defLaundryProvider, defHoraireDebut, defHoraireFin,
+  ].join("¦");
+
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    const body = buildBody();
+    if (!body) return;
+    setSaveState("saving");
+    const timer = setTimeout(() => {
+      update.mutate(body, {
+        onSuccess: () => setSaveState("saved"),
+        onError: (err) => {
+          setSaveState("error");
+          toast.error(err instanceof ApiError ? err.message : "Erreur");
+        },
+      });
+    }, 700);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stateKey]);
+
   return (
-    <Modal
-      open
-      onClose={onClose}
-      title="Modifier le logement"
-      size="lg"
-      footer={
-        <>
-          <Button type="button" variant="ghost" onClick={onClose}>
-            Annuler
-          </Button>
-          <Button
-            type="submit"
-            form="edit-logement-form"
-            loading={update.isPending}
-            disabled={update.isPending}
-          >
-            Enregistrer
-          </Button>
-        </>
-      }
-    >
-      <form id="edit-logement-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
+    <div className="mt-2">
+      <div className="mb-3 flex items-center justify-between gap-2 border-t border-zinc-200 pt-4 dark:border-zinc-800">
+        <h3 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">Informations</h3>
+        <span className="text-xs text-zinc-400">
+          {saveState === "saving"
+            ? "Enregistrement…"
+            : saveState === "saved"
+              ? "✓ Enregistré"
+              : saveState === "error"
+                ? "⚠ Erreur d'enregistrement"
+                : "Modifs enregistrées automatiquement"}
+        </span>
+      </div>
+      <div className="flex flex-col gap-4">
         <Input label="Nom" value={name} onChange={(e) => setName(e.target.value)} required />
         <div className="flex flex-col gap-1">
           <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
@@ -700,8 +704,8 @@ function EditLogementModal({ logement, onClose }: { logement: Logement; onClose:
             </div>
           ) : null}
         </div>
-      </form>
-    </Modal>
+      </div>
+    </div>
   );
 }
 
