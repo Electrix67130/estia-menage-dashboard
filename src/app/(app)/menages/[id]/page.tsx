@@ -120,6 +120,7 @@ function Header({ menage, isAdmin }: { menage: MenageDetail; isAdmin: boolean })
   const validate = useValidateMenage(menage.id);
   const remove = useDeleteMenage(menage.id);
   const update = useUpdateMenage(menage.id);
+  const reportPhotos = useMenagePhotos(menage.id);
   const [validateOpen, setValidateOpen] = useState(false);
   const [validatePrice, setValidatePrice] = useState<string>("");
   const [pointageOpen, setPointageOpen] = useState(false);
@@ -310,7 +311,63 @@ function Header({ menage, isAdmin }: { menage: MenageDetail; isAdmin: boolean })
             </>
           }
         >
-          <form id="validate-menage-form" onSubmit={handleValidate} className="flex flex-col gap-3">
+          <form id="validate-menage-form" onSubmit={handleValidate} className="flex flex-col gap-4">
+            {/* Récapitulatif du rapport */}
+            {(() => {
+              const all = reportPhotos.data?.data ?? [];
+              const degPhotos = all.filter((p) => p.is_degradation);
+              const menagePhotos = all.filter((p) => !p.is_degradation);
+              return (
+                <div className="flex flex-col gap-3 rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900/40">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Récapitulatif</p>
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="text-zinc-500">Note voyageurs :</span>
+                    {menage.traveler_rating != null ? (
+                      <span className="text-amber-500">
+                        {"★".repeat(menage.traveler_rating)}
+                        <span className="text-zinc-300 dark:text-zinc-600">{"★".repeat(5 - menage.traveler_rating)}</span>
+                        <span className="ml-1 text-zinc-500">{menage.traveler_rating}/5</span>
+                      </span>
+                    ) : (
+                      <span className="text-zinc-400">non renseignée</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="text-zinc-500">Dégradation :</span>
+                    {menage.has_degradation ? (
+                      <span className="inline-flex items-center gap-1 font-medium text-rose-600 dark:text-rose-400">
+                        <AlertTriangle size={13} /> Oui ({degPhotos.length} photo{degPhotos.length > 1 ? "s" : ""})
+                      </span>
+                    ) : (
+                      <span className="text-emerald-600 dark:text-emerald-400">Aucune</span>
+                    )}
+                  </div>
+                  {menage.has_degradation && menage.degradation_note ? (
+                    <p className="rounded bg-rose-50 px-2 py-1 text-xs text-rose-700 dark:bg-rose-900/20 dark:text-rose-300">
+                      {menage.degradation_note}
+                    </p>
+                  ) : null}
+                  <div className="text-sm">
+                    <span className="text-zinc-500">Photos du ménage : </span>
+                    <span className="font-medium text-zinc-900 dark:text-zinc-100">{menagePhotos.length}</span>
+                  </div>
+                  {menagePhotos.length > 0 ? (
+                    <div className="grid grid-cols-5 gap-1.5">
+                      {menagePhotos.slice(0, 10).map((p) => (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          key={p.id}
+                          src={p.thumbnail_url ?? p.url}
+                          alt=""
+                          className="aspect-square w-full rounded object-cover"
+                        />
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })()}
+
             <Input
               label="Prix final (€) — optionnel"
               type="number"
