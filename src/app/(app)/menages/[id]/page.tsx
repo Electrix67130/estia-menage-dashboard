@@ -32,6 +32,7 @@ import {
   useCreateComment,
   useValidateMenage,
   useDeleteMenage,
+  type MenagePhoto,
 } from "@/hooks/useMenageCheck";
 import { useMenageResponses } from "@/hooks/useMenageResponses";
 import { useUnreadCounts, useMarkTabViewed, type MenageTab } from "@/hooks/useMenageViews";
@@ -1233,7 +1234,7 @@ function ChecklistTab({ menageId }: { menageId: string }) {
 function PhotosTab({ menageId }: { menageId: string }) {
   const photos = useMenagePhotos(menageId);
   const check = useMenageCheck(menageId);
-  const [lightbox, setLightbox] = useState<string | null>(null);
+  const [lightbox, setLightbox] = useState<MenagePhoto | null>(null);
 
   if (photos.isLoading) return <p className="text-sm text-zinc-500">Chargement…</p>;
   if (photos.error)
@@ -1269,7 +1270,7 @@ function PhotosTab({ menageId }: { menageId: string }) {
         <button
           key={p.id}
           type="button"
-          onClick={() => setLightbox(p.url)}
+          onClick={() => setLightbox(p)}
           className="group relative aspect-square overflow-hidden rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -1278,6 +1279,10 @@ function PhotosTab({ menageId }: { menageId: string }) {
             alt={p.caption ?? ""}
             className="h-full w-full object-cover transition-transform group-hover:scale-105"
           />
+          {/* Horodatage de prise — incrusté en bas de la vignette */}
+          <span className="absolute inset-x-0 bottom-0 bg-black/55 px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-white">
+            {formatTimestamp(p.taken_at)}
+          </span>
         </button>
       ))}
     </div>
@@ -1298,7 +1303,13 @@ function PhotosTab({ menageId }: { menageId: string }) {
       <PhotoLightbox
         open={!!lightbox}
         onClose={() => setLightbox(null)}
-        photoUrl={lightbox}
+        photoUrl={lightbox?.url ?? null}
+        title={lightbox ? formatTimestamp(lightbox.taken_at) : undefined}
+        subtitle={
+          lightbox && (lightbox.first_name || lightbox.last_name)
+            ? `Par ${lightbox.first_name ?? ""} ${lightbox.last_name ?? ""}`.trim()
+            : undefined
+        }
       />
     </>
   );
