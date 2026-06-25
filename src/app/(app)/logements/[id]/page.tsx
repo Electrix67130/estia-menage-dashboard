@@ -212,7 +212,12 @@ function InfoSection({ logementId, isAdmin }: { logementId: string; isAdmin: boo
         <Stat
           label="Annexes"
           value={
-            [l.has_basement ? "Cave" : null, l.has_laundry ? "Buanderie" : null]
+            [
+              l.has_basement ? "Cave" : null,
+              l.has_laundry ? "Buanderie" : null,
+              l.has_pool ? "Piscine" : null,
+              l.has_jacuzzi ? "Jacuzzi" : null,
+            ]
               .filter(Boolean)
               .join(", ") || "—"
           }
@@ -274,6 +279,8 @@ function EditLogementModal({ logement, onClose }: { logement: Logement; onClose:
   const [nLitAppoint, setNLitAppoint] = useState(String(logement.n_lit_appoint ?? 0));
   const [hasBasement, setHasBasement] = useState(logement.has_basement);
   const [hasLaundry, setHasLaundry] = useState(logement.has_laundry);
+  const [hasPool, setHasPool] = useState(logement.has_pool);
+  const [hasJacuzzi, setHasJacuzzi] = useState(logement.has_jacuzzi);
   const [surfaceM2, setSurfaceM2] = useState(
     logement.surface_m2 !== null ? String(logement.surface_m2) : "",
   );
@@ -346,6 +353,8 @@ function EditLogementModal({ logement, onClose }: { logement: Logement; onClose:
       n_lit_appoint: parseInt0(nLitAppoint),
       has_basement: hasBasement,
       has_laundry: hasLaundry,
+      has_pool: hasPool,
+      has_jacuzzi: hasJacuzzi,
       surface_m2: surface,
       notes: notes.trim() || null,
       key_safe_code: keySafeCode.trim() || null,
@@ -486,6 +495,24 @@ function EditLogementModal({ logement, onClose }: { logement: Logement; onClose:
               className="h-4 w-4 rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
             />
             {t("logement.rooms.laundry")}
+          </label>
+          <label className="inline-flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={hasPool}
+              onChange={(e) => setHasPool(e.target.checked)}
+              className="h-4 w-4 rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
+            />
+            {t("logement.rooms.pool")}
+          </label>
+          <label className="inline-flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={hasJacuzzi}
+              onChange={(e) => setHasJacuzzi(e.target.checked)}
+              className="h-4 w-4 rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
+            />
+            {t("logement.rooms.jacuzzi")}
           </label>
         </div>
 

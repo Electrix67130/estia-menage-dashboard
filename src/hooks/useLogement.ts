@@ -27,6 +27,8 @@ export interface Logement {
   n_lit_appoint: number;
   has_basement: boolean;
   has_laundry: boolean;
+  has_pool: boolean;
+  has_jacuzzi: boolean;
   surface_m2: number | null;
   notes: string | null;
   /** Code de la boîte à clés (accès logement pour le presta affecté). */
@@ -69,6 +71,8 @@ export interface UpdateLogementInput {
   n_lit_appoint?: number;
   has_basement?: boolean;
   has_laundry?: boolean;
+  has_pool?: boolean;
+  has_jacuzzi?: boolean;
   surface_m2?: number | null;
   notes?: string | null;
   key_safe_code?: string | null;
@@ -124,6 +128,8 @@ export interface CreateLogementInput {
   n_lit_appoint?: number;
   has_basement?: boolean;
   has_laundry?: boolean;
+  has_pool?: boolean;
+  has_jacuzzi?: boolean;
   surface_m2?: number;
   notes?: string;
   default_duration_min?: number;

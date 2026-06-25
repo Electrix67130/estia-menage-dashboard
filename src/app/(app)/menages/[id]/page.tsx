@@ -1232,6 +1232,7 @@ function ChecklistTab({ menageId }: { menageId: string }) {
 
 function PhotosTab({ menageId }: { menageId: string }) {
   const photos = useMenagePhotos(menageId);
+  const check = useMenageCheck(menageId);
   const [lightbox, setLightbox] = useState<string | null>(null);
 
   if (photos.isLoading) return <p className="text-sm text-zinc-500">Chargement…</p>;
@@ -1247,23 +1248,51 @@ function PhotosTab({ menageId }: { menageId: string }) {
     return <p className="text-sm text-zinc-500">Aucune photo pour ce ménage.</p>;
   }
 
+  // Regroupe les photos par pièce (section de checklist), dans l'ordre des
+  // sections, avec un groupe final « Non classées » pour les photos sans section.
+  const sections = check.data ?? [];
+  const groups: { id: string; label: string; photos: typeof items }[] = [];
+  for (const s of sections) {
+    const sectionPhotos = items.filter((p) => p.section_id === s.id);
+    if (sectionPhotos.length > 0) {
+      groups.push({ id: s.id, label: s.section_label, photos: sectionPhotos });
+    }
+  }
+  const unclassified = items.filter((p) => !p.section_id);
+  if (unclassified.length > 0) {
+    groups.push({ id: "__none__", label: "Non classées", photos: unclassified });
+  }
+
+  const renderGrid = (list: typeof items) => (
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+      {list.map((p) => (
+        <button
+          key={p.id}
+          type="button"
+          onClick={() => setLightbox(p.url)}
+          className="group relative aspect-square overflow-hidden rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={p.thumbnail_url ?? p.url}
+            alt={p.caption ?? ""}
+            className="h-full w-full object-cover transition-transform group-hover:scale-105"
+          />
+        </button>
+      ))}
+    </div>
+  );
+
   return (
     <>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-        {items.map((p) => (
-          <button
-            key={p.id}
-            type="button"
-            onClick={() => setLightbox(p.url)}
-            className="group relative aspect-square overflow-hidden rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900"
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={p.thumbnail_url ?? p.url}
-              alt={p.caption ?? ""}
-              className="h-full w-full object-cover transition-transform group-hover:scale-105"
-            />
-          </button>
+      <div className="flex flex-col gap-6">
+        {groups.map((g) => (
+          <div key={g.id}>
+            <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-zinc-500">
+              {g.label} · {g.photos.length}
+            </h3>
+            {renderGrid(g.photos)}
+          </div>
         ))}
       </div>
       <PhotoLightbox

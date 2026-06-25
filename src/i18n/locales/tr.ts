@@ -413,6 +413,8 @@ const tr: Dict = {
   "logement.rooms.exteriorSpaces": "Dış mekânlar",
   "logement.rooms.basement": "Bodrum",
   "logement.rooms.laundry": "Çamaşırlık",
+  "logement.rooms.pool": "Havuz",
+  "logement.rooms.jacuzzi": "Jakuzi",
 
   // Beds
   "beds.section": "Yatak düzeni",

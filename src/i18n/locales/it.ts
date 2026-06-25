@@ -413,6 +413,8 @@ const it: Dict = {
   "logement.rooms.exteriorSpaces": "Spazi esterni",
   "logement.rooms.basement": "Cantina",
   "logement.rooms.laundry": "Lavanderia",
+  "logement.rooms.pool": "Piscina",
+  "logement.rooms.jacuzzi": "Idromassaggio",
 
   // Beds
   "beds.section": "Configurazione letti",

@@ -62,6 +62,8 @@ export default function NewLogementPage() {
   const [nLitAppoint, setNLitAppoint] = useState("0");
   const [hasBasement, setHasBasement] = useState(false);
   const [hasLaundry, setHasLaundry] = useState(false);
+  const [hasPool, setHasPool] = useState(false);
+  const [hasJacuzzi, setHasJacuzzi] = useState(false);
   const [surfaceM2, setSurfaceM2] = useState("");
   const [notes, setNotes] = useState("");
   const [color, setColor] = useState<string | null>(null);
@@ -140,6 +142,8 @@ export default function NewLogementPage() {
       n_lit_appoint: parseInt0(nLitAppoint),
       has_basement: hasBasement,
       has_laundry: hasLaundry,
+      has_pool: hasPool,
+      has_jacuzzi: hasJacuzzi,
       surface_m2: surface,
       notes: notes.trim() || undefined,
       color: color || undefined,
@@ -279,6 +283,24 @@ export default function NewLogementPage() {
                 className="h-4 w-4 rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
               />
               {t("logement.rooms.laundry")}
+            </label>
+            <label className="inline-flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={hasPool}
+                onChange={(e) => setHasPool(e.target.checked)}
+                className="h-4 w-4 rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
+              />
+              {t("logement.rooms.pool")}
+            </label>
+            <label className="inline-flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={hasJacuzzi}
+                onChange={(e) => setHasJacuzzi(e.target.checked)}
+                className="h-4 w-4 rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
+              />
+              {t("logement.rooms.jacuzzi")}
             </label>
           </div>
         </Card>
