@@ -52,6 +52,7 @@ import {
   useCreateConsommable,
   useUpdateConsommable,
   useDeleteConsommable,
+  useSetConsommableStock,
   type ConsommableLine,
 } from "@/hooks/useLogementConsommables";
 import { useClients, useClient } from "@/hooks/useClients";
@@ -656,8 +657,10 @@ function ConsommablesSection({ logementId, isAdmin }: { logementId: string; isAd
   const create = useCreateConsommable();
   const update = useUpdateConsommable(logementId);
   const remove = useDeleteConsommable(logementId);
+  const setStock = useSetConsommableStock(logementId);
   const [showCreate, setShowCreate] = useState(false);
   const [editing, setEditing] = useState<ConsommableLine | null>(null);
+  const [stockEditing, setStockEditing] = useState<ConsommableLine | null>(null);
 
   const list = consommables.data ?? [];
   const alertCount = list.filter((c) => c.needs_restock).length;
@@ -676,8 +679,8 @@ function ConsommablesSection({ logementId, isAdmin }: { logementId: string; isAd
             ) : null}
           </h2>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            Stock mis à jour par le prestataire à chaque pointage de fin. Alerte si le stock
-            passe au niveau du seuil ou en dessous.
+            Stock mis à jour par le prestataire à chaque pointage de fin, ou directement par
+            l&apos;admin (clic sur le stock). Alerte si le stock passe au niveau du seuil ou en dessous.
           </p>
         </div>
         {isAdmin ? (
@@ -705,22 +708,37 @@ function ConsommablesSection({ logementId, isAdmin }: { logementId: string; isAd
                   {c.unit ? ` ${c.unit}` : ""}
                 </p>
               </div>
-              {/* Stock courant */}
-              {c.qty === null ? (
-                <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-zinc-500 dark:bg-zinc-800">
-                  jamais relevé
-                </span>
-              ) : c.needs_restock ? (
-                <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-rose-700 dark:bg-rose-900/50 dark:text-rose-300">
-                  {c.qty}
-                  {c.unit ? ` ${c.unit}` : ""} · à racheter
-                </span>
-              ) : (
-                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
-                  {c.qty}
-                  {c.unit ? ` ${c.unit}` : ""}
-                </span>
-              )}
+              {/* Stock courant — cliquable par l'admin pour le fixer/initialiser */}
+              {(() => {
+                const badge =
+                  c.qty === null ? (
+                    <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-zinc-500 dark:bg-zinc-800">
+                      jamais relevé
+                    </span>
+                  ) : c.needs_restock ? (
+                    <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-rose-700 dark:bg-rose-900/50 dark:text-rose-300">
+                      {c.qty}
+                      {c.unit ? ` ${c.unit}` : ""} · à racheter
+                    </span>
+                  ) : (
+                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                      {c.qty}
+                      {c.unit ? ` ${c.unit}` : ""}
+                    </span>
+                  );
+                return isAdmin ? (
+                  <button
+                    type="button"
+                    onClick={() => setStockEditing(c)}
+                    title={c.qty === null ? "Initialiser le stock" : "Modifier le stock"}
+                    className="cursor-pointer"
+                  >
+                    {badge}
+                  </button>
+                ) : (
+                  badge
+                );
+              })()}
               {isAdmin ? (
                 <>
                   <button
@@ -779,7 +797,80 @@ function ConsommablesSection({ logementId, isAdmin }: { logementId: string; isAd
           />
         </Modal>
       ) : null}
+
+      {stockEditing ? (
+        <Modal
+          open
+          onClose={() => setStockEditing(null)}
+          title={stockEditing.qty === null ? "Initialiser le stock" : "Modifier le stock"}
+        >
+          <StockForm
+            line={stockEditing}
+            onSubmit={(qty) =>
+              setStock.mutateAsync({ id: stockEditing.logement_consommable_id, qty })
+            }
+            onSuccess={() => setStockEditing(null)}
+          />
+        </Modal>
+      ) : null}
     </Card>
+  );
+}
+
+function StockForm({
+  line,
+  onSubmit,
+  onSuccess,
+}: {
+  line: ConsommableLine;
+  onSubmit: (qty: number) => Promise<unknown>;
+  onSuccess: () => void;
+}) {
+  const [qty, setQty] = useState(line.qty === null ? "" : String(line.qty));
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    const n = parseInt(qty, 10);
+    if (Number.isNaN(n) || n < 0) {
+      toast.error("Quantité invalide");
+      return;
+    }
+    setSaving(true);
+    try {
+      await onSubmit(n);
+      toast.success("Stock mis à jour");
+      onSuccess();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Erreur");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+      <p className="text-sm text-zinc-500">
+        {line.label}
+        {line.unit ? ` · en ${line.unit}` : ""} — seuil d&apos;alerte : {line.seuil_alerte}
+      </p>
+      <label className="flex flex-col gap-1 text-sm">
+        <span className="font-medium">Stock actuel</span>
+        <Input
+          type="number"
+          min={0}
+          value={qty}
+          onChange={(e) => setQty(e.target.value)}
+          placeholder="0"
+          autoFocus
+        />
+      </label>
+      <div className="flex justify-end gap-2">
+        <Button type="submit" size="sm" loading={saving}>
+          Enregistrer
+        </Button>
+      </div>
+    </form>
   );
 }
 
@@ -926,21 +1017,26 @@ function CreateRoomForm({
   onSuccess: () => void;
   create: ReturnType<typeof useCreateLogementRoom>;
 }) {
-  const [name, setName] = useState("");
   const [kind, setKind] = useState<RoomKind | "">("");
+  const [name, setName] = useState("");
   const [notes, setNotes] = useState("");
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) {
-      toast.error("Le nom est obligatoire");
+    if (!kind) {
+      toast.error("Le type est obligatoire");
+      return;
+    }
+    if (kind === "autre" && !name.trim()) {
+      toast.error("Le nom est obligatoire pour le type « Autre »");
       return;
     }
     try {
       await create.mutateAsync({
         logement_id: logementId,
-        name: name.trim(),
-        kind: kind || undefined,
+        kind,
+        // Le nom n'est envoyé que pour « autre » ; sinon l'API le génère depuis le type.
+        name: kind === "autre" ? name.trim() : undefined,
         notes: notes.trim() || undefined,
       });
       toast.success("Pièce créée");
@@ -953,17 +1049,18 @@ function CreateRoomForm({
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-3">
       <label className="flex flex-col gap-1 text-sm">
-        <span className="font-medium">Nom de la pièce</span>
-        <Input value={name} onChange={(e) => setName(e.target.value)} autoFocus />
-      </label>
-      <label className="flex flex-col gap-1 text-sm">
         <span className="font-medium">Type</span>
         <select
-          className="h-10 rounded-lg border border-zinc-200 bg-white px-3 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+          autoFocus
+          className="h-10 appearance-none rounded-lg border border-zinc-200 bg-white bg-[length:1rem] bg-[right_0.75rem_center] bg-no-repeat pl-3 pr-9 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+          style={{
+            backgroundImage:
+              "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E\")",
+          }}
           value={kind}
           onChange={(e) => setKind(e.target.value as RoomKind | "")}
         >
-          <option value="">— Aucun —</option>
+          <option value="">— Choisir un type —</option>
           {ROOM_KINDS.map((k) => (
             <option key={k.value} value={k.value}>
               {k.label}
@@ -971,6 +1068,12 @@ function CreateRoomForm({
           ))}
         </select>
       </label>
+      {kind === "autre" ? (
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium">Nom de la pièce</span>
+          <Input value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+        </label>
+      ) : null}
       <label className="flex flex-col gap-1 text-sm">
         <span className="font-medium">Notes (optionnel)</span>
         <Input value={notes} onChange={(e) => setNotes(e.target.value)} />

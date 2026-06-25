@@ -45,8 +45,8 @@ export function useCreateLogementRoom() {
   return useMutation({
     mutationFn: (input: {
       logement_id: string;
-      name: string;
-      kind?: RoomKind;
+      kind: RoomKind;
+      name?: string;
       position?: number;
       notes?: string;
     }) => apiFetch<LogementRoom>(`/logement-rooms`, { method: "POST", body: input }),

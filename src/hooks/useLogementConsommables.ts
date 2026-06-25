@@ -60,6 +60,19 @@ export function useUpdateConsommable(logementId: string) {
   });
 }
 
+/** Fixe/initialise le stock courant d'un consommable (admin). */
+export function useSetConsommableStock(logementId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, qty }: { id: string; qty: number }) =>
+      apiFetch(`/logement-consommables/${id}/stock`, { method: "PUT", body: { qty } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [...KEY, logementId] });
+      qc.invalidateQueries({ queryKey: ["logements-list"] });
+    },
+  });
+}
+
 export function useDeleteConsommable(logementId: string) {
   const qc = useQueryClient();
   return useMutation({
