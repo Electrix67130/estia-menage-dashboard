@@ -447,6 +447,8 @@ export default function NewLogementPage() {
           <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">Accès & notes</h2>
           <Input
             label="Code boîte à clés (optionnel)"
+            type="password"
+            autoComplete="off"
             value={keySafeCode}
             onChange={(e) => setKeySafeCode(e.target.value)}
             maxLength={50}
