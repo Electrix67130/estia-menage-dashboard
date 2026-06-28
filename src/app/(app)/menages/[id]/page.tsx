@@ -101,7 +101,7 @@ export default function MenageDetailPage({
           <ResponsesSection menage={menage} isAdmin={isAdmin} />
           <ScheduleSection menage={menage} isAdmin={isAdmin} />
           {isAdmin ? <PointageProofSection menage={menage} /> : null}
-          <BedsSection menage={menage} />
+          <BedsSection menage={menage} isAdmin={isAdmin} />
           {menage.notes_intervention ? <NotesSection notes={menage.notes_intervention} /> : null}
           <FinancialsSection menage={menage} />
           <TabsSection menage={menage} />
@@ -1133,33 +1133,84 @@ function NotesSection({ notes }: { notes: string }) {
   );
 }
 
-function BedsSection({ menage }: { menage: MenageDetail }) {
+function BedsSection({ menage, isAdmin }: { menage: MenageDetail; isAdmin: boolean }) {
   const { t } = useI18n();
-  const total =
-    (menage.n_lit_simple ?? 0) +
-    (menage.n_lit_double ?? 0) +
-    (menage.n_canape_lit ?? 0) +
-    (menage.n_lit_appoint ?? 0);
-  if (total === 0) return null;
-  const cell = "flex flex-col items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-800/40";
-  const items: { value: number; label: string }[] = [
-    { value: menage.n_lit_simple ?? 0, label: t("beds.simple") },
-    { value: menage.n_lit_double ?? 0, label: t("beds.double") },
-    { value: menage.n_canape_lit ?? 0, label: t("beds.sofa") },
-    { value: menage.n_lit_appoint ?? 0, label: t("beds.extra") },
+  const update = useUpdateMenage(menage.id);
+
+  const setField = (field: "n_lit_simple" | "n_lit_double" | "n_canape_lit" | "n_lit_appoint" | "n_travelers", value: number) => {
+    update.mutate({ [field]: Math.max(0, value) });
+  };
+
+  const beds: { field: "n_lit_simple" | "n_lit_double" | "n_canape_lit" | "n_lit_appoint"; value: number; label: string }[] = [
+    { field: "n_lit_simple", value: menage.n_lit_simple ?? 0, label: t("beds.simple") },
+    { field: "n_lit_double", value: menage.n_lit_double ?? 0, label: t("beds.double") },
+    { field: "n_canape_lit", value: menage.n_canape_lit ?? 0, label: t("beds.sofa") },
+    { field: "n_lit_appoint", value: menage.n_lit_appoint ?? 0, label: t("beds.extra") },
   ];
+  const totalBeds = beds.reduce((s, b) => s + b.value, 0);
+  const nights = menage.stay_nights ?? null;
+
+  // Vue lecture seule (prestataire) : rien à afficher si aucun lit ni voyageur ni durée.
+  if (!isAdmin && totalBeds === 0 && menage.n_travelers == null && nights == null) return null;
+
+  const Stepper = ({ value, onChange }: { value: number; onChange: (n: number) => void }) => (
+    <div className="mt-1 inline-flex items-center gap-2">
+      <button
+        type="button"
+        onClick={() => onChange(value - 1)}
+        disabled={value <= 0 || update.isPending}
+        className="flex h-7 w-7 items-center justify-center rounded-md border border-zinc-300 text-zinc-700 disabled:opacity-40 dark:border-zinc-700 dark:text-zinc-200"
+      >
+        −
+      </button>
+      <span className="min-w-6 text-center text-xl font-bold tabular-nums text-zinc-900 dark:text-white">{value}</span>
+      <button
+        type="button"
+        onClick={() => onChange(value + 1)}
+        disabled={update.isPending}
+        className="flex h-7 w-7 items-center justify-center rounded-md border border-zinc-300 text-zinc-700 disabled:opacity-40 dark:border-zinc-700 dark:text-zinc-200"
+      >
+        +
+      </button>
+    </div>
+  );
+
+  const cell = "flex flex-col items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-800/40";
+
   return (
     <Card className="p-6">
-      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-zinc-500">
-        {t("beds.section")}
-      </h2>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {items.map((it) => (
-          <div key={it.label} className={cell}>
-            <span className="text-2xl font-bold text-zinc-900 dark:text-white tabular-nums">
-              {it.value}
+      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-zinc-500">Lits à faire</h2>
+
+      {/* Voyageurs + durée du séjour */}
+      <div className="mb-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+        <div className="flex items-center gap-2">
+          <span className="text-zinc-500">Voyageurs :</span>
+          {isAdmin ? (
+            <Stepper value={menage.n_travelers ?? 0} onChange={(n) => setField("n_travelers", n)} />
+          ) : (
+            <span className="font-semibold tabular-nums text-zinc-900 dark:text-white">
+              {menage.n_travelers ?? "—"}
             </span>
-            <span className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">{it.label}</span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-zinc-500">Durée du séjour :</span>
+          <span className="font-semibold tabular-nums text-zinc-900 dark:text-white">
+            {nights != null ? `${nights} nuit${nights > 1 ? "s" : ""}` : "—"}
+          </span>
+          {nights != null ? <span className="text-xs text-zinc-400">(iCal)</span> : null}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {beds.map((b) => (
+          <div key={b.field} className={cell}>
+            {isAdmin ? (
+              <Stepper value={b.value} onChange={(n) => setField(b.field, n)} />
+            ) : (
+              <span className="text-2xl font-bold tabular-nums text-zinc-900 dark:text-white">{b.value}</span>
+            )}
+            <span className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">{b.label}</span>
           </div>
         ))}
       </div>

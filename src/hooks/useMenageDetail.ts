@@ -58,6 +58,7 @@ export interface MenageDetail {
   n_lit_double: number;
   n_canape_lit: number;
   n_lit_appoint: number;
+  n_travelers: number | null;
   validated_at: string | null;
   validated_by: string | null;
   validated_price: string | number | null;
@@ -137,6 +138,7 @@ export interface UpdateMenageInput {
   n_lit_double?: number;
   n_canape_lit?: number;
   n_lit_appoint?: number;
+  n_travelers?: number | null;
   notes_intervention?: string | null;
   status?: "a_venir" | "en_cours" | "termine" | "valide" | "annule";
   arrived_at?: string | null;
