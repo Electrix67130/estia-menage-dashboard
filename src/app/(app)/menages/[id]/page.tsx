@@ -244,6 +244,23 @@ function Header({ menage, isAdmin }: { menage: MenageDetail; isAdmin: boolean })
           >
             {STATUS_LABEL[menage.status]}
           </span>
+          {isAdmin && menage.status !== "valide" ? (
+            <select
+              value={menage.status}
+              disabled={update.isPending}
+              onChange={(e) => {
+                const next = e.target.value as MenageDetail["status"];
+                if (next !== menage.status) update.mutate({ status: next });
+              }}
+              title="Corriger le statut (admin)"
+              className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs text-zinc-700 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+            >
+              <option value="a_venir">À venir</option>
+              <option value="en_cours">En cours</option>
+              <option value="termine">Terminé</option>
+              <option value="annule">Annulé</option>
+            </select>
+          ) : null}
           {menage.needs_attention ? (
             <span
               className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider text-rose-700 dark:bg-rose-900/50 dark:text-rose-300"
