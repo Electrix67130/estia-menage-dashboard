@@ -126,6 +126,7 @@ function Header({ menage, isAdmin }: { menage: MenageDetail; isAdmin: boolean })
   const [validateOpen, setValidateOpen] = useState(false);
   const [validatePrice, setValidatePrice] = useState<string>("");
   const [validateComment, setValidateComment] = useState<string>("");
+  const [recapLightbox, setRecapLightbox] = useState<MenagePhoto | null>(null);
   const [pointageOpen, setPointageOpen] = useState(false);
 
   // Pour les inputs datetime-local : ISO → "YYYY-MM-DDTHH:MM" en heure locale.
@@ -374,13 +375,15 @@ function Header({ menage, isAdmin }: { menage: MenageDetail; isAdmin: boolean })
                         {degPhotos.length > 0 ? (
                           <div className="mt-2 grid grid-cols-5 gap-1.5">
                             {degPhotos.map((p) => (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img
+                              <button
                                 key={p.id}
-                                src={p.thumbnail_url ?? p.url}
-                                alt=""
-                                className="aspect-square w-full rounded border border-rose-200 object-cover dark:border-rose-900/50"
-                              />
+                                type="button"
+                                onClick={() => setRecapLightbox(p)}
+                                className="aspect-square w-full overflow-hidden rounded border border-rose-200 transition-transform hover:scale-105 dark:border-rose-900/50"
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={p.thumbnail_url ?? p.url} alt="" className="h-full w-full object-cover" />
+                              </button>
                             ))}
                           </div>
                         ) : (
@@ -400,13 +403,15 @@ function Header({ menage, isAdmin }: { menage: MenageDetail; isAdmin: boolean })
                     {menagePhotos.length > 0 ? (
                       <div className="mt-2 grid grid-cols-5 gap-1.5">
                         {menagePhotos.map((p) => (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
+                          <button
                             key={p.id}
-                            src={p.thumbnail_url ?? p.url}
-                            alt=""
-                            className="aspect-square w-full rounded border border-zinc-200 object-cover dark:border-zinc-800"
-                          />
+                            type="button"
+                            onClick={() => setRecapLightbox(p)}
+                            className="aspect-square w-full overflow-hidden rounded border border-zinc-200 transition-transform hover:scale-105 dark:border-zinc-800"
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={p.thumbnail_url ?? p.url} alt="" className="h-full w-full object-cover" />
+                          </button>
                         ))}
                       </div>
                     ) : (
@@ -440,6 +445,15 @@ function Header({ menage, isAdmin }: { menage: MenageDetail; isAdmin: boolean })
           </form>
         </Modal>
       ) : null}
+
+      {/* Lightbox du récap — rendue après le modal pour passer au-dessus (même z-index, ordre DOM). */}
+      <PhotoLightbox
+        open={!!recapLightbox}
+        onClose={() => setRecapLightbox(null)}
+        photoUrl={recapLightbox?.url ?? null}
+        title={recapLightbox?.is_degradation ? "Dégradation" : "Photo du ménage"}
+        subtitle={recapLightbox ? formatTimestamp(recapLightbox.taken_at) : undefined}
+      />
 
       {pointageOpen ? (
         <Modal
