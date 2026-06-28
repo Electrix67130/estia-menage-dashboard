@@ -332,7 +332,9 @@ function Header({ menage, isAdmin }: { menage: MenageDetail; isAdmin: boolean })
               const menagePhotos = all.filter((p) => !p.is_degradation);
               return (
                 <div className="flex flex-col gap-3 rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900/40">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Récapitulatif</p>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Récapitulatif du rapport</p>
+
+                  {/* Note voyageurs */}
                   <div className="flex items-center gap-2 text-sm">
                     <span className="text-zinc-500">Note voyageurs :</span>
                     {menage.traveler_rating != null ? (
@@ -345,38 +347,72 @@ function Header({ menage, isAdmin }: { menage: MenageDetail; isAdmin: boolean })
                       <span className="text-zinc-400">non renseignée</span>
                     )}
                   </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <span className="text-zinc-500">Dégradation :</span>
+
+                  {/* Compartiment 1 : Dégradations */}
+                  <div
+                    className={
+                      menage.has_degradation
+                        ? "rounded-lg border border-rose-200 bg-rose-50 p-2.5 dark:border-rose-900/50 dark:bg-rose-900/20"
+                        : "rounded-lg border border-zinc-200 bg-white p-2.5 dark:border-zinc-800 dark:bg-zinc-900"
+                    }
+                  >
+                    <p
+                      className={
+                        menage.has_degradation
+                          ? "flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-rose-700 dark:text-rose-300"
+                          : "flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-500"
+                      }
+                    >
+                      <AlertTriangle size={13} />
+                      Dégradations {menage.has_degradation ? `· ${degPhotos.length}` : ""}
+                    </p>
                     {menage.has_degradation ? (
-                      <span className="inline-flex items-center gap-1 font-medium text-rose-600 dark:text-rose-400">
-                        <AlertTriangle size={13} /> Oui ({degPhotos.length} photo{degPhotos.length > 1 ? "s" : ""})
-                      </span>
+                      <>
+                        {menage.degradation_note ? (
+                          <p className="mt-1.5 text-sm text-rose-700/90 dark:text-rose-200/90">{menage.degradation_note}</p>
+                        ) : null}
+                        {degPhotos.length > 0 ? (
+                          <div className="mt-2 grid grid-cols-5 gap-1.5">
+                            {degPhotos.map((p) => (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                key={p.id}
+                                src={p.thumbnail_url ?? p.url}
+                                alt=""
+                                className="aspect-square w-full rounded border border-rose-200 object-cover dark:border-rose-900/50"
+                              />
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="mt-1 text-xs text-rose-700/70 dark:text-rose-300/70">Aucune photo jointe.</p>
+                        )}
+                      </>
                     ) : (
-                      <span className="text-emerald-600 dark:text-emerald-400">Aucune</span>
+                      <p className="mt-1 text-sm text-emerald-600 dark:text-emerald-400">Aucune dégradation signalée.</p>
                     )}
                   </div>
-                  {menage.has_degradation && menage.degradation_note ? (
-                    <p className="rounded bg-rose-50 px-2 py-1 text-xs text-rose-700 dark:bg-rose-900/20 dark:text-rose-300">
-                      {menage.degradation_note}
+
+                  {/* Compartiment 2 : Photos du ménage */}
+                  <div className="rounded-lg border border-zinc-200 bg-white p-2.5 dark:border-zinc-800 dark:bg-zinc-900">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                      Photos du ménage · {menagePhotos.length}
                     </p>
-                  ) : null}
-                  <div className="text-sm">
-                    <span className="text-zinc-500">Photos du ménage : </span>
-                    <span className="font-medium text-zinc-900 dark:text-zinc-100">{menagePhotos.length}</span>
+                    {menagePhotos.length > 0 ? (
+                      <div className="mt-2 grid grid-cols-5 gap-1.5">
+                        {menagePhotos.map((p) => (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            key={p.id}
+                            src={p.thumbnail_url ?? p.url}
+                            alt=""
+                            className="aspect-square w-full rounded border border-zinc-200 object-cover dark:border-zinc-800"
+                          />
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="mt-1 text-xs text-zinc-400">Aucune photo.</p>
+                    )}
                   </div>
-                  {menagePhotos.length > 0 ? (
-                    <div className="grid grid-cols-5 gap-1.5">
-                      {menagePhotos.slice(0, 10).map((p) => (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          key={p.id}
-                          src={p.thumbnail_url ?? p.url}
-                          alt=""
-                          className="aspect-square w-full rounded object-cover"
-                        />
-                      ))}
-                    </div>
-                  ) : null}
                 </div>
               );
             })()}
