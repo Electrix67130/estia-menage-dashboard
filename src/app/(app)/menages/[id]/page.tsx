@@ -1133,12 +1133,29 @@ function NotesSection({ notes }: { notes: string }) {
   );
 }
 
+/** Compo de lits suggérée pour N voyageurs : un double par paire, +1 simple si impair. */
+function suggestBeds(travelers: number): {
+  n_lit_double: number;
+  n_lit_simple: number;
+  n_canape_lit: number;
+  n_lit_appoint: number;
+} {
+  const n = Math.max(0, travelers);
+  return { n_lit_double: Math.floor(n / 2), n_lit_simple: n % 2, n_canape_lit: 0, n_lit_appoint: 0 };
+}
+
 function BedsSection({ menage, isAdmin }: { menage: MenageDetail; isAdmin: boolean }) {
   const { t } = useI18n();
   const update = useUpdateMenage(menage.id);
 
   const setField = (field: "n_lit_simple" | "n_lit_double" | "n_canape_lit" | "n_lit_appoint" | "n_travelers", value: number) => {
     update.mutate({ [field]: Math.max(0, value) });
+  };
+
+  const applySuggestion = () => {
+    const n = menage.n_travelers ?? 0;
+    if (n <= 0) return;
+    update.mutate(suggestBeds(n));
   };
 
   const beds: { field: "n_lit_simple" | "n_lit_double" | "n_canape_lit" | "n_lit_appoint"; value: number; label: string }[] = [
@@ -1179,7 +1196,19 @@ function BedsSection({ menage, isAdmin }: { menage: MenageDetail; isAdmin: boole
 
   return (
     <Card className="p-6">
-      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-zinc-500">Lits à faire</h2>
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">Lits à faire</h2>
+        {isAdmin && (menage.n_travelers ?? 0) > 0 ? (
+          <button
+            type="button"
+            onClick={applySuggestion}
+            disabled={update.isPending}
+            className="rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-50 dark:border-blue-900/50 dark:bg-blue-900/20 dark:text-blue-300"
+          >
+            Suggérer les lits ({menage.n_travelers} voyageur{(menage.n_travelers ?? 0) > 1 ? "s" : ""})
+          </button>
+        ) : null}
+      </div>
 
       {/* Voyageurs + durée du séjour */}
       <div className="mb-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
