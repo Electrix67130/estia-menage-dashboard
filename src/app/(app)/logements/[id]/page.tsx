@@ -2,7 +2,7 @@
 
 import { use, useEffect, useRef, useState, FormEvent } from "react";
 import Link from "next/link";
-import { Plus, Trash2, Pencil, GripVertical, MapPin, ImagePlus, Camera, Clock, AlertTriangle, PackageCheck } from "lucide-react";
+import { Plus, Trash2, Pencil, GripVertical, MapPin, ImagePlus, Camera, Clock, AlertTriangle, PackageCheck, RefreshCw, CalendarClock } from "lucide-react";
 import BackLink from "@/components/BackLink";
 import { toast } from "sonner";
 import Card from "@/components/ui/Card";
@@ -69,6 +69,15 @@ import {
   type LogementMember,
 } from "@/hooks/useLogementMembers";
 import { useChecklistTemplates, useApplyChecklistTemplate, useCreateChecklistTemplate } from "@/hooks/useChecklistTemplates";
+import {
+  useLogementExternalCalendars,
+  useCreateExternalCalendar,
+  useUpdateExternalCalendar,
+  useDeleteExternalCalendar,
+  useSyncExternalCalendar,
+  type ExternalCalendar,
+  type ExternalCalendarProvider,
+} from "@/hooks/useLogementExternalCalendars";
 import Select from "@/components/ui/Select";
 import CityAddressAutocomplete from "@/components/ui/CityAddressAutocomplete";
 import { useAuth } from "@/contexts/AuthContext";
@@ -115,6 +124,7 @@ export default function LogementSettingsPage({
       <PhotosSection logementId={id} isAdmin={isAdmin} />
       <RoomsSection logementId={id} isAdmin={isAdmin} />
       <ConsommablesSection logementId={id} isAdmin={isAdmin} />
+      {isAdmin ? <ExternalCalendarsSection logementId={id} /> : null}
       <MenagesLinkedSection logementId={id} />
       <TemplateSection logementId={id} isAdmin={isAdmin} />
     </div>
@@ -1903,6 +1913,215 @@ function LogementMembersSection({ logementId, isAdmin }: { logementId: string; i
           )}
         </div>
       ) : null}
+    </Card>
+  );
+}
+
+const EXTERNAL_CALENDAR_PROVIDERS: { value: ExternalCalendarProvider; label: string }[] = [
+  { value: "airbnb", label: "Airbnb" },
+  { value: "booking", label: "Booking.com" },
+  { value: "vrbo", label: "Vrbo / Abritel" },
+  { value: "ical", label: "Autre (iCal)" },
+];
+
+function providerLabel(p: ExternalCalendarProvider): string {
+  return EXTERNAL_CALENDAR_PROVIDERS.find((o) => o.value === p)?.label ?? p;
+}
+
+/** Configuration des calendriers iCal externes (Airbnb, Booking…) — admin only. */
+function ExternalCalendarsSection({ logementId }: { logementId: string }) {
+  const { confirm } = useDialog();
+  const calendars = useLogementExternalCalendars(logementId);
+  const create = useCreateExternalCalendar();
+  const update = useUpdateExternalCalendar();
+  const remove = useDeleteExternalCalendar();
+  const sync = useSyncExternalCalendar();
+
+  const [url, setUrl] = useState("");
+  const [provider, setProvider] = useState<ExternalCalendarProvider>("airbnb");
+  const [label, setLabel] = useState("");
+  const [syncingId, setSyncingId] = useState<string | null>(null);
+
+  const handleAdd = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!url.trim()) return;
+    try {
+      await create.mutateAsync({
+        logement_id: logementId,
+        url: url.trim(),
+        provider,
+        label: label.trim() || undefined,
+      });
+      setUrl("");
+      setLabel("");
+      setProvider("airbnb");
+      toast.success("Calendrier ajouté");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "URL invalide ou erreur");
+    }
+  };
+
+  const handleSync = async (id: string) => {
+    setSyncingId(id);
+    try {
+      const r = await sync.mutateAsync({ id, logement_id: logementId });
+      if (r.error) {
+        toast.error(`Synchronisation échouée : ${r.error}`);
+      } else {
+        toast.success(
+          `Synchro OK — ${r.created_menages} créé(s), ${r.cancelled_menages} annulé(s)`,
+        );
+      }
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Erreur de synchronisation");
+    } finally {
+      setSyncingId(null);
+    }
+  };
+
+  const handleToggle = async (c: ExternalCalendar) => {
+    try {
+      await update.mutateAsync({ id: c.id, logement_id: logementId, enabled: !c.enabled });
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Erreur");
+    }
+  };
+
+  const handleRemove = async (c: ExternalCalendar) => {
+    const ok = await confirm({
+      title: "Supprimer ce calendrier ?",
+      description: "La synchronisation s'arrête. Les ménages déjà créés ne sont pas supprimés.",
+      tone: "danger",
+      confirmLabel: "Supprimer",
+    });
+    if (!ok) return;
+    try {
+      await remove.mutateAsync({ id: c.id, logement_id: logementId });
+      toast.success("Calendrier supprimé");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Erreur");
+    }
+  };
+
+  const list = calendars.data ?? [];
+
+  return (
+    <Card className="p-6">
+      <div className="mb-4 flex items-start gap-2">
+        <CalendarClock size={18} className="mt-0.5 shrink-0 text-zinc-400" />
+        <div>
+          <h2 className="text-lg font-semibold text-zinc-900 dark:text-white">
+            Calendriers externes (iCal)
+          </h2>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">
+            Colle l&apos;URL iCal de ton annonce (Airbnb, Booking…) pour créer les ménages
+            automatiquement à chaque réservation. La synchro tourne toutes les 30 min ; tu peux
+            aussi la lancer à la main.
+          </p>
+        </div>
+      </div>
+
+      {calendars.isLoading ? (
+        <p className="text-sm text-zinc-500">Chargement…</p>
+      ) : list.length > 0 ? (
+        <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
+          {list.map((c) => (
+            <li key={c.id} className="flex flex-col gap-2 py-3 sm:flex-row sm:items-start">
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-zinc-900 dark:text-white">
+                  {providerLabel(c.provider)}
+                  {c.label ? ` — ${c.label}` : ""}
+                  {!c.enabled ? (
+                    <span className="ml-2 rounded bg-zinc-100 px-1.5 py-0.5 text-xs font-normal text-zinc-500 dark:bg-zinc-800">
+                      désactivé
+                    </span>
+                  ) : null}
+                </p>
+                <p className="truncate text-xs text-zinc-500" title={c.url}>
+                  {c.url}
+                </p>
+                <p className="mt-0.5 text-xs text-zinc-400">
+                  {c.last_synced_at
+                    ? `Dernière synchro : ${formatDateFr(c.last_synced_at, "datetime")}`
+                    : "Jamais synchronisé"}
+                </p>
+                {c.last_error ? (
+                  <p className="mt-0.5 text-xs text-rose-600">Erreur : {c.last_error}</p>
+                ) : null}
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => handleSync(c.id)}
+                  disabled={syncingId === c.id}
+                >
+                  <RefreshCw size={14} className={syncingId === c.id ? "animate-spin" : ""} />
+                  {syncingId === c.id ? "Synchro…" : "Synchroniser"}
+                </Button>
+                <button
+                  type="button"
+                  onClick={() => handleToggle(c)}
+                  className="text-xs text-zinc-500 hover:text-zinc-900 dark:hover:text-white"
+                >
+                  {c.enabled ? "Désactiver" : "Activer"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleRemove(c)}
+                  className="text-zinc-400 hover:text-rose-600"
+                  aria-label="Supprimer le calendrier"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-sm text-zinc-500">
+          Aucun calendrier externe rattaché à ce logement.
+        </p>
+      )}
+
+      <form
+        onSubmit={handleAdd}
+        className="mt-4 flex flex-col gap-3 border-t border-zinc-200 pt-4 dark:border-zinc-800 sm:flex-row sm:items-end"
+      >
+        <div className="sm:w-40">
+          <Select
+            label="Source"
+            value={provider}
+            onChange={(e) => setProvider(e.target.value as ExternalCalendarProvider)}
+          >
+            {EXTERNAL_CALENDAR_PROVIDERS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </Select>
+        </div>
+        <div className="flex-1">
+          <Input
+            label="URL iCal"
+            type="url"
+            placeholder="https://www.airbnb.fr/calendar/ical/..."
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+          />
+        </div>
+        <div className="sm:w-44">
+          <Input
+            label="Libellé (optionnel)"
+            placeholder="Annonce Airbnb"
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+          />
+        </div>
+        <Button type="submit" loading={create.isPending} disabled={!url.trim()}>
+          <Plus size={16} /> Ajouter
+        </Button>
+      </form>
     </Card>
   );
 }
