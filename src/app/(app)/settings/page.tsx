@@ -47,6 +47,10 @@ export default function SettingsPage() {
     email: "",
     phone: "",
     company_name: "",
+    provider_company: "",
+    provider_siret: "",
+    provider_vat_number: "",
+    provider_address: "",
   });
   useEffect(() => {
     if (user) {
@@ -56,6 +60,10 @@ export default function SettingsPage() {
         email: user.email ?? "",
         phone: user.phone ?? "",
         company_name: user.company_name ?? "",
+        provider_company: user.provider_company ?? "",
+        provider_siret: user.provider_siret ?? "",
+        provider_vat_number: user.provider_vat_number ?? "",
+        provider_address: user.provider_address ?? "",
       });
     }
   }, [user]);
@@ -69,7 +77,16 @@ export default function SettingsPage() {
           last_name: profile.last_name,
           email: profile.email,
           phone: profile.phone || undefined,
-          company_name: profile.company_name || undefined,
+          // L'admin gère le nom de l'entreprise de l'org (company_name, propagé).
+          // Le prestataire gère sa propre entreprise (provider_company), optionnelle.
+          ...(isAdmin
+            ? { company_name: profile.company_name || undefined }
+            : {
+                provider_company: profile.provider_company.trim() || null,
+                provider_siret: profile.provider_siret.trim() || null,
+                provider_vat_number: profile.provider_vat_number.trim() || null,
+                provider_address: profile.provider_address.trim() || null,
+              }),
         },
       }),
     onSuccess: async () => {
@@ -78,6 +95,32 @@ export default function SettingsPage() {
     },
     onError: (err) => toast.error(err instanceof ApiError ? err.message : t("common.error")),
   });
+
+  // Lookup SIRET → pré-remplit raison sociale, adresse et n° TVA (presta).
+  const companyLookup = useMutation({
+    mutationFn: (siret: string) =>
+      apiFetch<{ name: string; address: string; vat_number: string }>(
+        `/company/lookup?siret=${encodeURIComponent(siret)}`,
+      ),
+    onSuccess: (r) =>
+      setProfile((p) => ({
+        ...p,
+        provider_company: r.name || p.provider_company,
+        provider_address: r.address || p.provider_address,
+        provider_vat_number: r.vat_number || p.provider_vat_number,
+      })),
+    onError: (err) =>
+      toast.error(err instanceof ApiError ? err.message : t("settings.siretNotFound")),
+  });
+
+  const onSiretLookup = () => {
+    const siret = profile.provider_siret.replace(/\s/g, "");
+    if (!/^\d{14}$/.test(siret)) {
+      toast.error(t("settings.siretInvalid"));
+      return;
+    }
+    companyLookup.mutate(siret);
+  };
 
   // Avatar upload
   const avatarInputRef = useRef<HTMLInputElement>(null);
@@ -302,13 +345,50 @@ export default function SettingsPage() {
             value={profile.phone}
             onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
           />
-          <Input
-            label={t("settings.companyName")}
-            value={profile.company_name}
-            onChange={(e) => setProfile({ ...profile, company_name: e.target.value })}
-            disabled={!isAdmin}
-            hint={!isAdmin ? t("settings.companyHint") : undefined}
-          />
+          {isAdmin ? (
+            <Input
+              label={t("settings.companyName")}
+              value={profile.company_name}
+              onChange={(e) => setProfile({ ...profile, company_name: e.target.value })}
+            />
+          ) : (
+            <>
+              <Input
+                label={t("settings.companyName")}
+                value={profile.provider_company}
+                onChange={(e) => setProfile({ ...profile, provider_company: e.target.value })}
+                hint={t("settings.providerCompanyHint")}
+              />
+              <div className="flex items-end gap-2">
+                <div className="flex-1">
+                  <Input
+                    label={t("settings.siret")}
+                    inputMode="numeric"
+                    value={profile.provider_siret}
+                    onChange={(e) => setProfile({ ...profile, provider_siret: e.target.value })}
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={onSiretLookup}
+                  loading={companyLookup.isPending}
+                >
+                  {t("settings.siretSearch")}
+                </Button>
+              </div>
+              <Input
+                label={t("settings.vatNumber")}
+                value={profile.provider_vat_number}
+                onChange={(e) => setProfile({ ...profile, provider_vat_number: e.target.value })}
+              />
+              <Input
+                label={t("settings.companyAddress")}
+                value={profile.provider_address}
+                onChange={(e) => setProfile({ ...profile, provider_address: e.target.value })}
+              />
+            </>
+          )}
           <div className="flex justify-end">
             <Button type="submit" loading={updateProfile.isPending}>
               <Save size={16} />
