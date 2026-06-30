@@ -39,6 +39,26 @@ export class ApiError extends Error {
   }
 }
 
+const MAX_429_RETRIES = 3;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Délai d'attente sur une réponse 429 (rate-limit) : respecte l'en-tête
+ * `Retry-After` (en secondes) renvoyé par l'API, sinon backoff exponentiel
+ * plafonné (1s, 2s, 4s…).
+ */
+function retryDelayMs(response: Response, attempt: number): number {
+  const header = response.headers.get("retry-after");
+  if (header) {
+    const seconds = Number(header);
+    if (!Number.isNaN(seconds) && seconds >= 0) return seconds * 1000;
+  }
+  return Math.min(1000 * 2 ** attempt, 8000);
+}
+
 let refreshPromise: Promise<string> | null = null;
 
 async function refreshAccessToken(): Promise<string> {
@@ -96,11 +116,20 @@ export async function apiFetch<T = unknown>(path: string, options: FetchOptions 
     if (token) finalHeaders["Authorization"] = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${API_URL}${path}`, {
+  const requestInit: RequestInit = {
     method,
     headers: finalHeaders,
     body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
+  };
+
+  let response = await fetch(`${API_URL}${path}`, requestInit);
+
+  // Retry sur 429 (rate-limit) : on attend (Retry-After ou backoff) puis on
+  // retente, pour absorber les pics d'envoi groupé sans faire échouer la requête.
+  for (let attempt = 0; response.status === 429 && retry && attempt < MAX_429_RETRIES; attempt++) {
+    await sleep(retryDelayMs(response, attempt));
+    response = await fetch(`${API_URL}${path}`, requestInit);
+  }
 
   if (response.status === 401 && retry && !skipAuth) {
     try {
