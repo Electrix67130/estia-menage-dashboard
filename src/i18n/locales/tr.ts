@@ -417,7 +417,7 @@ const tr: Dict = {
   "logement.rooms.jacuzzi": "Jakuzi",
 
   // Beds
-  "beds.section": "Yatak düzeni",
+  "beds.section": "Konaklama hazırlığı",
   "beds.simple": "Tek kişilik yatak",
   "beds.double": "Çift kişilik yatak",
   "beds.sofa": "Yataklı koltuk",

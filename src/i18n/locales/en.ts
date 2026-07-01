@@ -433,7 +433,7 @@ const en: Dict = {
   "logement.rooms.jacuzzi": "Hot tub",
 
   // Beds
-  "beds.section": "Bed configuration",
+  "beds.section": "Property preparation",
   "beds.simple": "Single bed",
   "beds.double": "Double bed",
   "beds.sofa": "Sofa bed",

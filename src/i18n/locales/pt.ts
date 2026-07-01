@@ -417,7 +417,7 @@ const pt: Dict = {
   "logement.rooms.jacuzzi": "Jacuzzi",
 
   // Beds
-  "beds.section": "Configuração das camas",
+  "beds.section": "Preparação do alojamento",
   "beds.simple": "Cama de solteiro",
   "beds.double": "Cama de casal",
   "beds.sofa": "Sofá-cama",
