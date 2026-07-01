@@ -12,6 +12,9 @@ import Avatar from "@/components/ui/Avatar";
 import Select from "@/components/ui/Select";
 import Input from "@/components/ui/Input";
 import Textarea from "@/components/ui/Textarea";
+import DatePicker from "@/components/ui/DatePicker";
+import TimePicker from "@/components/ui/TimePicker";
+import DurationPicker from "@/components/ui/DurationPicker";
 import Modal from "@/components/ui/Modal";
 import PhotoLightbox from "@/components/PhotoLightbox";
 import { useI18n } from "@/contexts/I18nContext";
@@ -25,6 +28,7 @@ import {
   useUpdateMenage,
   menageSourceLabel,
   MenageDetail,
+  type UpdateMenageInput,
 } from "@/hooks/useMenageDetail";
 import {
   useMenageCheck,
@@ -83,6 +87,9 @@ export default function MenageDetailPage({
   const isAdmin = user?.role === "admin";
   const detail = useMenageDetail(id);
   const menage = detail.data;
+  // Toute la fiche est en consultation par défaut ; l'admin passe en édition
+  // via le bouton « Modifier » (un seul mode édition pour tous les champs).
+  const [isEditing, setIsEditing] = useState(false);
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -96,14 +103,25 @@ export default function MenageDetailPage({
         </Card>
       ) : menage ? (
         <>
-          <Header menage={menage} isAdmin={isAdmin} />
+          <Header
+            menage={menage}
+            isAdmin={isAdmin}
+            isEditing={isEditing}
+            onEdit={() => setIsEditing(true)}
+          />
           <PrestataireSection menage={menage} isAdmin={isAdmin} />
           <ResponsesSection menage={menage} isAdmin={isAdmin} />
-          <ScheduleSection menage={menage} isAdmin={isAdmin} />
-          {isAdmin ? <PointageProofSection menage={menage} /> : null}
-          <BedsSection menage={menage} isAdmin={isAdmin} />
-          {menage.notes_intervention ? <NotesSection notes={menage.notes_intervention} /> : null}
-          <FinancialsSection menage={menage} />
+          {isEditing ? (
+            <MenageEditForm menage={menage} onClose={() => setIsEditing(false)} />
+          ) : (
+            <>
+              <ScheduleSection menage={menage} isAdmin={isAdmin} />
+              {isAdmin ? <PointageProofSection menage={menage} /> : null}
+              <BedsSection menage={menage} isAdmin={isAdmin} />
+              {menage.notes_intervention ? <NotesSection notes={menage.notes_intervention} /> : null}
+              <FinancialsSection menage={menage} />
+            </>
+          )}
           <TabsSection menage={menage} />
         </>
       ) : null}
@@ -111,7 +129,17 @@ export default function MenageDetailPage({
   );
 }
 
-function Header({ menage, isAdmin }: { menage: MenageDetail; isAdmin: boolean }) {
+function Header({
+  menage,
+  isAdmin,
+  isEditing,
+  onEdit,
+}: {
+  menage: MenageDetail;
+  isAdmin: boolean;
+  isEditing: boolean;
+  onEdit: () => void;
+}) {
   const router = useRouter();
   const { confirm } = useDialog();
   const logementLabel =
@@ -121,58 +149,11 @@ function Header({ menage, isAdmin }: { menage: MenageDetail; isAdmin: boolean })
   const validate = useValidateMenage(menage.id);
   const createComment = useCreateComment(menage.id);
   const remove = useDeleteMenage(menage.id);
-  const update = useUpdateMenage(menage.id);
   const reportPhotos = useMenagePhotos(menage.id);
   const [validateOpen, setValidateOpen] = useState(false);
   const [validatePrice, setValidatePrice] = useState<string>("");
   const [validateComment, setValidateComment] = useState<string>("");
   const [recapLightbox, setRecapLightbox] = useState<MenagePhoto | null>(null);
-  const [pointageOpen, setPointageOpen] = useState(false);
-
-  // Pour les inputs datetime-local : ISO → "YYYY-MM-DDTHH:MM" en heure locale.
-  const toLocalInput = (iso: string | null): string => {
-    if (!iso) return "";
-    const d = new Date(iso);
-    const pad = (n: number) => String(n).padStart(2, "0");
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  };
-  const [arrivedAt, setArrivedAt] = useState(toLocalInput(menage.arrived_at));
-  const [departedAt, setDepartedAt] = useState(toLocalInput(menage.departed_at));
-
-  const handleForceComplete = async () => {
-    const ok = await confirm({
-      title: 'Marquer ce ménage comme "terminé" ?',
-      description:
-        "Les heures d'arrivée/départ manquantes seront remplies avec l'heure actuelle.",
-      confirmLabel: "Marquer terminé",
-    });
-    if (!ok) return;
-    const now = new Date().toISOString();
-    try {
-      await update.mutateAsync({
-        status: "termine",
-        arrived_at: menage.arrived_at ?? now,
-        departed_at: menage.departed_at ?? now,
-      });
-      toast.success("Ménage marqué terminé");
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Erreur");
-    }
-  };
-
-  const handleSavePointage = async (e: FormEvent) => {
-    e.preventDefault();
-    try {
-      await update.mutateAsync({
-        arrived_at: arrivedAt ? new Date(arrivedAt).toISOString() : null,
-        departed_at: departedAt ? new Date(departedAt).toISOString() : null,
-      });
-      toast.success("Pointages mis à jour");
-      setPointageOpen(false);
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Erreur");
-    }
-  };
 
   const handleDelete = async () => {
     const ok = await confirm({
@@ -219,8 +200,6 @@ function Header({ menage, isAdmin }: { menage: MenageDetail; isAdmin: boolean })
 
   const canValidate = isAdmin && (menage.status === "termine" || menage.status === "en_cours");
   const isValidated = menage.status === "valide";
-  const canForceComplete = isAdmin && (menage.status === "a_venir" || menage.status === "en_cours");
-  const canEditPointage = isAdmin && menage.status !== "valide";
 
   return (
     <div className="flex flex-col gap-4">
@@ -244,23 +223,6 @@ function Header({ menage, isAdmin }: { menage: MenageDetail; isAdmin: boolean })
           >
             {STATUS_LABEL[menage.status]}
           </span>
-          {isAdmin && menage.status !== "valide" ? (
-            <select
-              value={menage.status}
-              disabled={update.isPending}
-              onChange={(e) => {
-                const next = e.target.value as MenageDetail["status"];
-                if (next !== menage.status) update.mutate({ status: next });
-              }}
-              title="Corriger le statut (admin)"
-              className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs text-zinc-700 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
-            >
-              <option value="a_venir">À venir</option>
-              <option value="en_cours">En cours</option>
-              <option value="termine">Terminé</option>
-              <option value="annule">Annulé</option>
-            </select>
-          ) : null}
           {menage.needs_attention ? (
             <span
               className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider text-rose-700 dark:bg-rose-900/50 dark:text-rose-300"
@@ -287,32 +249,18 @@ function Header({ menage, isAdmin }: { menage: MenageDetail; isAdmin: boolean })
         </div>
       ) : null}
 
-      {isAdmin ? (
+      {isAdmin && !isEditing ? (
         <div className="flex flex-wrap items-center gap-2">
-          {canForceComplete ? (
-            <Button size="sm" onClick={handleForceComplete} disabled={update.isPending}>
-              <CheckCircle2 size={14} />
-              Marquer terminé
-            </Button>
-          ) : null}
           {canValidate && !isValidated ? (
             <Button size="sm" onClick={() => setValidateOpen(true)}>
               <CheckCircle2 size={14} />
               Valider le rapport
             </Button>
           ) : null}
-          {canEditPointage ? (
-            <Button size="sm" variant="secondary" onClick={() => setPointageOpen(true)}>
-              <Clock size={14} />
-              Modifier les pointages
-            </Button>
-          ) : null}
-          <Link href={`/menages/${menage.id}/edit`}>
-            <Button size="sm" variant="secondary">
-              <Pencil size={14} />
-              Modifier
-            </Button>
-          </Link>
+          <Button size="sm" variant="secondary" onClick={onEdit}>
+            <Pencil size={14} />
+            Modifier
+          </Button>
           <Button size="sm" variant="danger" onClick={handleDelete} disabled={remove.isPending}>
             <Trash2 size={14} />
             Supprimer
@@ -471,48 +419,6 @@ function Header({ menage, isAdmin }: { menage: MenageDetail; isAdmin: boolean })
         title={recapLightbox?.is_degradation ? "Dégradation" : "Photo du ménage"}
         subtitle={recapLightbox ? formatTimestamp(recapLightbox.taken_at) : undefined}
       />
-
-      {pointageOpen ? (
-        <Modal
-          open
-          onClose={() => setPointageOpen(false)}
-          title="Pointages (admin)"
-          subtitle="Corrige les heures si le prestataire a oublié de pointer."
-          footer={
-            <>
-              <Button type="button" variant="ghost" onClick={() => setPointageOpen(false)}>
-                Annuler
-              </Button>
-              <Button
-                type="submit"
-                form="pointage-menage-form"
-                loading={update.isPending}
-                disabled={update.isPending}
-              >
-                Enregistrer
-              </Button>
-            </>
-          }
-        >
-          <form id="pointage-menage-form" onSubmit={handleSavePointage} className="flex flex-col gap-3">
-            <Input
-              label="Heure d'arrivée"
-              type="datetime-local"
-              value={arrivedAt}
-              onChange={(e) => setArrivedAt(e.target.value)}
-            />
-            <Input
-              label="Heure de départ"
-              type="datetime-local"
-              value={departedAt}
-              onChange={(e) => setDepartedAt(e.target.value)}
-            />
-            <p className="text-xs text-zinc-500">
-              Laisser un champ vide remet l&apos;heure correspondante à zéro.
-            </p>
-          </form>
-        </Modal>
-      ) : null}
     </div>
   );
 }
@@ -968,24 +874,7 @@ function PointageProofSection({ menage }: { menage: MenageDetail }) {
   );
 }
 
-function ScheduleSection({ menage, isAdmin }: { menage: MenageDetail; isAdmin: boolean }) {
-  const { confirm } = useDialog();
-  const [editing, setEditing] = useState<"arrived_at" | "departed_at" | null>(null);
-  const unlock = useUpdateMenage(menage.id);
-  const handleUnlock = async () => {
-    const ok = await confirm({
-      title: "Déverrouiller la date ?",
-      description: "La prochaine synchronisation iCal pourra écraser cette date.",
-      confirmLabel: "Déverrouiller",
-    });
-    if (!ok) return;
-    try {
-      await unlock.mutateAsync({ date_locked: false });
-      toast.success("Date déverrouillée");
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Erreur");
-    }
-  };
+function ScheduleSection({ menage }: { menage: MenageDetail; isAdmin: boolean }) {
   return (
     <Card className="p-6">
       <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-zinc-500">
@@ -997,24 +886,12 @@ function ScheduleSection({ menage, isAdmin }: { menage: MenageDetail; isAdmin: b
             {formatDateFr(menage.date_prevue.slice(0, 10), "long")}
             {menage.horaire_prevu ? ` à ${menage.horaire_prevu.slice(0, 5)}` : ""}
             {menage.date_locked ? (
-              isAdmin ? (
-                <button
-                  type="button"
-                  onClick={handleUnlock}
-                  disabled={unlock.isPending}
-                  className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-amber-700 transition hover:bg-amber-200 dark:bg-amber-900/40 dark:text-amber-300 dark:hover:bg-amber-900/60"
-                  title="Cliquer pour déverrouiller — la sync iCal pourra à nouveau écraser la date"
-                >
-                  <Lock size={12} /> Verrouillée
-                </button>
-              ) : (
-                <span
-                  className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
-                  title="Date verrouillée — la sync iCal ne l'écrasera pas"
-                >
-                  <Lock size={12} /> Verrouillée
-                </span>
-              )
+              <span
+                className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
+                title="Date verrouillée — la sync iCal ne l'écrasera pas (modifiable via « Modifier »)"
+              >
+                <Lock size={12} /> Verrouillée
+              </span>
             ) : null}
           </span>
         </Row>
@@ -1022,34 +899,10 @@ function ScheduleSection({ menage, isAdmin }: { menage: MenageDetail; isAdmin: b
           {menage.duree_estimee_min ? `${menage.duree_estimee_min} min` : "—"}
         </Row>
         <Row icon={<Clock size={16} />} label="Arrivée prestataire">
-          <span className="inline-flex items-center gap-2">
-            {formatTimestamp(menage.arrived_at)}
-            {isAdmin ? (
-              <button
-                type="button"
-                onClick={() => setEditing("arrived_at")}
-                className="text-blue-600 hover:text-blue-700"
-                aria-label="Modifier l'arrivée"
-              >
-                <Pencil size={12} />
-              </button>
-            ) : null}
-          </span>
+          {formatTimestamp(menage.arrived_at)}
         </Row>
         <Row icon={<Clock size={16} />} label="Départ prestataire">
-          <span className="inline-flex items-center gap-2">
-            {formatTimestamp(menage.departed_at)}
-            {isAdmin ? (
-              <button
-                type="button"
-                onClick={() => setEditing("departed_at")}
-                className="text-blue-600 hover:text-blue-700"
-                aria-label="Modifier le départ"
-              >
-                <Pencil size={12} />
-              </button>
-            ) : null}
-          </span>
+          {formatTimestamp(menage.departed_at)}
         </Row>
         {menage.validated_at ? (
           <Row icon={<Clock size={16} />} label="Validé">
@@ -1057,78 +910,7 @@ function ScheduleSection({ menage, isAdmin }: { menage: MenageDetail; isAdmin: b
           </Row>
         ) : null}
       </dl>
-      {editing ? (
-        <EditTimestampModal
-          menageId={menage.id}
-          field={editing}
-          currentValue={menage[editing]}
-          onClose={() => setEditing(null)}
-        />
-      ) : null}
     </Card>
-  );
-}
-
-function EditTimestampModal({
-  menageId,
-  field,
-  currentValue,
-  onClose,
-}: {
-  menageId: string;
-  field: "arrived_at" | "departed_at";
-  currentValue: string | null;
-  onClose: () => void;
-}) {
-  const update = useUpdateMenage(menageId);
-  const [value, setValue] = useState<string>(toLocalDatetimeInput(currentValue));
-  const label = field === "arrived_at" ? "Arrivée" : "Départ";
-
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    try {
-      const iso = value ? new Date(value).toISOString() : null;
-      await update.mutateAsync({ [field]: iso });
-      toast.success(`${label} mis à jour`);
-      onClose();
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Erreur de mise à jour");
-    }
-  };
-
-  const handleClear = async () => {
-    try {
-      await update.mutateAsync({ [field]: null });
-      toast.success(`${label} effacé`);
-      onClose();
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Erreur");
-    }
-  };
-
-  return (
-    <Modal open onClose={onClose} title={`Modifier l'heure de ${label.toLowerCase()}`}>
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <Input
-          type="datetime-local"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-        />
-        <div className="flex justify-end gap-2">
-          {currentValue ? (
-            <Button type="button" variant="ghost" onClick={handleClear}>
-              Effacer
-            </Button>
-          ) : null}
-          <Button type="button" variant="ghost" onClick={onClose}>
-            Annuler
-          </Button>
-          <Button type="submit" loading={update.isPending} disabled={!value}>
-            Enregistrer
-          </Button>
-        </div>
-      </form>
-    </Modal>
   );
 }
 
@@ -1137,17 +919,6 @@ function toLocalDatetimeInput(iso: string | null): string {
   const d = new Date(iso);
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-function NotesSection({ notes }: { notes: string }) {
-  return (
-    <Card className="p-6">
-      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-zinc-500">
-        Notes d&apos;intervention
-      </h2>
-      <p className="whitespace-pre-wrap text-sm text-zinc-700 dark:text-zinc-300">{notes}</p>
-    </Card>
-  );
 }
 
 /** Compo de lits suggérée pour N voyageurs : un double par paire, +1 simple si impair. */
@@ -1161,101 +932,265 @@ function suggestBeds(travelers: number): {
   return { n_lit_double: Math.floor(n / 2), n_lit_simple: n % 2, n_canape_lit: 0, n_lit_appoint: 0 };
 }
 
-function BedsSection({ menage, isAdmin }: { menage: MenageDetail; isAdmin: boolean }) {
+function parseMoneyInput(s: string): number | null | "invalid" {
+  if (!s.trim()) return null;
+  const n = parseFloat(s.replace(",", "."));
+  if (Number.isNaN(n) || n < 0) return "invalid";
+  return n;
+}
+
+function parseCountInput(s: string): number {
+  const n = parseInt(s, 10);
+  return Number.isNaN(n) || n < 0 ? 0 : n;
+}
+
+/**
+ * Formulaire d'édition unifié de la fiche ménage. Affiché en lieu et place des
+ * sections en lecture seule quand l'admin passe en mode édition. Tous les champs
+ * sont envoyés en un seul PATCH (Enregistrer) ; Annuler abandonne sans appel réseau.
+ */
+function MenageEditForm({ menage, onClose }: { menage: MenageDetail; onClose: () => void }) {
   const { t } = useI18n();
   const update = useUpdateMenage(menage.id);
 
-  const setField = (field: "n_lit_simple" | "n_lit_double" | "n_canape_lit" | "n_lit_appoint" | "n_travelers", value: number) => {
-    update.mutate({ [field]: Math.max(0, value) });
-  };
+  const [datePrevue, setDatePrevue] = useState(menage.date_prevue.slice(0, 10));
+  const [horairePrevu, setHorairePrevu] = useState(menage.horaire_prevu ? menage.horaire_prevu.slice(0, 5) : "");
+  const [dureeEstimee, setDureeEstimee] = useState(menage.duree_estimee_min !== null ? String(menage.duree_estimee_min) : "");
+  const [status, setStatus] = useState<MenageDetail["status"]>(menage.status);
+  const [clientPriceHt, setClientPriceHt] = useState(menage.client_price_ht != null ? String(menage.client_price_ht) : "");
+  const [clientVatRate, setClientVatRate] = useState(menage.client_vat_rate != null ? String(menage.client_vat_rate) : "");
+  const [providerPrice, setProviderPrice] = useState(menage.provider_price != null ? String(menage.provider_price) : "");
+  const [laundryIncluded, setLaundryIncluded] = useState(!!menage.laundry_included);
+  const [laundryClientPriceHt, setLaundryClientPriceHt] = useState(menage.laundry_client_price_ht != null ? String(menage.laundry_client_price_ht) : "");
+  const [laundryProviderPrice, setLaundryProviderPrice] = useState(menage.laundry_provider_price != null ? String(menage.laundry_provider_price) : "");
+  const [nLitSimple, setNLitSimple] = useState(String(menage.n_lit_simple ?? 0));
+  const [nLitDouble, setNLitDouble] = useState(String(menage.n_lit_double ?? 0));
+  const [nCanapeLit, setNCanapeLit] = useState(String(menage.n_canape_lit ?? 0));
+  const [nLitAppoint, setNLitAppoint] = useState(String(menage.n_lit_appoint ?? 0));
+  const [nTravelers, setNTravelers] = useState(menage.n_travelers != null ? String(menage.n_travelers) : "");
+  const [arrivedAt, setArrivedAt] = useState(toLocalDatetimeInput(menage.arrived_at));
+  const [departedAt, setDepartedAt] = useState(toLocalDatetimeInput(menage.departed_at));
+  const [dateLocked, setDateLocked] = useState(!!menage.date_locked);
+  const [notes, setNotes] = useState(menage.notes_intervention ?? "");
 
   const applySuggestion = () => {
-    const n = menage.n_travelers ?? 0;
+    const n = parseCountInput(nTravelers);
     if (n <= 0) return;
-    update.mutate(suggestBeds(n));
+    const s = suggestBeds(n);
+    setNLitDouble(String(s.n_lit_double));
+    setNLitSimple(String(s.n_lit_simple));
+    setNCanapeLit(String(s.n_canape_lit));
+    setNLitAppoint(String(s.n_lit_appoint));
   };
 
-  const beds: { field: "n_lit_simple" | "n_lit_double" | "n_canape_lit" | "n_lit_appoint"; value: number; label: string }[] = [
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!datePrevue) {
+      toast.error(t("menage.errors.dateRequired"));
+      return;
+    }
+    const duree = dureeEstimee.trim() ? parseInt(dureeEstimee, 10) : null;
+    if (dureeEstimee.trim() && (duree === null || Number.isNaN(duree) || duree < 0)) {
+      toast.error(t("menage.errors.dureeInvalid"));
+      return;
+    }
+    const cPrice = parseMoneyInput(clientPriceHt);
+    if (cPrice === "invalid") return toast.error(t("menage.errors.fieldInvalid", { field: t("menage.fields.clientPriceHt") }));
+    const cVat = parseMoneyInput(clientVatRate);
+    if (cVat === "invalid") return toast.error(t("menage.errors.fieldInvalid", { field: t("menage.fields.clientVatRate") }));
+    const pPrice = parseMoneyInput(providerPrice);
+    if (pPrice === "invalid") return toast.error(t("menage.errors.fieldInvalid", { field: t("menage.fields.providerPrice") }));
+    const lCPrice = parseMoneyInput(laundryClientPriceHt);
+    if (lCPrice === "invalid") return toast.error(t("menage.errors.fieldInvalid", { field: t("menage.fields.laundryClientHt") }));
+    const lPPrice = parseMoneyInput(laundryProviderPrice);
+    if (lPPrice === "invalid") return toast.error(t("menage.errors.fieldInvalid", { field: t("menage.fields.laundryProvider") }));
+
+    const body: UpdateMenageInput = {
+      date_prevue: datePrevue,
+      horaire_prevu: horairePrevu || null,
+      duree_estimee_min: duree,
+      status,
+      client_price_ht: cPrice,
+      client_vat_rate: cVat,
+      provider_price: pPrice,
+      laundry_included: laundryIncluded,
+      laundry_client_price_ht: laundryIncluded ? lCPrice : null,
+      laundry_provider_price: laundryIncluded ? lPPrice : null,
+      n_lit_simple: parseCountInput(nLitSimple),
+      n_lit_double: parseCountInput(nLitDouble),
+      n_canape_lit: parseCountInput(nCanapeLit),
+      n_lit_appoint: parseCountInput(nLitAppoint),
+      n_travelers: nTravelers.trim() ? parseCountInput(nTravelers) : null,
+      arrived_at: arrivedAt ? new Date(arrivedAt).toISOString() : null,
+      departed_at: departedAt ? new Date(departedAt).toISOString() : null,
+      date_locked: dateLocked,
+      notes_intervention: notes.trim() || null,
+    };
+
+    try {
+      await update.mutateAsync(body);
+      toast.success(t("menage.success.updated"));
+      onClose();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : t("common.error"));
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+      <Card className="flex flex-col gap-4 p-6">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">
+          {t("menage.edit.sectionPlanning")}
+        </h2>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <DatePicker label={t("menage.fields.datePrevue")} value={datePrevue} onChange={setDatePrevue} required />
+          <TimePicker label={t("menage.fields.horaire")} value={horairePrevu} onChange={setHorairePrevu} />
+        </div>
+        <DurationPicker label={t("menage.fields.dureeEstimee")} value={dureeEstimee} onChange={setDureeEstimee} />
+        <Select label={t("menage.edit.sectionStatus")} value={status} onChange={(e) => setStatus(e.target.value as MenageDetail["status"])}>
+          <option value="a_venir">À venir</option>
+          <option value="en_cours">En cours</option>
+          <option value="termine">Terminé</option>
+          <option value="annule">Annulé</option>
+          {menage.status === "valide" ? <option value="valide">Validé</option> : null}
+        </Select>
+        <label className="inline-flex items-center gap-2 text-sm font-medium">
+          <input
+            type="checkbox"
+            checked={dateLocked}
+            onChange={(e) => setDateLocked(e.target.checked)}
+            className="h-4 w-4 rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
+          />
+          Date verrouillée (la sync iCal ne l&apos;écrasera pas)
+        </label>
+      </Card>
+
+      <Card className="flex flex-col gap-4 p-6">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">Pointages</h2>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Input label="Arrivée prestataire" type="datetime-local" value={arrivedAt} onChange={(e) => setArrivedAt(e.target.value)} />
+          <Input label="Départ prestataire" type="datetime-local" value={departedAt} onChange={(e) => setDepartedAt(e.target.value)} />
+        </div>
+        <p className="text-xs text-zinc-500">Laisser un champ vide remet l&apos;heure correspondante à zéro.</p>
+      </Card>
+
+      <Card className="flex flex-col gap-4 p-6">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">{t("menage.edit.sectionPricing")}</h2>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <Input label={t("menage.fields.clientPriceHt")} type="number" min={0} step="0.01" value={clientPriceHt} onChange={(e) => setClientPriceHt(e.target.value)} />
+          <Input label={t("menage.fields.clientVatRate")} type="number" min={0} max={100} step="0.1" value={clientVatRate} onChange={(e) => setClientVatRate(e.target.value)} />
+          <Input label={t("menage.fields.providerPrice")} type="number" min={0} step="0.01" value={providerPrice} onChange={(e) => setProviderPrice(e.target.value)} />
+        </div>
+      </Card>
+
+      <Card className="flex flex-col gap-4 p-6">
+        <div className="flex items-start justify-between gap-3">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">{t("menage.edit.sectionLaundry")}</h2>
+          <label className="inline-flex items-center gap-2 text-sm font-medium">
+            <input
+              type="checkbox"
+              checked={laundryIncluded}
+              onChange={(e) => setLaundryIncluded(e.target.checked)}
+              className="h-4 w-4 rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
+            />
+            {t("menage.fields.laundryIncludedShort")}
+          </label>
+        </div>
+        {laundryIncluded ? (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Input label={t("menage.fields.laundryClientHt")} type="number" min={0} step="0.01" value={laundryClientPriceHt} onChange={(e) => setLaundryClientPriceHt(e.target.value)} />
+            <Input label={t("menage.fields.laundryProvider")} type="number" min={0} step="0.01" value={laundryProviderPrice} onChange={(e) => setLaundryProviderPrice(e.target.value)} />
+          </div>
+        ) : null}
+      </Card>
+
+      <Card className="flex flex-col gap-4 p-6">
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">{t("beds.section")}</h2>
+            <p className="mt-1 text-xs text-zinc-500">{t("beds.hintMenage")}</p>
+          </div>
+          {parseCountInput(nTravelers) > 0 ? (
+            <button
+              type="button"
+              onClick={applySuggestion}
+              className="rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 dark:border-blue-900/50 dark:bg-blue-900/20 dark:text-blue-300"
+            >
+              Suggérer les lits
+            </button>
+          ) : null}
+        </div>
+        <Input label="Voyageurs" type="number" min={0} value={nTravelers} onChange={(e) => setNTravelers(e.target.value)} />
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Input label={t("beds.simple")} type="number" min={0} value={nLitSimple} onChange={(e) => setNLitSimple(e.target.value)} />
+          <Input label={t("beds.double")} type="number" min={0} value={nLitDouble} onChange={(e) => setNLitDouble(e.target.value)} />
+          <Input label={t("beds.sofa")} type="number" min={0} value={nCanapeLit} onChange={(e) => setNCanapeLit(e.target.value)} />
+          <Input label={t("beds.extra")} type="number" min={0} value={nLitAppoint} onChange={(e) => setNLitAppoint(e.target.value)} />
+        </div>
+      </Card>
+
+      <Card className="flex flex-col gap-4 p-6">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">{t("menage.edit.sectionNotes")}</h2>
+        <Textarea label={t("menage.fields.notesIntervention")} value={notes} onChange={(e) => setNotes(e.target.value)} rows={4} maxLength={5000} />
+      </Card>
+
+      <div className="flex items-center justify-end gap-2">
+        <Button type="button" variant="ghost" onClick={onClose}>
+          {t("common.cancel")}
+        </Button>
+        <Button type="submit" loading={update.isPending} disabled={update.isPending}>
+          {t("common.save")}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+function NotesSection({ notes }: { notes: string }) {
+  return (
+    <Card className="p-6">
+      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-zinc-500">
+        Notes d&apos;intervention
+      </h2>
+      <p className="whitespace-pre-wrap text-sm text-zinc-700 dark:text-zinc-300">{notes}</p>
+    </Card>
+  );
+}
+
+function BedsSection({ menage, isAdmin }: { menage: MenageDetail; isAdmin: boolean }) {
+  const { t } = useI18n();
+
+  const beds: { field: string; value: number; label: string }[] = [
     { field: "n_lit_simple", value: menage.n_lit_simple ?? 0, label: t("beds.simple") },
     { field: "n_lit_double", value: menage.n_lit_double ?? 0, label: t("beds.double") },
     { field: "n_canape_lit", value: menage.n_canape_lit ?? 0, label: t("beds.sofa") },
     { field: "n_lit_appoint", value: menage.n_lit_appoint ?? 0, label: t("beds.extra") },
   ];
   const totalBeds = beds.reduce((s, b) => s + b.value, 0);
-  const nights = menage.stay_nights ?? null;
 
-  // Vue lecture seule (prestataire) : rien à afficher si aucun lit ni voyageur ni durée.
-  if (!isAdmin && totalBeds === 0 && menage.n_travelers == null && nights == null) return null;
-
-  const Stepper = ({ value, onChange }: { value: number; onChange: (n: number) => void }) => (
-    <div className="mt-1 inline-flex items-center gap-2">
-      <button
-        type="button"
-        onClick={() => onChange(value - 1)}
-        disabled={value <= 0 || update.isPending}
-        className="flex h-7 w-7 items-center justify-center rounded-md border border-zinc-300 text-zinc-700 disabled:opacity-40 dark:border-zinc-700 dark:text-zinc-200"
-      >
-        −
-      </button>
-      <span className="min-w-6 text-center text-xl font-bold tabular-nums text-zinc-900 dark:text-white">{value}</span>
-      <button
-        type="button"
-        onClick={() => onChange(value + 1)}
-        disabled={update.isPending}
-        className="flex h-7 w-7 items-center justify-center rounded-md border border-zinc-300 text-zinc-700 disabled:opacity-40 dark:border-zinc-700 dark:text-zinc-200"
-      >
-        +
-      </button>
-    </div>
-  );
+  // Vue lecture seule : rien à afficher si aucun lit ni voyageur.
+  if (!isAdmin && totalBeds === 0 && menage.n_travelers == null) return null;
 
   const cell = "flex flex-col items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-800/40";
 
   return (
     <Card className="p-6">
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">Lits à faire</h2>
-        {isAdmin && (menage.n_travelers ?? 0) > 0 ? (
-          <button
-            type="button"
-            onClick={applySuggestion}
-            disabled={update.isPending}
-            className="rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-50 dark:border-blue-900/50 dark:bg-blue-900/20 dark:text-blue-300"
-          >
-            Suggérer les lits ({menage.n_travelers} voyageur{(menage.n_travelers ?? 0) > 1 ? "s" : ""})
-          </button>
-        ) : null}
-      </div>
+      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-zinc-500">Lits à faire</h2>
 
-      {/* Voyageurs + durée du séjour */}
+      {/* Voyageurs */}
       <div className="mb-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
         <div className="flex items-center gap-2">
           <span className="text-zinc-500">Voyageurs :</span>
-          {isAdmin ? (
-            <Stepper value={menage.n_travelers ?? 0} onChange={(n) => setField("n_travelers", n)} />
-          ) : (
-            <span className="font-semibold tabular-nums text-zinc-900 dark:text-white">
-              {menage.n_travelers ?? "—"}
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-zinc-500">Durée du séjour :</span>
           <span className="font-semibold tabular-nums text-zinc-900 dark:text-white">
-            {nights != null ? `${nights} nuit${nights > 1 ? "s" : ""}` : "—"}
+            {menage.n_travelers ?? "—"}
           </span>
-          {nights != null ? <span className="text-xs text-zinc-400">(iCal)</span> : null}
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {beds.map((b) => (
           <div key={b.field} className={cell}>
-            {isAdmin ? (
-              <Stepper value={b.value} onChange={(n) => setField(b.field, n)} />
-            ) : (
-              <span className="text-2xl font-bold tabular-nums text-zinc-900 dark:text-white">{b.value}</span>
-            )}
+            <span className="text-2xl font-bold tabular-nums text-zinc-900 dark:text-white">{b.value}</span>
             <span className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">{b.label}</span>
           </div>
         ))}
