@@ -30,6 +30,8 @@ const fr: Dict = {
   // Nav
   "nav.overview": "Vue d'ensemble",
   "nav.menages": "Ménages",
+  "nav.checkIns": "Check-in",
+  "nav.checkOuts": "Check-out",
   "nav.logements": "Logements",
   "nav.calendar": "Calendrier",
   "nav.planning": "Planning",
@@ -431,6 +433,10 @@ const fr: Dict = {
   "logement.rooms.laundry": "Buanderie",
   "logement.rooms.pool": "Piscine",
   "logement.rooms.jacuzzi": "Jacuzzi",
+  "logement.prestations.section": "Prestations",
+  "logement.prestations.hint": "Types de prestations pouvant être planifiés pour ce logement.",
+  "logement.enableCheckIn": "Activer les check-in",
+  "logement.enableCheckOut": "Activer les check-out",
 
   // Beds
   "beds.section": "Préparation du logement",

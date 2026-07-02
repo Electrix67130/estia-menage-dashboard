@@ -48,6 +48,7 @@ import {
 import { ApiError } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { haversineMeters, formatDistance, POINTAGE_DISTANCE_WARN_M } from "@/lib/geo-distance";
+import { prestationTypeLabel, prestationTypePill } from "@/lib/prestation";
 
 const STATUS_LABEL: Record<MenageDetail["status"], string> = {
   a_venir: "À venir",
@@ -116,7 +117,9 @@ export default function MenageDetailPage({
           ) : (
             <>
               <ScheduleSection menage={menage} isAdmin={isAdmin} />
-              {isAdmin ? <PointageProofSection menage={menage} /> : null}
+              {isAdmin && menage.prestation_type === "menage" ? (
+                <PointageProofSection menage={menage} />
+              ) : null}
               <BedsSection menage={menage} isAdmin={isAdmin} />
               {menage.notes_intervention ? <NotesSection notes={menage.notes_intervention} /> : null}
               <FinancialsSection menage={menage} />
@@ -218,6 +221,13 @@ function Header({
           </Link>
         </div>
         <div className="flex flex-col items-end gap-1.5">
+          {menage.prestation_type !== "menage" ? (
+            <span
+              className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wider ${prestationTypePill(menage.prestation_type)}`}
+            >
+              {prestationTypeLabel(menage.prestation_type)}
+            </span>
+          ) : null}
           <span
             className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wider ${STATUS_PILL[menage.status]}`}
           >
@@ -1314,9 +1324,11 @@ function TabsSection({ menage }: { menage: MenageDetail }) {
   const [tab, setTab] = useState<TabKey>("check");
   const counts = useUnreadCounts(menage.id);
   const markViewed = useMarkTabViewed();
+  // check-in / check-out : pas de galerie photos (décision produit).
+  const showPhotos = menage.prestation_type === "menage";
   const tabs: { key: TabKey; label: string; icon: typeof ListChecks }[] = [
     { key: "check", label: "Checklist", icon: ListChecks },
-    { key: "photos", label: "Photos", icon: Camera },
+    ...(showPhotos ? [{ key: "photos" as const, label: "Photos", icon: Camera }] : []),
     { key: "comments", label: "Commentaires", icon: MessageSquare },
   ];
 

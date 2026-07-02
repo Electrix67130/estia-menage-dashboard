@@ -19,6 +19,11 @@ import { useLogement } from "@/hooks/useLogement";
 import { useCreateMenage } from "@/hooks/useMenageDetail";
 import { useOrgPrestataires } from "@/hooks/useLogementMembers";
 import { ApiError } from "@/lib/api";
+import { prestationTypeLabel, type PrestationType } from "@/lib/prestation";
+
+function parsePrestationType(v: string | null): PrestationType {
+  return v === "check_in" || v === "check_out" ? v : "menage";
+}
 
 function todayIso(): string {
   const d = new Date();
@@ -42,6 +47,9 @@ function NewMenageForm() {
     return d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : todayIso();
   }, [params]);
   const initialLogementId = params.get("logement_id") ?? "";
+  const prestationType = parsePrestationType(params.get("type"));
+  const isCheck = prestationType !== "menage";
+  const typeLabel = prestationTypeLabel(prestationType).toLowerCase();
 
   const [logementId, setLogementId] = useState<string>(initialLogementId);
   const [datePrevue, setDatePrevue] = useState<string>(initialDate);
@@ -70,6 +78,9 @@ function NewMenageForm() {
 
     const toStr = (v: number | string | null | undefined) =>
       v === null || v === undefined || v === "" ? "" : String(v);
+    // Les défauts (horaires, tarifs, linge) sont propres au ménage : on ne
+    // pré-remplit pas un check-in/check-out avec (l'admin saisit s'il facture).
+    if (isCheck) return;
     setHorairePrevu((prev) => prev || (l.default_horaire_debut ?? ""));
     setDureeEstimee((prev) => prev || toStr(l.default_duration_min));
     setClientPriceHt((prev) => prev || toStr(l.default_client_price_ht));
@@ -80,12 +91,12 @@ function NewMenageForm() {
       setLaundryClientPriceHt((prev) => prev || toStr(l.default_laundry_client_price_ht));
       setLaundryProviderPrice((prev) => prev || toStr(l.default_laundry_provider_price));
     }
-  }, [selectedLogement.data]);
+  }, [selectedLogement.data, isCheck]);
 
   if (!isAdmin) {
     return (
       <Card className="border-blue-200 bg-blue-50 p-4 text-sm text-blue-800 dark:border-blue-900 dark:bg-blue-900/20 dark:text-blue-300">
-        Seul un administrateur peut créer un ménage.
+        Seul un administrateur peut créer un {typeLabel}.
       </Card>
     );
   }
@@ -132,6 +143,7 @@ function NewMenageForm() {
     try {
       const menage = await create.mutateAsync({
         logement_id: logementId,
+        prestation_type: prestationType,
         date_prevue: datePrevue,
         horaire_prevu: horairePrevu || undefined,
         duree_estimee_min: duree,
@@ -140,11 +152,12 @@ function NewMenageForm() {
         client_price_ht: cPrice,
         client_vat_rate: cVat,
         provider_price: pPrice,
-        laundry_included: laundryIncluded,
-        laundry_client_price_ht: laundryIncluded ? lCPrice : undefined,
-        laundry_provider_price: laundryIncluded ? lPPrice : undefined,
+        // Le linge ne concerne que le ménage.
+        laundry_included: isCheck ? false : laundryIncluded,
+        laundry_client_price_ht: !isCheck && laundryIncluded ? lCPrice : undefined,
+        laundry_provider_price: !isCheck && laundryIncluded ? lPPrice : undefined,
       });
-      toast.success("Ménage créé");
+      toast.success(`${prestationTypeLabel(prestationType)} créé`);
       router.push(`/menages/${menage.id}`);
     } catch (err) {
       const message =
@@ -159,6 +172,9 @@ function NewMenageForm() {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+      <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">
+        Nouveau {typeLabel}
+      </h1>
       <Card className="flex flex-col gap-4 p-6">
         <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">
           Informations
@@ -274,6 +290,7 @@ function NewMenageForm() {
         </div>
       </Card>
 
+      {!isCheck ? (
       <Card className="flex flex-col gap-4 p-6">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -317,6 +334,7 @@ function NewMenageForm() {
           </div>
         ) : null}
       </Card>
+      ) : null}
 
       <div className="flex items-center justify-end gap-2">
         <Link href="/calendar">
@@ -325,7 +343,7 @@ function NewMenageForm() {
           </Button>
         </Link>
         <Button type="submit" loading={create.isPending} disabled={create.isPending}>
-          Créer le ménage
+          Créer le {typeLabel}
         </Button>
       </div>
     </form>
@@ -336,9 +354,6 @@ export default function NewMenagePage() {
   return (
     <div className="flex flex-col gap-6 p-6">
       <BackLink fallback="/menages" />
-      <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">
-        Nouveau ménage
-      </h1>
       <Suspense fallback={<p className="text-sm text-zinc-500">Chargement…</p>}>
         <NewMenageForm />
       </Suspense>

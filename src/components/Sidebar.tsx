@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Building2, Archive, Users, FileText, CreditCard, Settings, ShieldCheck, CalendarClock, CalendarDays, CalendarRange, Home, Wallet, Receipt } from "lucide-react";
+import { LayoutDashboard, Building2, Archive, Users, FileText, CreditCard, Settings, ShieldCheck, CalendarClock, CalendarDays, CalendarRange, Home, Wallet, Receipt, LogIn, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useI18n } from "@/contexts/I18nContext";
@@ -13,6 +13,8 @@ import { useRescheduleRequests } from "@/hooks/useRescheduleRequests";
 const NAV_ALL = [
   { href: "/dashboard", labelKey: "nav.overview", icon: LayoutDashboard, key: "overview" as const },
   { href: "/menages", labelKey: "nav.menages", icon: Building2, key: "menages" as const },
+  { href: "/check-ins", labelKey: "nav.checkIns", icon: LogIn, key: "checkIns" as const },
+  { href: "/check-outs", labelKey: "nav.checkOuts", icon: LogOut, key: "checkOuts" as const },
   { href: "/logements", labelKey: "nav.logements", icon: Home, key: "logements" as const },
   { href: "/calendar", labelKey: "nav.calendar", icon: CalendarDays, key: "calendar" as const },
   { href: "/planning", labelKey: "nav.planning", icon: CalendarRange, key: "planning" as const },

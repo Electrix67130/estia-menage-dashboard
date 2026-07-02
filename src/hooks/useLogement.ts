@@ -29,6 +29,10 @@ export interface Logement {
   has_laundry: boolean;
   has_pool: boolean;
   has_jacuzzi: boolean;
+  /** Active la création de prestations « check-in » (arrivée voyageur) pour ce logement. */
+  enable_check_in: boolean;
+  /** Active la création de prestations « check-out » (départ voyageur) pour ce logement. */
+  enable_check_out: boolean;
   surface_m2: number | null;
   notes: string | null;
   /** Code de la boîte à clés (accès logement pour le presta affecté). */
@@ -75,6 +79,8 @@ export interface UpdateLogementInput {
   has_laundry?: boolean;
   has_pool?: boolean;
   has_jacuzzi?: boolean;
+  enable_check_in?: boolean;
+  enable_check_out?: boolean;
   surface_m2?: number | null;
   notes?: string | null;
   key_safe_code?: string | null;
@@ -133,6 +139,8 @@ export interface CreateLogementInput {
   has_laundry?: boolean;
   has_pool?: boolean;
   has_jacuzzi?: boolean;
+  enable_check_in?: boolean;
+  enable_check_out?: boolean;
   surface_m2?: number;
   notes?: string;
   key_safe_code?: string;

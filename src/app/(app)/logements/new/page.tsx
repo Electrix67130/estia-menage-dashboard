@@ -64,6 +64,8 @@ export default function NewLogementPage() {
   const [hasLaundry, setHasLaundry] = useState(false);
   const [hasPool, setHasPool] = useState(false);
   const [hasJacuzzi, setHasJacuzzi] = useState(false);
+  const [enableCheckIn, setEnableCheckIn] = useState(false);
+  const [enableCheckOut, setEnableCheckOut] = useState(false);
   const [surfaceM2, setSurfaceM2] = useState("");
   const [keySafeCode, setKeySafeCode] = useState("");
   const [notes, setNotes] = useState("");
@@ -145,6 +147,8 @@ export default function NewLogementPage() {
       has_laundry: hasLaundry,
       has_pool: hasPool,
       has_jacuzzi: hasJacuzzi,
+      enable_check_in: enableCheckIn,
+      enable_check_out: enableCheckOut,
       surface_m2: surface,
       key_safe_code: keySafeCode.trim() || undefined,
       notes: notes.trim() || undefined,
@@ -304,6 +308,34 @@ export default function NewLogementPage() {
               />
               {t("logement.rooms.jacuzzi")}
             </label>
+          </div>
+          <div className="border-t border-zinc-200 pt-4 dark:border-zinc-800">
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">
+              {t("logement.prestations.section")}
+            </h3>
+            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+              {t("logement.prestations.hint")}
+            </p>
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <label className="inline-flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={enableCheckIn}
+                  onChange={(e) => setEnableCheckIn(e.target.checked)}
+                  className="h-4 w-4 rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
+                />
+                {t("logement.enableCheckIn")}
+              </label>
+              <label className="inline-flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={enableCheckOut}
+                  onChange={(e) => setEnableCheckOut(e.target.checked)}
+                  className="h-4 w-4 rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
+                />
+                {t("logement.enableCheckOut")}
+              </label>
+            </div>
           </div>
         </Card>
 

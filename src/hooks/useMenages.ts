@@ -3,6 +3,7 @@
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import type { CalendarMenage } from "./useCalendarMenages";
+import type { PrestationType } from "@/lib/prestation";
 
 export type MenageStatus = CalendarMenage["status"];
 export type MenageFilter = MenageStatus | "all" | "to_validate" | "unassigned";
@@ -14,6 +15,8 @@ interface ApiResponse {
 
 interface Params {
   status?: MenageStatus;
+  /** Filtre par type de prestation (ménage / check-in / check-out). */
+  type?: PrestationType;
   validated?: boolean;
   unassigned?: boolean;
   closed?: boolean;
@@ -29,6 +32,7 @@ interface Params {
 export function useMenages(params: Params = {}) {
   const qs = new URLSearchParams();
   if (params.status) qs.set("status", params.status);
+  if (params.type) qs.set("type", params.type);
   if (params.validated !== undefined) qs.set("validated", String(params.validated));
   if (params.unassigned !== undefined) qs.set("unassigned", String(params.unassigned));
   if (params.closed !== undefined) qs.set("closed", String(params.closed));

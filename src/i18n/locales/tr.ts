@@ -30,6 +30,8 @@ const tr: Dict = {
   // Nav
   "nav.overview": "Genel bakış",
   "nav.menages": "Şantiyeler",
+  "nav.checkIns": "Check-in",
+  "nav.checkOuts": "Check-out",
   "nav.archives": "Arşiv",
   "nav.team": "Ekip",
   "nav.earnings": "Kazançlar",
@@ -415,6 +417,10 @@ const tr: Dict = {
   "logement.rooms.laundry": "Çamaşırlık",
   "logement.rooms.pool": "Havuz",
   "logement.rooms.jacuzzi": "Jakuzi",
+  "logement.prestations.section": "Hizmetler",
+  "logement.prestations.hint": "Bu konaklama için planlanabilecek hizmet türleri.",
+  "logement.enableCheckIn": "Check-in'i etkinleştir",
+  "logement.enableCheckOut": "Check-out'u etkinleştir",
 
   // Beds
   "beds.section": "Konaklama hazırlığı",

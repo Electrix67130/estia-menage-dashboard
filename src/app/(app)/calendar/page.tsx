@@ -10,6 +10,7 @@ import Button from "@/components/ui/Button";
 import Select from "@/components/ui/Select";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCalendarMenages, CalendarMenage, prestataireLabel, logementLabel } from "@/hooks/useCalendarMenages";
+import { prestationTypeLabel, type PrestationType } from "@/lib/prestation";
 import { useLogementsList } from "@/hooks/useLogementsList";
 import { apiFetch } from "@/lib/api";
 import { formatDateFr } from "@/lib/date-fr";
@@ -18,6 +19,8 @@ import type { User, PaginatedResponse } from "@/types/api";
 const PRESTATAIRE_ALL = "";
 const PRESTATAIRE_UNASSIGNED = "__unassigned__";
 const LOGEMENT_ALL = "";
+const TYPE_ALL = "";
+const PRESTATION_TYPES: PrestationType[] = ["menage", "check_in", "check_out"];
 
 const WEEKDAYS = ["lun", "mar", "mer", "jeu", "ven", "sam", "dim"];
 
@@ -40,6 +43,10 @@ export default function CalendarPage() {
   const [logementFilter, setLogementFilter] = usePersistedState<string>(
     "calendar.filter.logement",
     LOGEMENT_ALL,
+  );
+  const [typeFilter, setTypeFilter] = usePersistedState<string>(
+    "calendar.filter.type",
+    TYPE_ALL,
   );
 
   const { from, to } = useMemo(() => monthRange(cursor), [cursor]);
@@ -75,16 +82,20 @@ export default function CalendarPage() {
         } else if (prestataireFilter) {
           if (m.prestataire_user_id !== prestataireFilter) return false;
         }
+        if (typeFilter && m.prestation_type !== typeFilter) return false;
         if (logementFilter && m.logement_id !== logementFilter) return false;
         return true;
       }),
-    [allMenages, prestataireFilter, logementFilter],
+    [allMenages, prestataireFilter, typeFilter, logementFilter],
   );
 
   const byDate = useMemo(() => groupByDate(filteredMenages), [filteredMenages]);
   const days = useMemo(() => buildMonthGrid(cursor), [cursor]);
   const todayIso = isoLocal(new Date());
-  const filtersActive = prestataireFilter !== PRESTATAIRE_ALL || logementFilter !== LOGEMENT_ALL;
+  const filtersActive =
+    prestataireFilter !== PRESTATAIRE_ALL ||
+    logementFilter !== LOGEMENT_ALL ||
+    typeFilter !== TYPE_ALL;
   const filteredCount = filteredMenages.length;
 
   return (
@@ -150,6 +161,20 @@ export default function CalendarPage() {
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
         <div className="flex-1">
           <Select
+            label="Type"
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+          >
+            <option value={TYPE_ALL}>Tous</option>
+            {PRESTATION_TYPES.map((t) => (
+              <option key={t} value={t}>
+                {prestationTypeLabel(t)}
+              </option>
+            ))}
+          </Select>
+        </div>
+        <div className="flex-1">
+          <Select
             label="Prestataire"
             value={prestataireFilter}
             onChange={(e) => setPrestataireFilter(e.target.value)}
@@ -184,6 +209,7 @@ export default function CalendarPage() {
             onClick={() => {
               setPrestataireFilter(PRESTATAIRE_ALL);
               setLogementFilter(LOGEMENT_ALL);
+              setTypeFilter(TYPE_ALL);
             }}
           >
             <X size={14} />

@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
+import type { PrestationType } from "@/lib/prestation";
 
 export interface CalendarMenage {
   id: string;
@@ -17,6 +18,8 @@ export interface CalendarMenage {
   logement_city: string | null;
   logement_color: string | null;
   status: "a_venir" | "en_cours" | "termine" | "valide" | "annule";
+  /** Type de prestation : ménage classique, check-in (arrivée) ou check-out (départ). */
+  prestation_type: PrestationType;
   date_prevue: string;
   /** Prochain check-in du logement (arrivée du prochain voyageur, via iCal). */
   next_checkin_at?: string | null;
