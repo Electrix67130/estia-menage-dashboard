@@ -2,7 +2,7 @@
 
 import { use, useEffect, useRef, useState, FormEvent } from "react";
 import Link from "next/link";
-import { Plus, Trash2, Pencil, GripVertical, MapPin, ImagePlus, Camera, Clock, AlertTriangle, PackageCheck, RefreshCw, CalendarClock } from "lucide-react";
+import { Plus, Trash2, Pencil, GripVertical, MapPin, Camera, Clock, AlertTriangle, PackageCheck, RefreshCw, CalendarClock } from "lucide-react";
 import BackLink from "@/components/BackLink";
 import { toast } from "sonner";
 import Card from "@/components/ui/Card";
@@ -13,7 +13,6 @@ import Textarea from "@/components/ui/Textarea";
 import DurationPicker from "@/components/ui/DurationPicker";
 import ColorPicker from "@/components/ui/ColorPicker";
 import ClientPickerModal from "@/components/ClientPickerModal";
-import PhotoLightbox from "@/components/PhotoLightbox";
 import { useI18n } from "@/contexts/I18nContext";
 import { ChevronDown, User } from "lucide-react";
 import {
@@ -28,7 +27,6 @@ import {
   useLogementRooms,
   useCreateLogementRoom,
   useDeleteLogementRoom,
-  useUpdateLogementRoom,
   type RoomKind,
   type LogementRoom,
 } from "@/hooks/useLogementRooms";
@@ -121,7 +119,6 @@ export default function LogementSettingsPage({
 
       <InfoSection logementId={id} isAdmin={isAdmin} />
       <LogementMembersSection logementId={id} isAdmin={isAdmin} />
-      <PhotosSection logementId={id} isAdmin={isAdmin} />
       <RoomsSection logementId={id} isAdmin={isAdmin} />
       <ConsommablesSection logementId={id} isAdmin={isAdmin} />
       {isAdmin ? <ExternalCalendarsSection logementId={id} /> : null}
@@ -1629,122 +1626,6 @@ function TemplateSection({
 
 function labelForKind(kind: RoomKind): string {
   return ROOM_KINDS.find((k) => k.value === kind)?.label ?? kind;
-}
-
-function PhotosSection({ logementId, isAdmin }: { logementId: string; isAdmin: boolean }) {
-  const { confirm } = useDialog();
-  const photos = useLogementPhotos(logementId);
-  const create = useCreatePhoto();
-  const remove = useDeletePhoto();
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [lightbox, setLightbox] = useState<string | null>(null);
-  const items = (photos.data?.data ?? []).filter((p) => p.logement_id === logementId && p.logement_room_id === null);
-
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? []);
-    if (files.length === 0) return;
-    try {
-      for (const file of files) {
-        const uploaded = await uploadFile(file);
-        await create.mutateAsync({
-          logement_id: logementId,
-          url: uploaded.url,
-          file_size: uploaded.file_size,
-          mime_type: uploaded.mime_type,
-          taken_at: new Date().toISOString(),
-        });
-      }
-      toast.success(`${files.length} photo${files.length > 1 ? "s" : ""} ajoutée${files.length > 1 ? "s" : ""}`);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Échec upload");
-    }
-  };
-
-  const handleDelete = async (id: string) => {
-    const ok = await confirm({
-      title: "Supprimer cette photo ?",
-      tone: "danger",
-      confirmLabel: "Supprimer",
-    });
-    if (!ok) return;
-    try {
-      await remove.mutateAsync(id);
-      toast.success("Photo supprimée");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur");
-    }
-  };
-
-  return (
-    <Card className="p-6">
-      <div className="mb-4 flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-zinc-900 dark:text-white">Photos du logement</h2>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            Photos générales (pas liées à une pièce ou un ménage).
-          </p>
-        </div>
-        {isAdmin ? (
-          <>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              multiple
-              onChange={handleUpload}
-              className="hidden"
-            />
-            <Button size="sm" onClick={() => fileInputRef.current?.click()} disabled={create.isPending}>
-              <ImagePlus size={14} />
-              Ajouter
-            </Button>
-          </>
-        ) : null}
-      </div>
-
-      {photos.isLoading ? (
-        <p className="text-sm text-zinc-500">Chargement…</p>
-      ) : items.length === 0 ? (
-        <p className="text-sm text-zinc-500">Aucune photo.</p>
-      ) : (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-          {items.map((p) => (
-            <div key={p.id} className="group relative aspect-square overflow-hidden rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900">
-              <button
-                type="button"
-                onClick={() => setLightbox(p.url)}
-                className="block h-full w-full"
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={p.thumbnail_url ?? p.url}
-                  alt={p.caption ?? ""}
-                  className="h-full w-full object-cover transition-transform group-hover:scale-105"
-                />
-              </button>
-              {isAdmin ? (
-                <button
-                  type="button"
-                  onClick={() => handleDelete(p.id)}
-                  className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-black/60 text-white opacity-0 transition-opacity hover:bg-rose-600 group-hover:opacity-100"
-                  aria-label="Supprimer la photo"
-                >
-                  <Trash2 size={14} />
-                </button>
-              ) : null}
-            </div>
-          ))}
-        </div>
-      )}
-
-      <PhotoLightbox
-        open={!!lightbox}
-        onClose={() => setLightbox(null)}
-        photoUrl={lightbox}
-      />
-    </Card>
-  );
 }
 
 function RoomItem({
