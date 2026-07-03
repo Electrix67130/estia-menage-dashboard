@@ -11,6 +11,8 @@ import {
   Plus,
   Clock,
   MapPin,
+  LogIn,
+  LogOut,
 } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
@@ -21,6 +23,8 @@ import { useMenages } from "@/hooks/useMenages";
 import { useRescheduleRequests } from "@/hooks/useRescheduleRequests";
 import { logementLabel, prestataireLabel, type CalendarMenage } from "@/hooks/useCalendarMenages";
 import { formatDateFr, formatCurrencyFr } from "@/lib/date-fr";
+import { prestationTypeLabel, prestationTypePill } from "@/lib/prestation";
+import { cn } from "@/lib/utils";
 
 const STATUS_PILL: Record<CalendarMenage["status"], string> = {
   a_venir: "bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300",
@@ -79,7 +83,11 @@ export default function DashboardPage() {
     // Estimation CA : somme des provider_price (admin voit aussi le client_price si exposé).
     // Le CalendarMenage type n'a pas les prix, on n'estime que le nombre.
     return {
-      upcomingCount: upcoming.length,
+      // « Ménages à venir » = uniquement les prestations de nettoyage, pour ne pas
+      // doublonner avec les cartes check-in / check-out.
+      upcomingMenageCount: upcoming.filter((m) => (m.prestation_type ?? "menage") === "menage").length,
+      upcomingCheckInCount: upcoming.filter((m) => m.prestation_type === "check_in").length,
+      upcomingCheckOutCount: upcoming.filter((m) => m.prestation_type === "check_out").length,
       validatedCount: validatedThisMonth.length,
     };
   }, [allMenages.data, today, monthStart]);
@@ -111,12 +119,24 @@ export default function DashboardPage() {
         ) : null}
       </div>
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
         <StatCard
           icon={<CalendarClock size={20} />}
           label="Ménages à venir"
-          value={stats.upcomingCount}
+          value={stats.upcomingMenageCount}
           href="/menages"
+        />
+        <StatCard
+          icon={<LogIn size={20} />}
+          label="Check-in à venir"
+          value={stats.upcomingCheckInCount}
+          href="/check-ins"
+        />
+        <StatCard
+          icon={<LogOut size={20} />}
+          label="Check-out à venir"
+          value={stats.upcomingCheckOutCount}
+          href="/check-outs"
         />
         <StatCard
           icon={<UserX size={20} />}
@@ -147,13 +167,13 @@ export default function DashboardPage() {
       <Card className="p-6">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-base font-semibold text-zinc-900 dark:text-white">
-            Prochains ménages
+            Prochaines prestations
           </h2>
           <Link
             href="/menages"
             className="text-sm font-medium text-blue-600 hover:underline dark:text-blue-400"
           >
-            Tous les ménages
+            Tout voir
           </Link>
         </div>
 
@@ -208,6 +228,14 @@ export default function DashboardPage() {
                           </span>
                         </div>
                       )}
+                      <span
+                        className={cn(
+                          "inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
+                          prestationTypePill(m.prestation_type),
+                        )}
+                      >
+                        {prestationTypeLabel(m.prestation_type)}
+                      </span>
                       <span
                         className={
                           "inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider " +
