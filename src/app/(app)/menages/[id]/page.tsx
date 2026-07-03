@@ -221,13 +221,11 @@ function Header({
           </Link>
         </div>
         <div className="flex flex-col items-end gap-1.5">
-          {menage.prestation_type !== "menage" ? (
-            <span
-              className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wider ${prestationTypePill(menage.prestation_type)}`}
-            >
-              {prestationTypeLabel(menage.prestation_type)}
-            </span>
-          ) : null}
+          <span
+            className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wider ${prestationTypePill(menage.prestation_type)}`}
+          >
+            {prestationTypeLabel(menage.prestation_type)}
+          </span>
           <span
             className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wider ${STATUS_PILL[menage.status]}`}
           >

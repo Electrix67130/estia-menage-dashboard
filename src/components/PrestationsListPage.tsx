@@ -628,52 +628,52 @@ export default function PrestationsListPage({ prestationType }: { prestationType
                         )}
                       </div>
                     </div>
-                    <div className="flex flex-shrink-0 flex-wrap items-center justify-end gap-1">
-                      {m.prestation_type && m.prestation_type !== "menage" ? (
+                    <div className="flex flex-shrink-0 flex-col items-end gap-1.5">
+                      <div className="flex flex-wrap items-center justify-end gap-1">
+                        {unreadByMenage[m.id] ? (
+                          <span
+                            className="inline-flex items-center gap-1 rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-bold text-white"
+                            title="Nouvelle activité non lue — ouvre la fiche pour la consulter"
+                          >
+                            <Bell size={10} />
+                            {unreadByMenage[m.id] > 99 ? "99+" : unreadByMenage[m.id]}
+                          </span>
+                        ) : null}
+                        {m.needs_attention ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-rose-700 dark:bg-rose-900/50 dark:text-rose-300">
+                            <AlertTriangle size={10} />
+                            Non pointé
+                          </span>
+                        ) : null}
+                        {m.has_pending_reschedule ? (
+                          <span
+                            className="inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
+                            title="Demande de changement en attente"
+                          >
+                            <Clock size={11} />
+                          </span>
+                        ) : null}
                         <span
                           className={cn(
-                            "inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
-                            prestationTypePill(m.prestation_type),
+                            "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
+                            STATUS_PILL[m.status],
                           )}
                         >
-                          {prestationTypeLabel(m.prestation_type)}
+                          {m.status === "termine" ? (
+                            <ClipboardCheck size={11} />
+                          ) : m.status === "valide" ? (
+                            <CheckCircle2 size={11} />
+                          ) : null}
+                          {STATUS_LABEL[m.status]}
                         </span>
-                      ) : null}
-                      {unreadByMenage[m.id] ? (
-                        <span
-                          className="inline-flex items-center gap-1 rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-bold text-white"
-                          title="Nouvelle activité non lue — ouvre la fiche pour la consulter"
-                        >
-                          <Bell size={10} />
-                          {unreadByMenage[m.id] > 99 ? "99+" : unreadByMenage[m.id]}
-                        </span>
-                      ) : null}
-                      {m.needs_attention ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-rose-700 dark:bg-rose-900/50 dark:text-rose-300">
-                          <AlertTriangle size={10} />
-                          Non pointé
-                        </span>
-                      ) : null}
-                      {m.has_pending_reschedule ? (
-                        <span
-                          className="inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
-                          title="Demande de changement en attente"
-                        >
-                          <Clock size={11} />
-                        </span>
-                      ) : null}
+                      </div>
                       <span
                         className={cn(
-                          "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
-                          STATUS_PILL[m.status],
+                          "inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
+                          prestationTypePill(m.prestation_type),
                         )}
                       >
-                        {m.status === "termine" ? (
-                          <ClipboardCheck size={11} />
-                        ) : m.status === "valide" ? (
-                          <CheckCircle2 size={11} />
-                        ) : null}
-                        {STATUS_LABEL[m.status]}
+                        {prestationTypeLabel(m.prestation_type)}
                       </span>
                     </div>
                   </div>
