@@ -1,8 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { usePersistedState } from "@/hooks/usePersistedState";
-import { Wallet, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
+import { Wallet, RefreshCw, ChevronLeft, ChevronRight, Receipt } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
@@ -136,6 +137,14 @@ export default function EarningsPage() {
   const data = query.data;
   const currency = data?.currency ?? "EUR";
 
+  // Deep-link vers la création de facture, pré-remplie client + période courante.
+  const invoiceHref = (clientId: string) => {
+    const p = new URLSearchParams({ create: "1", client_id: clientId });
+    if (range.from) p.set("from", range.from);
+    if (range.to) p.set("to", range.to);
+    return `/invoices?${p.toString()}`;
+  };
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -256,13 +265,25 @@ export default function EarningsPage() {
                       {b.count} ménage{b.count > 1 ? "s" : ""} · à payer {money(b.total, currency)}
                     </p>
                   </div>
-                  <div className="flex-shrink-0 text-right">
-                    <p className="tabular-nums font-semibold text-emerald-700 dark:text-emerald-400">
-                      {money(b.revenue, currency)}
-                    </p>
-                    <p className="text-xs tabular-nums text-zinc-500">
-                      marge {money(b.margin, currency)}
-                    </p>
+                  <div className="flex flex-shrink-0 items-center gap-3">
+                    <div className="text-right">
+                      <p className="tabular-nums font-semibold text-emerald-700 dark:text-emerald-400">
+                        {money(b.revenue, currency)}
+                      </p>
+                      <p className="text-xs tabular-nums text-zinc-500">
+                        marge {money(b.margin, currency)}
+                      </p>
+                    </div>
+                    {b.id !== "__no_client__" ? (
+                      <Link
+                        href={invoiceHref(b.id)}
+                        title="Créer une facture pour ce client sur la période"
+                        className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 dark:border-blue-900 dark:bg-blue-900/20 dark:text-blue-300 dark:hover:bg-blue-900/40"
+                      >
+                        <Receipt size={13} />
+                        Facturer
+                      </Link>
+                    ) : null}
                   </div>
                 </li>
               ))}

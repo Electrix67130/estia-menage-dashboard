@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, FormEvent } from "react";
+import { useState, useMemo, useEffect, FormEvent } from "react";
 import Link from "next/link";
 import { usePersistedState } from "@/hooks/usePersistedState";
 import { Receipt, Plus, Download, FileDown, RefreshCw, Trash2, Send, CheckCircle2, Users } from "lucide-react";
@@ -68,6 +68,27 @@ export default function InvoicesPage() {
   const isAdmin = user?.role === "admin";
   const [type, setType] = usePersistedState<InvoiceType>("invoices.type", "invoice");
   const [showCreate, setShowCreate] = useState(false);
+  // Pré-remplissage via deep-link depuis la page Gains (bouton « Facturer »).
+  const [createPreset, setCreatePreset] = useState<{
+    clientId?: string;
+    start?: string;
+    end?: string;
+  } | null>(null);
+
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search);
+    if (p.get("create") !== "1") return;
+    setType("invoice");
+    setCreatePreset({
+      clientId: p.get("client_id") ?? undefined,
+      start: p.get("from") ?? undefined,
+      end: p.get("to") ?? undefined,
+    });
+    setShowCreate(true);
+    // Nettoie l'URL pour qu'un refresh ne rouvre pas la modale.
+    window.history.replaceState(null, "", "/invoices");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const list = useInvoices({ type });
   const clientsList = useClients({ limit: 500 });
@@ -282,7 +303,13 @@ export default function InvoicesPage() {
         <CreateInvoiceModal
           type={type}
           clients={clientsList.data?.data ?? []}
-          onClose={() => setShowCreate(false)}
+          initialClientId={createPreset?.clientId}
+          initialStart={createPreset?.start}
+          initialEnd={createPreset?.end}
+          onClose={() => {
+            setShowCreate(false);
+            setCreatePreset(null);
+          }}
         />
       ) : null}
     </div>
@@ -335,16 +362,22 @@ function CreateInvoiceModal({
   type,
   clients,
   onClose,
+  initialClientId,
+  initialStart,
+  initialEnd,
 }: {
   type: InvoiceType;
   clients: Client[];
   onClose: () => void;
+  initialClientId?: string;
+  initialStart?: string;
+  initialEnd?: string;
 }) {
   const create = useCreateInvoice();
   const month = currentMonthRange();
-  const [clientId, setClientId] = useState("");
-  const [periodStart, setPeriodStart] = useState(month.start);
-  const [periodEnd, setPeriodEnd] = useState(month.end);
+  const [clientId, setClientId] = useState(initialClientId ?? "");
+  const [periodStart, setPeriodStart] = useState(initialStart ?? month.start);
+  const [periodEnd, setPeriodEnd] = useState(initialEnd ?? month.end);
   const [notes, setNotes] = useState("");
   const isQuote = type === "quote";
 
