@@ -5,25 +5,57 @@ import { usePersistedState } from "@/hooks/usePersistedState";
 import { Wallet, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
+import Modal from "@/components/ui/Modal";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { formatDateFr } from "@/lib/date-fr";
+import { prestationTypeLabel, prestationTypePill, type PrestationType } from "@/lib/prestation";
+import { cn } from "@/lib/utils";
 
-interface Bucket {
+interface PrestaBucket {
   id: string;
   name: string;
   total: number;
   count: number;
 }
 
+interface ClientBucket extends PrestaBucket {
+  revenue: number;
+  margin: number;
+}
+
 interface AdminEarnings {
+  /** Coût prestataire = ce qu'on doit payer. */
   total: number;
+  /** CA client HT = ce qu'on facture. */
+  revenue: number;
+  /** revenue - total. */
+  margin: number;
   currency: string;
   count: number;
   from: string | null;
   to: string | null;
-  by_client: Bucket[];
-  by_prestataire: Bucket[];
+  by_client: ClientBucket[];
+  by_prestataire: PrestaBucket[];
+}
+
+interface PrestaEarningsItem {
+  id: string;
+  date_prevue: string;
+  logement_id: string;
+  logement_name: string | null;
+  prestation_type: PrestationType;
+  status: string;
+  subtotal: number;
+  validated_at: string | null;
+}
+
+interface PrestaEarnings {
+  total: number;
+  currency: string;
+  count: number;
+  items: PrestaEarningsItem[];
 }
 
 type Granularity = "week" | "month" | "year" | "all";
@@ -76,6 +108,7 @@ export default function EarningsPage() {
     "month",
   );
   const [offset, setOffset] = useState(0);
+  const [selectedPresta, setSelectedPresta] = useState<PrestaBucket | null>(null);
   const range = useMemo(() => computeRange(granularity, offset), [granularity, offset]);
   const isAdmin = user?.role === "admin";
 
@@ -181,11 +214,29 @@ export default function EarningsPage() {
         </div>
       </Card>
 
-      <div className="rounded-xl border border-zinc-200 bg-gradient-to-br from-blue-50 to-white p-6 dark:border-zinc-800 dark:from-blue-950/30 dark:to-zinc-950">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Total équipe (coût prestataire)</p>
-        <p className="mt-1 text-3xl font-bold text-zinc-900 dark:text-white">
-          {money(data?.total ?? 0, currency)}
-        </p>
+      <div className="grid gap-4 sm:grid-cols-3">
+        <div className="rounded-xl border border-zinc-200 bg-gradient-to-br from-emerald-50 to-white p-6 dark:border-zinc-800 dark:from-emerald-950/30 dark:to-zinc-950">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+            Ce qu&apos;on gagne · CA client (HT)
+          </p>
+          <p className="mt-1 text-3xl font-bold text-emerald-700 dark:text-emerald-400">
+            {money(data?.revenue ?? 0, currency)}
+          </p>
+        </div>
+        <div className="rounded-xl border border-zinc-200 bg-gradient-to-br from-rose-50 to-white p-6 dark:border-zinc-800 dark:from-rose-950/30 dark:to-zinc-950">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+            Ce qu&apos;on doit payer · coût prestataire
+          </p>
+          <p className="mt-1 text-3xl font-bold text-rose-700 dark:text-rose-400">
+            {money(data?.total ?? 0, currency)}
+          </p>
+        </div>
+        <div className="rounded-xl border border-zinc-200 bg-gradient-to-br from-blue-50 to-white p-6 dark:border-zinc-800 dark:from-blue-950/30 dark:to-zinc-950">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Marge (CA − coût)</p>
+          <p className="mt-1 text-3xl font-bold text-zinc-900 dark:text-white">
+            {money(data?.margin ?? 0, currency)}
+          </p>
+        </div>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -198,16 +249,21 @@ export default function EarningsPage() {
           ) : (
             <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
               {data!.by_client.map((b) => (
-                <li key={b.id} className="flex items-center justify-between py-2 text-sm">
+                <li key={b.id} className="flex items-center justify-between gap-3 py-2 text-sm">
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-medium text-zinc-900 dark:text-white">{b.name}</p>
                     <p className="text-xs text-zinc-500">
-                      {b.count} ménage{b.count > 1 ? "s" : ""}
+                      {b.count} ménage{b.count > 1 ? "s" : ""} · à payer {money(b.total, currency)}
                     </p>
                   </div>
-                  <span className="tabular-nums font-semibold text-zinc-900 dark:text-white">
-                    {money(b.total, currency)}
-                  </span>
+                  <div className="flex-shrink-0 text-right">
+                    <p className="tabular-nums font-semibold text-emerald-700 dark:text-emerald-400">
+                      {money(b.revenue, currency)}
+                    </p>
+                    <p className="text-xs tabular-nums text-zinc-500">
+                      marge {money(b.margin, currency)}
+                    </p>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -215,9 +271,12 @@ export default function EarningsPage() {
         </Card>
 
         <Card>
-          <h2 className="mb-3 text-sm font-semibold text-zinc-900 dark:text-white">Par prestataire</h2>
+          <h2 className="mb-3 text-sm font-semibold text-zinc-900 dark:text-white">
+            Par prestataire · à payer
+          </h2>
           <p className="mb-3 text-[11px] text-zinc-500">
-            En cas de ménage multi-prestataires, le coût est réparti à parts égales.
+            Clique sur un prestataire pour voir le détail de ses prestations. En cas de ménage
+            multi-prestataires, le coût est réparti à parts égales.
           </p>
           {query.isLoading ? (
             <p className="text-sm text-zinc-500">Chargement…</p>
@@ -226,22 +285,108 @@ export default function EarningsPage() {
           ) : (
             <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
               {data!.by_prestataire.map((b) => (
-                <li key={b.id} className="flex items-center justify-between py-2 text-sm">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium text-zinc-900 dark:text-white">{b.name}</p>
-                    <p className="text-xs text-zinc-500">
-                      {b.count.toFixed(1)} ménage{b.count > 1 ? "s" : ""}
-                    </p>
-                  </div>
-                  <span className="tabular-nums font-semibold text-zinc-900 dark:text-white">
-                    {money(b.total, currency)}
-                  </span>
+                <li key={b.id}>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPresta(b)}
+                    className="flex w-full items-center justify-between gap-3 py-2 text-left text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800/40"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium text-zinc-900 dark:text-white">{b.name}</p>
+                      <p className="text-xs text-zinc-500">
+                        {b.count.toFixed(1)} ménage{b.count > 1 ? "s" : ""}
+                      </p>
+                    </div>
+                    <span className="tabular-nums font-semibold text-zinc-900 dark:text-white">
+                      {money(b.total, currency)}
+                    </span>
+                    <ChevronRight size={16} className="flex-shrink-0 text-zinc-400" />
+                  </button>
                 </li>
               ))}
             </ul>
           )}
         </Card>
       </div>
+
+      {selectedPresta ? (
+        <PrestaDetailModal
+          presta={selectedPresta}
+          from={range.from}
+          to={range.to}
+          onClose={() => setSelectedPresta(null)}
+        />
+      ) : null}
     </div>
+  );
+}
+
+/** Récap détaillé des prestations d'un prestataire sur la période (pourquoi on le paye tant). */
+function PrestaDetailModal({
+  presta,
+  from,
+  to,
+  onClose,
+}: {
+  presta: PrestaBucket;
+  from?: string;
+  to?: string;
+  onClose: () => void;
+}) {
+  const detail = useQuery({
+    queryKey: ["presta-earnings", presta.id, from ?? "", to ?? ""],
+    queryFn: () => {
+      const qs = new URLSearchParams();
+      if (from) qs.set("from", from);
+      if (to) qs.set("to", to);
+      return apiFetch<PrestaEarnings>(`/users/${presta.id}/earnings${qs.toString() ? `?${qs}` : ""}`);
+    },
+  });
+  const currency = detail.data?.currency ?? "EUR";
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={presta.name}
+      subtitle={
+        detail.data
+          ? `${detail.data.count} prestation${detail.data.count > 1 ? "s" : ""} · à payer ${money(detail.data.total, currency)}`
+          : "Chargement…"
+      }
+      size="lg"
+    >
+      {detail.isLoading ? (
+        <p className="text-sm text-zinc-500">Chargement…</p>
+      ) : (detail.data?.items.length ?? 0) === 0 ? (
+        <p className="text-sm text-zinc-500">Aucune prestation sur la période.</p>
+      ) : (
+        <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
+          {detail.data!.items.map((it) => (
+            <li key={it.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
+              <div className="min-w-0 flex-1">
+                <p className="font-medium capitalize text-zinc-900 dark:text-white">
+                  {formatDateFr(it.date_prevue.slice(0, 10), "weekday")}
+                </p>
+                <p className="mt-0.5 flex items-center gap-2 text-xs text-zinc-500">
+                  <span className="truncate">{it.logement_name ?? "Logement"}</span>
+                  <span
+                    className={cn(
+                      "inline-flex flex-shrink-0 items-center rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider",
+                      prestationTypePill(it.prestation_type),
+                    )}
+                  >
+                    {prestationTypeLabel(it.prestation_type)}
+                  </span>
+                </p>
+              </div>
+              <span className="flex-shrink-0 tabular-nums font-semibold text-zinc-900 dark:text-white">
+                {money(it.subtotal, currency)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Modal>
   );
 }
