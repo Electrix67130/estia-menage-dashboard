@@ -480,7 +480,8 @@ export default function NewLogementPage() {
           <Input
             label="Code boîte à clés (optionnel)"
             type="password"
-            autoComplete="off"
+            name="key-safe-code"
+            autoComplete="new-password"
             value={keySafeCode}
             onChange={(e) => setKeySafeCode(e.target.value)}
             maxLength={50}

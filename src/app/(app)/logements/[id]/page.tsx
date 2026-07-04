@@ -647,7 +647,8 @@ function LogementInfoForm({ logement }: { logement: Logement }) {
         <Input
           label="Code boîte à clés"
           type="password"
-          autoComplete="off"
+          name="key-safe-code"
+          autoComplete="new-password"
           value={keySafeCode}
           onChange={(e) => setKeySafeCode(e.target.value)}
           maxLength={50}
