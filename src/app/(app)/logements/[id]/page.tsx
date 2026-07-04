@@ -156,16 +156,21 @@ function InfoSection({ logementId, isAdmin }: { logementId: string; isAdmin: boo
 
   const handleDelete = async () => {
     const ok = await confirm({
-      title: "Supprimer ce logement ?",
+      title: "Archiver ce logement ?",
       description:
-        "Le logement sera archivé (retiré des listes). Ses ménages passés restent dans l'historique.",
+        "Le logement sera archivé et retiré des listes, ainsi que TOUTES les prestations qui le concernent (ménages, check-in, check-out) et ses consommables. Cette action est réversible depuis le filtre « Archivés ».",
       tone: "danger",
-      confirmLabel: "Supprimer",
+      confirmLabel: "Archiver",
     });
     if (!ok) return;
     try {
-      await del.mutateAsync(logementId);
-      toast.success("Logement supprimé");
+      const res = await del.mutateAsync(logementId);
+      const n = res?.archived_menages ?? 0;
+      toast.success(
+        n > 0
+          ? `Logement archivé (${n} prestation${n > 1 ? "s" : ""} archivée${n > 1 ? "s" : ""})`
+          : "Logement archivé",
+      );
       router.push("/logements");
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Erreur");

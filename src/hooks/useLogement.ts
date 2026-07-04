@@ -171,9 +171,15 @@ export function useCreateLogement() {
 export function useDeleteLogement() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => apiFetch<void>(`/logements/${id}`, { method: "DELETE" }),
+    // L'archivage est en cascade côté API : le logement + toutes ses prestations
+    // (ménages/check-in/check-out) + ses consommables. Renvoie le nombre de
+    // prestations archivées.
+    mutationFn: (id: string) =>
+      apiFetch<{ archived_menages: number }>(`/logements/${id}`, { method: "DELETE" }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["logements-list"] });
+      qc.invalidateQueries({ queryKey: ["menages"] });
+      qc.invalidateQueries({ queryKey: ["calendar-menages"] });
     },
   });
 }
