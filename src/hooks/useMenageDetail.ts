@@ -163,6 +163,25 @@ export function useUpdateMenage(menageId: string) {
   });
 }
 
+export interface UpdateDeclarationInput {
+  traveler_rating?: number;
+  has_degradation?: boolean;
+  degradation_note?: string;
+}
+
+/** Édite la déclaration voyageurs (note + dégradation) a posteriori (admin). */
+export function useUpdateDeclaration(menageId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: UpdateDeclarationInput) =>
+      apiFetch<MenageDetail>(`/menages/${menageId}/declaration`, { method: "PUT", body: input }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["menage-detail", menageId] });
+      qc.invalidateQueries({ queryKey: ["menages"] });
+    },
+  });
+}
+
 export interface CreateMenageInput {
   logement_id: string;
   prestation_type?: PrestationType;

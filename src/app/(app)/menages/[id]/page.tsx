@@ -26,6 +26,7 @@ import {
   useEligiblePrestataires,
   useAssignPrestataire,
   useUpdateMenage,
+  useUpdateDeclaration,
   menageSourceLabel,
   MenageDetail,
   type UpdateMenageInput,
@@ -157,6 +158,7 @@ function Header({
   const [validatePrice, setValidatePrice] = useState<string>("");
   const [validateComment, setValidateComment] = useState<string>("");
   const [recapLightbox, setRecapLightbox] = useState<MenagePhoto | null>(null);
+  const [showEditDecl, setShowEditDecl] = useState(false);
 
   const handleDelete = async () => {
     const ok = await confirm({
@@ -306,7 +308,19 @@ function Header({
               const menagePhotos = all.filter((p) => !p.is_degradation);
               return (
                 <div className="flex flex-col gap-3 rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900/40">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Récapitulatif du rapport</p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Récapitulatif du rapport</p>
+                    {isAdmin && menage.status !== "valide" ? (
+                      <button
+                        type="button"
+                        onClick={() => setShowEditDecl(true)}
+                        className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline dark:text-blue-400"
+                      >
+                        <Pencil size={12} />
+                        Modifier
+                      </button>
+                    ) : null}
+                  </div>
 
                   {/* Note voyageurs */}
                   <div className="flex items-center gap-2 text-sm">
@@ -427,7 +441,88 @@ function Header({
         title={recapLightbox?.is_degradation ? "Dégradation" : "Photo du ménage"}
         subtitle={recapLightbox ? formatTimestamp(recapLightbox.taken_at) : undefined}
       />
+
+      {showEditDecl ? (
+        <EditDeclarationModal menage={menage} onClose={() => setShowEditDecl(false)} />
+      ) : null}
     </div>
+  );
+}
+
+/** Modale admin : éditer note voyageurs + dégradation a posteriori. */
+function EditDeclarationModal({ menage, onClose }: { menage: MenageDetail; onClose: () => void }) {
+  const update = useUpdateDeclaration(menage.id);
+  const [rating, setRating] = useState(menage.traveler_rating ?? 0);
+  const [hasDeg, setHasDeg] = useState(!!menage.has_degradation);
+  const [note, setNote] = useState(menage.degradation_note ?? "");
+
+  const submit = async () => {
+    try {
+      await update.mutateAsync({
+        traveler_rating: rating || undefined,
+        has_degradation: hasDeg,
+        degradation_note: hasDeg ? note.trim() : "",
+      });
+      toast.success("Déclaration mise à jour");
+      onClose();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Erreur");
+    }
+  };
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title="Déclaration voyageurs"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            Annuler
+          </Button>
+          <Button onClick={submit} disabled={update.isPending}>
+            {update.isPending ? "Enregistrement…" : "Enregistrer"}
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-4">
+        <div>
+          <p className="mb-1.5 text-sm font-medium text-zinc-700 dark:text-zinc-300">Note voyageurs</p>
+          <div className="flex gap-1">
+            {[1, 2, 3, 4, 5].map((n) => (
+              <button
+                key={n}
+                type="button"
+                onClick={() => setRating(n)}
+                className="text-2xl leading-none"
+                aria-label={`${n} étoile${n > 1 ? "s" : ""}`}
+              >
+                <span className={n <= rating ? "text-amber-500" : "text-zinc-300 dark:text-zinc-600"}>★</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <label className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
+          <input type="checkbox" checked={hasDeg} onChange={(e) => setHasDeg(e.target.checked)} />
+          Dégradation constatée
+        </label>
+
+        {hasDeg ? (
+          <Textarea
+            label="Description de la dégradation"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Ex : tache sur le canapé, vaisselle cassée…"
+            rows={3}
+          />
+        ) : null}
+        <p className="text-xs text-zinc-400">
+          Les photos de dégradation s&apos;ajoutent depuis l&apos;app mobile.
+        </p>
+      </div>
+    </Modal>
   );
 }
 
