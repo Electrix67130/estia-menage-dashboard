@@ -39,6 +39,7 @@ import {
   useUpdateTemplateItem,
   useDeleteTemplateItem,
   useReorderTemplateSections,
+  type CheckTemplateSection,
 } from "@/hooks/useCheckTemplate";
 import {
   useLogement,
@@ -1233,6 +1234,7 @@ function TemplateSection({
   const [applyId, setApplyId] = useState("");
   // Édition inline + drag-and-drop des sections
   const [editingSectionId, setEditingSectionId] = useState<string | null>(null);
+  const [iconPickerSection, setIconPickerSection] = useState<CheckTemplateSection | null>(null);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editLabel, setEditLabel] = useState("");
   const [dragId, setDragId] = useState<string | null>(null);
@@ -1446,6 +1448,18 @@ function TemplateSection({
             >
               <div className="mb-3 flex items-center gap-2">
                 {isAdmin ? <GripVertical size={14} className="cursor-grab text-zinc-300" /> : null}
+                {isAdmin ? (
+                  <button
+                    type="button"
+                    onClick={() => setIconPickerSection(section)}
+                    className="flex h-7 w-7 items-center justify-center rounded-md border border-zinc-200 text-lg leading-none hover:border-blue-400 dark:border-zinc-700"
+                    title="Choisir l'icône"
+                  >
+                    {section.icon || "＋"}
+                  </button>
+                ) : section.icon ? (
+                  <span className="text-lg leading-none">{section.icon}</span>
+                ) : null}
                 {editingSectionId === section.id ? (
                   <Input
                     autoFocus
@@ -1626,9 +1640,60 @@ function TemplateSection({
           </form>
         </Modal>
       ) : null}
+
+      {iconPickerSection ? (
+        <Modal open onClose={() => setIconPickerSection(null)} title="Icône de la section">
+          <div className="flex flex-wrap justify-center gap-2">
+            {SECTION_EMOJIS.map((e) => {
+              const active = iconPickerSection.icon === e;
+              return (
+                <button
+                  key={e}
+                  type="button"
+                  onClick={async () => {
+                    const s = iconPickerSection;
+                    setIconPickerSection(null);
+                    try {
+                      await updateSection.mutateAsync({ id: s.id, input: { icon: e } });
+                    } catch (err) {
+                      toast.error(err instanceof ApiError ? err.message : "Erreur");
+                    }
+                  }}
+                  className={[
+                    "flex h-12 w-12 items-center justify-center rounded-lg border text-2xl",
+                    active ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20" : "border-zinc-200 dark:border-zinc-700",
+                  ].join(" ")}
+                >
+                  {e}
+                </button>
+              );
+            })}
+          </div>
+          <button
+            type="button"
+            onClick={async () => {
+              const s = iconPickerSection;
+              setIconPickerSection(null);
+              try {
+                await updateSection.mutateAsync({ id: s.id, input: { icon: "" } });
+              } catch (err) {
+                toast.error(err instanceof ApiError ? err.message : "Erreur");
+              }
+            }}
+            className="mt-4 w-full rounded-lg border border-zinc-200 py-2.5 text-sm font-medium text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300"
+          >
+            Aucune icône
+          </button>
+        </Modal>
+      ) : null}
     </Card>
   );
 }
+
+const SECTION_EMOJIS = [
+  "🍳", "🛋️", "🛏️", "🚿", "🚽", "🌳", "📦", "🧺", "✨", "🧹",
+  "🪣", "🧴", "🛒", "🔑", "📋", "🧼", "🚪", "🪟", "🛁", "☕",
+];
 
 function labelForKind(kind: RoomKind): string {
   return ROOM_KINDS.find((k) => k.value === kind)?.label ?? kind;

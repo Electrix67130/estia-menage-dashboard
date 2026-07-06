@@ -1500,6 +1500,7 @@ function ChecklistTab({ menageId }: { menageId: string }) {
       {sections.map((s) => (
         <div key={s.id}>
           <h3 className="mb-2 text-sm font-semibold text-zinc-900 dark:text-white">
+            {s.icon ? <span className="mr-1">{s.icon}</span> : null}
             {s.section_label}
           </h3>
           <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">

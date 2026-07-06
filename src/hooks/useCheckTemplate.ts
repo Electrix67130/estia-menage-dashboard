@@ -18,6 +18,8 @@ export interface CheckTemplateSection {
   logement_id: string;
   logement_room_id: string | null;
   label: string;
+  /** Icône emoji de la section (null = aucune / défaut). */
+  icon: string | null;
   position: number;
   created_at: string;
   updated_at: string;
@@ -44,6 +46,7 @@ export function useCreateTemplateSection() {
       logement_id: string;
       label: string;
       logement_room_id?: string;
+      icon?: string | null;
       position?: number;
     }) =>
       apiFetch<CheckTemplateSection>(`/logement-check-template-sections`, {

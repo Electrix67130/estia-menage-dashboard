@@ -20,6 +20,7 @@ export interface MenageCheckSection {
   menage_id: string;
   section_type: string;
   section_label: string;
+  icon?: string | null;
   position: number;
   items: MenageCheckItem[];
 }
