@@ -62,7 +62,6 @@ const FILTERS: { value: MenageFilter; label: string }[] = [
   { value: "en_cours", label: "En cours" },
   { value: "termine", label: "Terminé" },
   { value: "to_validate", label: "À valider" },
-  { value: "unassigned", label: "Non assignés" },
 ];
 
 /** Libellés dépendant du type de prestation (ménage / check-in / check-out). */
@@ -188,12 +187,14 @@ export default function PrestationsListPage({ prestationType }: { prestationType
   };
 
   const queryParams = useMemo(() => {
-    const base = { type: prestationType };
+    // « Non assigné » vit dans le filtre prestataire → param unassigned côté API.
+    const unassigned = prestaFilter === "__unassigned__" ? true : undefined;
+    const base = { type: prestationType, ...(unassigned ? { unassigned: true } : {}) };
     if (filter === "all") return { ...base, closed: false };
     if (filter === "to_validate") return { ...base, status: "termine" as const, validated: false };
     if (filter === "unassigned") return { ...base, unassigned: true };
     return { ...base, status: filter };
-  }, [filter, prestationType]);
+  }, [filter, prestationType, prestaFilter]);
 
   const list = useMenages(queryParams);
   const logements = useLogementsList();
@@ -244,7 +245,7 @@ export default function PrestationsListPage({ prestationType }: { prestationType
     return (list.data?.data ?? [])
       .filter((m) => {
         if (logementFilter && m.logement_id !== logementFilter) return false;
-        if (prestaFilter && m.prestataire_user_id !== prestaFilter) return false;
+        if (prestaFilter && prestaFilter !== "__unassigned__" && m.prestataire_user_id !== prestaFilter) return false;
         if (creatorFilter) {
           if (creatorFilter.startsWith("src:")) {
             const src = creatorFilter.slice(4);
@@ -513,6 +514,7 @@ export default function PrestationsListPage({ prestationType }: { prestationType
               className="sm:max-w-xs"
             >
               <option value="">Tous les prestataires</option>
+              <option value="__unassigned__">Non assigné</option>
               {prestaOptions.map((u) => (
                 <option key={u.id} value={u.id}>
                   {[u.first_name, u.last_name].filter(Boolean).join(" ") || u.email}
