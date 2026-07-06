@@ -22,6 +22,15 @@ export default function LoginPage() {
     if (!authLoading && isAuthenticated) router.replace("/dashboard");
   }, [authLoading, isAuthenticated, router]);
 
+  // Message après réinitialisation du mot de passe (redirigé depuis la page de reset).
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search);
+    if (p.get("reset") === "1") {
+      toast.success("Mot de passe modifié — connectez-vous avec votre nouveau mot de passe.");
+      window.history.replaceState(null, "", "/login");
+    }
+  }, []);
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setLoading(true);
