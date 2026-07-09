@@ -29,7 +29,7 @@ interface Params {
   limit?: number;
 }
 
-export function useMenages(params: Params = {}) {
+export function useMenages(params: Params = {}, options?: { enabled?: boolean }) {
   const qs = new URLSearchParams();
   if (params.status) qs.set("status", params.status);
   if (params.type) qs.set("type", params.type);
@@ -49,5 +49,6 @@ export function useMenages(params: Params = {}) {
     queryFn: () => apiFetch<ApiResponse>(`/menages?${qs.toString()}`),
     placeholderData: keepPreviousData,
     staleTime: 30_000,
+    enabled: options?.enabled ?? true,
   });
 }

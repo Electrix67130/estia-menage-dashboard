@@ -121,6 +121,7 @@ export default function PrestationsListPage({ prestationType }: { prestationType
   // le ménage (mark-tab-viewed invalide cette même query).
   const unreadSummary = useUnreadSummary(!!user);
   const unreadByMenage = unreadSummary.data?.by_menage ?? {};
+  const unreadOfThisType = unreadSummary.data?.by_type?.[prestationType] ?? 0;
 
   // Filtres persistés en localStorage : reprend l'état au prochain chargement.
   // La clé est namespacée par type pour ne pas mélanger ménages / check-in / check-out.
@@ -282,6 +283,32 @@ export default function PrestationsListPage({ prestationType }: { prestationType
   }, [list.data, search, logementFilter, prestaFilter, creatorFilter, period.min, period.max]);
 
   const total = list.data?.meta.total ?? 0;
+
+  // Garde-fou « badge fantôme » : le badge compte tous statuts, mais la liste est
+  // filtrée (statut côté serveur + logement/presta/recherche côté client). On
+  // scanne les prestations ACTIVES de ce type pour repérer celles qui ont du
+  // nouveau mais que les filtres courants masquent → on les remonte en tête.
+  const unreadScan = useMenages(
+    { type: prestationType, closed: false },
+    { enabled: unreadOfThisType > 0 },
+  );
+  const hiddenUnread = useMemo(() => {
+    if (unreadOfThisType <= 0) return [];
+    const shown = new Set(filtered.map((m) => m.id));
+    return (unreadScan.data?.data ?? [])
+      .filter((m) => (unreadByMenage[m.id] ?? 0) > 0 && !shown.has(m.id))
+      .sort((a, b) => b.date_prevue.localeCompare(a.date_prevue));
+  }, [unreadScan.data, filtered, unreadByMenage, unreadOfThisType]);
+
+  const resetFilters = () => {
+    setFilter("all");
+    setLogementFilter("");
+    setPrestaFilter("");
+    setCreatorFilter("");
+    setSearch("");
+    setPeriodFilter("all");
+    setPeriodOffset(0);
+  };
 
   const logementOptions = (logements.data?.data ?? []).filter((l) => !l.archived_at);
   const prestaOptions = allUsers.filter((u) => u.role === "prestataire");
@@ -540,6 +567,47 @@ export default function PrestationsListPage({ prestationType }: { prestationType
         <Card className="border-rose-200 bg-rose-50 p-4 text-sm text-rose-800 dark:border-rose-900 dark:bg-rose-900/20 dark:text-rose-300">
           {list.error instanceof Error ? list.error.message : "Erreur de chargement"}
         </Card>
+      ) : null}
+
+      {hiddenUnread.length > 0 ? (
+        <div className="mb-3 rounded-lg border border-rose-200 bg-rose-50 p-3 dark:border-rose-900/50 dark:bg-rose-950/30">
+          <div className="flex items-center justify-between gap-2">
+            <p className="flex items-center gap-1.5 text-sm font-semibold text-rose-700 dark:text-rose-300">
+              <Bell size={14} />
+              {hiddenUnread.length === 1
+                ? "1 prestation avec du nouveau est masquée par tes filtres"
+                : `${hiddenUnread.length} prestations avec du nouveau sont masquées par tes filtres`}
+            </p>
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="shrink-0 rounded-md px-2 py-1 text-xs font-medium text-rose-600 underline hover:text-rose-700 dark:text-rose-300"
+            >
+              Réinitialiser les filtres
+            </button>
+          </div>
+          <ul className="mt-2 space-y-1">
+            {hiddenUnread.map((m) => (
+              <li key={m.id}>
+                <Link
+                  href={`/menages/${m.id}`}
+                  className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm text-zinc-700 hover:bg-rose-100 dark:text-zinc-200 dark:hover:bg-rose-900/40"
+                >
+                  <span className="truncate">
+                    <span className="capitalize">
+                      {formatDateFr(m.date_prevue.slice(0, 10), "weekday")}
+                    </span>
+                    <span className="text-zinc-400"> · </span>
+                    {logementLabel(m)}
+                  </span>
+                  <span className="inline-flex h-5 min-w-[20px] shrink-0 items-center justify-center rounded-full bg-rose-500 px-1.5 text-[10px] font-bold leading-none text-white">
+                    {(unreadByMenage[m.id] ?? 0) > 99 ? "99+" : unreadByMenage[m.id]}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
       ) : null}
 
       {list.isLoading ? (
