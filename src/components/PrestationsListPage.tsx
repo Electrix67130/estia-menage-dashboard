@@ -310,6 +310,18 @@ export default function PrestationsListPage({ prestationType }: { prestationType
     setPeriodOffset(0);
   };
 
+  // Filtres actifs (mémorisés, donc invisibles au 1er coup d'œil) → on les rend
+  // explicites avec un bouton « Réinitialiser » pour éviter les « où sont mes
+  // prestations ? » quand un filtre discret (créateur/presta/période) masque tout.
+  const activeFilters = [
+    filter !== "all" && "Statut",
+    (periodFilter !== "all" || periodOffset !== 0) && "Période",
+    logementFilter && "Logement",
+    prestaFilter && "Prestataire",
+    creatorFilter && "Créateur",
+    search.trim() && "Recherche",
+  ].filter(Boolean) as string[];
+
   const logementOptions = (logements.data?.data ?? []).filter((l) => !l.archived_at);
   const prestaOptions = allUsers.filter((u) => u.role === "prestataire");
 
@@ -567,6 +579,22 @@ export default function PrestationsListPage({ prestationType }: { prestationType
         <Card className="border-rose-200 bg-rose-50 p-4 text-sm text-rose-800 dark:border-rose-900 dark:bg-rose-900/20 dark:text-rose-300">
           {list.error instanceof Error ? list.error.message : "Erreur de chargement"}
         </Card>
+      ) : null}
+
+      {activeFilters.length > 0 ? (
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm dark:border-amber-900/50 dark:bg-amber-950/30">
+          <span className="font-medium text-amber-800 dark:text-amber-200">
+            Filtres actifs : {activeFilters.join(", ")}
+          </span>
+          <span className="text-amber-500">·</span>
+          <button
+            type="button"
+            onClick={resetFilters}
+            className="font-semibold text-amber-700 underline hover:text-amber-900 dark:text-amber-300"
+          >
+            Réinitialiser
+          </button>
+        </div>
       ) : null}
 
       {hiddenUnread.length > 0 ? (
