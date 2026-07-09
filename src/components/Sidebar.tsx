@@ -40,10 +40,9 @@ export default function Sidebar({ open, onClose }: { open: boolean; onClose: () 
   const { user } = useAuth();
   const { t } = useI18n();
   const summary = useUnreadSummary(!!user);
-  const totalUnread = Object.values(summary.data?.by_menage ?? {}).reduce(
-    (s, n) => s + n,
-    0,
-  );
+  // Non-lus ventilés par type → chaque item de nav a son propre badge
+  // (« Ménages » n'est plus pollué par les check-in/check-out).
+  const unreadByType = summary.data?.by_type ?? {};
   const isAdmin = user?.role === "admin";
   const rescheduleList = useRescheduleRequests({ status: "pending" });
   const pendingReschedules = isAdmin
@@ -103,11 +102,15 @@ export default function Sidebar({ open, onClose }: { open: boolean; onClose: () 
           const Icon = item.icon;
           const active = pathname === item.href || pathname.startsWith(item.href + "/");
           const badge =
-            item.key === "menages" && totalUnread > 0
-              ? totalUnread
-              : item.key === "rescheduleRequests" && pendingReschedules > 0
-                ? pendingReschedules
-                : 0;
+            item.key === "menages"
+              ? (unreadByType.menage ?? 0)
+              : item.key === "checkIns"
+                ? (unreadByType.check_in ?? 0)
+                : item.key === "checkOuts"
+                  ? (unreadByType.check_out ?? 0)
+                  : item.key === "rescheduleRequests" && pendingReschedules > 0
+                    ? pendingReschedules
+                    : 0;
           return (
             <Link
               key={item.href}

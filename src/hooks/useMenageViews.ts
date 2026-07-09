@@ -34,6 +34,8 @@ export function useUnreadCounts(menageId?: string) {
 export interface UnreadSummary {
   by_menage: Record<string, number>;
   by_organization: Record<string, number>;
+  /** Totaux ventilés par type de prestation (menage / check_in / check_out). */
+  by_type: Record<string, number>;
 }
 
 export function useUnreadSummary(enabled: boolean = true) {
@@ -93,6 +95,8 @@ export function useMarkTabViewed() {
         const next: UnreadSummary = {
           by_menage: { ...prevSummary.by_menage },
           by_organization: { ...prevSummary.by_organization },
+          // Report tel quel : le refetch de onSettled corrige le détail par type.
+          by_type: { ...prevSummary.by_type },
         };
         if (newMenageTotal === 0) delete next.by_menage[menage_id];
         else next.by_menage[menage_id] = newMenageTotal;
