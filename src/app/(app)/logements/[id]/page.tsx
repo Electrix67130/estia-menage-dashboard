@@ -2,7 +2,7 @@
 
 import { use, useEffect, useRef, useState, FormEvent } from "react";
 import Link from "next/link";
-import { Plus, Trash2, Pencil, GripVertical, MapPin, Camera, Clock, AlertTriangle, PackageCheck, RefreshCw, CalendarClock } from "lucide-react";
+import { Plus, Trash2, Pencil, GripVertical, MapPin, Camera, Clock, AlertTriangle, PackageCheck, RefreshCw, CalendarClock, RotateCcw } from "lucide-react";
 import BackLink from "@/components/BackLink";
 import { toast } from "sonner";
 import Card from "@/components/ui/Card";
@@ -45,6 +45,7 @@ import {
   useLogement,
   useUpdateLogement,
   useDeleteLogement,
+  useUnarchiveLogement,
   type Logement,
   type UpdateLogementInput,
 } from "@/hooks/useLogement";
@@ -134,6 +135,7 @@ function InfoSection({ logementId, isAdmin }: { logementId: string; isAdmin: boo
   const client = useClient(logement.data?.client_id ?? undefined);
   const router = useRouter();
   const del = useDeleteLogement();
+  const unarch = useUnarchiveLogement();
   const { confirm } = useDialog();
   const updateCover = useUpdateLogement(logementId);
   const coverInputRef = useRef<HTMLInputElement>(null);
@@ -173,6 +175,27 @@ function InfoSection({ logementId, isAdmin }: { logementId: string; isAdmin: boo
           : "Logement archivé",
       );
       router.push("/logements");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Erreur");
+    }
+  };
+
+  const handleUnarchive = async () => {
+    const ok = await confirm({
+      title: "Restaurer ce logement ?",
+      description:
+        "Le logement et les prestations/consommables archivés avec lui seront réactivés.",
+      confirmLabel: "Restaurer",
+    });
+    if (!ok) return;
+    try {
+      const res = await unarch.mutateAsync(logementId);
+      const n = res?.unarchived_menages ?? 0;
+      toast.success(
+        n > 0
+          ? `Logement restauré (${n} prestation${n > 1 ? "s" : ""} restaurée${n > 1 ? "s" : ""})`
+          : "Logement restauré",
+      );
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Erreur");
     }
@@ -240,10 +263,17 @@ function InfoSection({ logementId, isAdmin }: { logementId: string; isAdmin: boo
           ) : null}
         </div>
         {isAdmin ? (
-          <Button size="sm" variant="ghost" onClick={handleDelete} disabled={del.isPending}>
-            <Trash2 size={14} />
-            Supprimer
-          </Button>
+          l.archived_at ? (
+            <Button size="sm" variant="ghost" onClick={handleUnarchive} disabled={unarch.isPending}>
+              <RotateCcw size={14} />
+              Restaurer
+            </Button>
+          ) : (
+            <Button size="sm" variant="ghost" onClick={handleDelete} disabled={del.isPending}>
+              <Trash2 size={14} />
+              Supprimer
+            </Button>
+          )
         ) : null}
       </div>
 
