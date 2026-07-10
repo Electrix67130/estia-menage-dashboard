@@ -178,6 +178,22 @@ export function useDeleteLogement() {
       apiFetch<{ archived_menages: number }>(`/logements/${id}`, { method: "DELETE" }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["logements-list"] });
+      qc.invalidateQueries({ queryKey: ["logements-archived"] });
+      qc.invalidateQueries({ queryKey: ["menages"] });
+      qc.invalidateQueries({ queryKey: ["calendar-menages"] });
+    },
+  });
+}
+
+/** Restaure un logement archivé (cascade inverse) — admin only. */
+export function useUnarchiveLogement() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiFetch<{ unarchived_menages: number }>(`/logements/${id}/unarchive`, { method: "POST" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["logements-list"] });
+      qc.invalidateQueries({ queryKey: ["logements-archived"] });
       qc.invalidateQueries({ queryKey: ["menages"] });
       qc.invalidateQueries({ queryKey: ["calendar-menages"] });
     },

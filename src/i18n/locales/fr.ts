@@ -38,7 +38,7 @@ const fr: Dict = {
   "nav.map": "Carte",
   "nav.clients": "Clients",
   "nav.rescheduleRequests": "Demandes de changement",
-  "nav.archives": "Archives",
+  "nav.archives": "Historique",
   "nav.team": "Équipe",
   "nav.earnings": "Gains",
   "nav.invoices": "Factures",
@@ -260,7 +260,7 @@ const fr: Dict = {
   "role.gestionnaireReseau": "Gestionnaire réseau",
 
   // Archives page
-  "archives.title": "Archives",
+  "archives.title": "Historique",
   "archives.archivedCount": "{count} ménage archivé",
   "archives.archivedCountPlural": "{count} ménages archivés",
   "archives.searchPlaceholder": "Rechercher dans les archives…",

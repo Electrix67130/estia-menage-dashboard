@@ -31,3 +31,13 @@ export function useLogementsList() {
     staleTime: 60_000,
   });
 }
+
+/** Logements archivés (admin) — pour les retrouver et les restaurer. */
+export function useArchivedLogements(enabled = true) {
+  return useQuery({
+    queryKey: ["logements-archived"],
+    queryFn: () => apiFetch<ApiResponse>(`/logements?archived=true&limit=500`),
+    staleTime: 60_000,
+    enabled,
+  });
+}

@@ -2,22 +2,41 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Building2, Search, MapPin, Plus, ListChecks, RefreshCw, AlertTriangle } from "lucide-react";
+import { Building2, Search, MapPin, Plus, ListChecks, RefreshCw, AlertTriangle, RotateCcw } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import EmptyState from "@/components/ui/EmptyState";
 import { useAuth } from "@/contexts/AuthContext";
-import { useLogementsList } from "@/hooks/useLogementsList";
+import { useDialog } from "@/contexts/DialogContext";
+import { useLogementsList, useArchivedLogements } from "@/hooks/useLogementsList";
+import { useUnarchiveLogement } from "@/hooks/useLogement";
 
 export default function LogementsListPage() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
+  const { confirm } = useDialog();
   const list = useLogementsList();
   const [search, setSearch] = useState("");
   const [includeArchived, setIncludeArchived] = useState(false);
+  // Les archivés ne sont PAS dans la liste active de l'API → on les fetch à part
+  // quand la case est cochée, puis on fusionne.
+  const archivedList = useArchivedLogements(includeArchived && isAdmin);
+  const unarchive = useUnarchiveLogement();
 
-  const items = list.data?.data ?? [];
+  const items = useMemo(
+    () => [...(list.data?.data ?? []), ...(includeArchived ? archivedList.data?.data ?? [] : [])],
+    [list.data, archivedList.data, includeArchived],
+  );
+
+  const handleUnarchive = async (id: string, name: string) => {
+    const ok = await confirm({
+      title: "Restaurer ce logement ?",
+      description: `« ${name} » et les prestations/consommables archivés avec lui seront réactivés.`,
+      confirmLabel: "Restaurer",
+    });
+    if (ok) await unarchive.mutateAsync(id);
+  };
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -169,9 +188,26 @@ export default function LogementsListPage() {
                       </div>
                       <div className="flex flex-shrink-0 flex-col items-end gap-1">
                         {archived ? (
-                          <span className="inline-flex items-center rounded-full bg-zinc-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-700 dark:bg-zinc-800 dark:text-zinc-400">
-                            Archivé
-                          </span>
+                          <>
+                            <span className="inline-flex items-center rounded-full bg-zinc-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-700 dark:bg-zinc-800 dark:text-zinc-400">
+                              Archivé
+                            </span>
+                            {isAdmin ? (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  handleUnarchive(l.id, l.name);
+                                }}
+                                disabled={unarchive.isPending}
+                                className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium text-blue-600 hover:bg-blue-50 disabled:opacity-50 dark:text-blue-400 dark:hover:bg-blue-900/30"
+                              >
+                                <RotateCcw size={11} />
+                                Restaurer
+                              </button>
+                            ) : null}
+                          </>
                         ) : null}
                         {l.consommables_alert && l.consommables_alert > 0 ? (
                           <span
