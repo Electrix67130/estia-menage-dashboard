@@ -132,3 +132,16 @@ export function useDeleteMenage(menageId: string) {
     },
   });
 }
+
+/** « Remettre » une prestation auto retirée (sync_ignored) — admin. */
+export function useRestoreMenage(menageId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiFetch<{ restored: boolean }>(`/menages/${menageId}/restore`, { method: "POST" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["menages"] });
+      qc.invalidateQueries({ queryKey: ["calendar-menages"] });
+      qc.invalidateQueries({ queryKey: ["menage-detail", menageId] });
+    },
+  });
+}

@@ -3,7 +3,7 @@
 import { use, useState, useEffect, FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { MapPin, Clock, Timer, User as UserIcon, Pencil, Trash2, CheckCircle2, ListChecks, Camera, MessageSquare, Send, Maximize2, Lock, AlertTriangle, Key, Moon } from "lucide-react";
+import { MapPin, Clock, Timer, User as UserIcon, Pencil, Trash2, CheckCircle2, ListChecks, Camera, MessageSquare, Send, Maximize2, Lock, AlertTriangle, Key, Moon, RotateCcw } from "lucide-react";
 import BackLink from "@/components/BackLink";
 import { toast } from "sonner";
 import Card from "@/components/ui/Card";
@@ -38,6 +38,7 @@ import {
   useCreateComment,
   useValidateMenage,
   useDeleteMenage,
+  useRestoreMenage,
   type MenagePhoto,
 } from "@/hooks/useMenageCheck";
 import { useMenageResponses } from "@/hooks/useMenageResponses";
@@ -153,6 +154,9 @@ function Header({
   const validate = useValidateMenage(menage.id);
   const createComment = useCreateComment(menage.id);
   const remove = useDeleteMenage(menage.id);
+  const restore = useRestoreMenage(menage.id);
+  const isAuto = !!menage.external_source;
+  const isIgnored = !!menage.sync_ignored;
   const reportPhotos = useMenagePhotos(menage.id);
   const [validateOpen, setValidateOpen] = useState(false);
   const [validatePrice, setValidatePrice] = useState<string>("");
@@ -161,17 +165,37 @@ function Header({
   const [showEditDecl, setShowEditDecl] = useState(false);
 
   const handleDelete = async () => {
-    const ok = await confirm({
-      title: "Supprimer ce ménage ?",
-      description: "Cette action est irréversible (photos, checklist, commentaires perdus).",
-      tone: "danger",
-      confirmLabel: "Supprimer",
-    });
+    // Presta AUTO (sync iCal) → « Retirer » : réversible, part dans Historique,
+    // et la sync ne la recrée plus (nettoyée automatiquement une fois passée).
+    const ok = await confirm(
+      isAuto
+        ? {
+            title: "Retirer cette prestation ?",
+            description:
+              "Créée automatiquement (calendrier). Elle sera retirée de la liste et n'y réapparaîtra plus, même après synchronisation. Tu pourras la remettre depuis l'Historique.",
+            confirmLabel: "Retirer",
+          }
+        : {
+            title: "Supprimer ce ménage ?",
+            description: "Cette action est irréversible (photos, checklist, commentaires perdus).",
+            tone: "danger",
+            confirmLabel: "Supprimer",
+          },
+    );
     if (!ok) return;
     try {
       await remove.mutateAsync();
-      toast.success("Ménage supprimé");
+      toast.success(isAuto ? "Prestation retirée" : "Ménage supprimé");
       router.push("/menages");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Erreur");
+    }
+  };
+
+  const handleRestore = async () => {
+    try {
+      await restore.mutateAsync();
+      toast.success("Prestation remise");
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Erreur");
     }
@@ -271,10 +295,17 @@ function Header({
             <Pencil size={14} />
             Modifier
           </Button>
-          <Button size="sm" variant="danger" onClick={handleDelete} disabled={remove.isPending}>
-            <Trash2 size={14} />
-            Supprimer
-          </Button>
+          {isIgnored ? (
+            <Button size="sm" variant="secondary" onClick={handleRestore} disabled={restore.isPending}>
+              <RotateCcw size={14} />
+              Remettre
+            </Button>
+          ) : (
+            <Button size="sm" variant="danger" onClick={handleDelete} disabled={remove.isPending}>
+              <Trash2 size={14} />
+              {isAuto ? "Retirer" : "Supprimer"}
+            </Button>
+          )}
         </div>
       ) : null}
 

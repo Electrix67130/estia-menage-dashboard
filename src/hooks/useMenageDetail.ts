@@ -67,6 +67,8 @@ export interface MenageDetail {
   validated_price: string | number | null;
   notes_intervention: string | null;
   external_source?: string | null;
+  /** true = prestation auto « retirée » (sync_ignored) : peut être remise. */
+  sync_ignored?: boolean;
   prestataire_first_name?: string | null;
   prestataire_last_name?: string | null;
   prestataire_avatar_url?: string | null;
