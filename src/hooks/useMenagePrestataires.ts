@@ -43,3 +43,21 @@ export function useSetMenagePrestataires(menageId: string) {
     },
   });
 }
+
+/** Désigne un prestataire déjà affecté comme référent (`is_primary`). */
+export function useSetMenageReferent(menageId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (userId: string) =>
+      apiFetch<{ data: MenagePrestataire[] }>(
+        `/menages/${menageId}/prestataires/${userId}/primary`,
+        { method: "PUT" },
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["menage-prestataires", menageId] });
+      qc.invalidateQueries({ queryKey: ["menage-detail", menageId] });
+      qc.invalidateQueries({ queryKey: ["menages"] });
+      qc.invalidateQueries({ queryKey: ["calendar-menages"] });
+    },
+  });
+}

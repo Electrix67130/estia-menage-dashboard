@@ -50,6 +50,7 @@ export interface Logement {
   color: string | null;
   /** Photo de couverture (URL signée renvoyée par l'API) affichée dans la liste. */
   cover_photo_url: string | null;
+  cover_photo_thumbnail_url: string | null;
   archived_at: string | null;
   created_at: string;
   updated_at: string;
@@ -95,6 +96,7 @@ export interface UpdateLogementInput {
   default_horaire_fin?: string | null;
   color?: string | null;
   cover_photo_url?: string | null;
+  cover_photo_thumbnail_url?: string | null;
 }
 
 export function useLogement(id: string | undefined) {

@@ -6,6 +6,8 @@ import { getAccessToken } from "./api";
 
 export interface UploadResult {
   url: string;
+  /** Miniature (~400px) générée par le serveur pour les images ; absente sinon. */
+  thumbnail_url?: string | null;
   original_name: string;
   file_size: number;
   mime_type: string;

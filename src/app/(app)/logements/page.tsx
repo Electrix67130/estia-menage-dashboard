@@ -153,8 +153,10 @@ export default function LogementsListPage() {
                     {l.cover_photo_url ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
-                        src={l.cover_photo_url}
+                        src={l.cover_photo_thumbnail_url ?? l.cover_photo_url}
                         alt={l.name}
+                        loading="lazy"
+                        decoding="async"
                         className="h-14 w-14 flex-shrink-0 rounded-md object-cover"
                       />
                     ) : (

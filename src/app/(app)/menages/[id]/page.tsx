@@ -46,6 +46,7 @@ import { useUnreadCounts, useMarkTabViewed, type MenageTab } from "@/hooks/useMe
 import {
   useMenagePrestataires,
   useSetMenagePrestataires,
+  useSetMenageReferent,
 } from "@/hooks/useMenagePrestataires";
 import { ApiError } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -560,15 +561,26 @@ function EditDeclarationModal({ menage, onClose }: { menage: MenageDetail; onClo
 function PrestataireSection({ menage, isAdmin }: { menage: MenageDetail; isAdmin: boolean }) {
   const prestataires = useMenagePrestataires(menage.id);
   const list = prestataires.data ?? [];
+  const canEdit = isAdmin && menage.status !== "termine" && menage.status !== "valide";
+  const setReferent = useSetMenageReferent(menage.id);
+
+  const handleSetReferent = async (userId: string) => {
+    try {
+      await setReferent.mutateAsync(userId);
+      toast.success("Référent mis à jour");
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : err instanceof Error ? err.message : "Erreur";
+      toast.error(message);
+    }
+  };
+
   return (
     <Card className="p-6">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">
           Prestataires affectés
         </h2>
-        {isAdmin && menage.status !== "termine" && menage.status !== "valide" ? (
-          <PrestatairePicker menage={menage} current={list} />
-        ) : null}
+        {canEdit ? <PrestatairePicker menage={menage} current={list} /> : null}
       </div>
       {prestataires.isLoading ? (
         <p className="text-sm text-zinc-500">Chargement…</p>
@@ -602,6 +614,15 @@ function PrestataireSection({ menage, isAdmin }: { menage: MenageDetail; isAdmin
                 <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
                   Référent
                 </span>
+              ) : canEdit && list.length > 1 ? (
+                <button
+                  type="button"
+                  onClick={() => handleSetReferent(p.user_id)}
+                  disabled={setReferent.isPending}
+                  className="rounded-full border border-zinc-300 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-600 hover:border-blue-400 hover:text-blue-600 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-400"
+                >
+                  Définir référent
+                </button>
               ) : null}
             </li>
           ))}

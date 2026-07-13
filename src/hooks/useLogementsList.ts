@@ -13,6 +13,7 @@ export interface LogementListItem {
   longitude: number | string | null;
   client_id: string | null;
   cover_photo_url: string | null;
+  cover_photo_thumbnail_url: string | null;
   color: string | null;
   archived_at: string | null;
   /** Calculé API : nb de consommables sous le seuil (stock courant). 0 = OK. */

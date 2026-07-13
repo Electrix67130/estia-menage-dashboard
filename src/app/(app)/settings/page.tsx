@@ -142,8 +142,11 @@ export default function SettingsPage() {
     }
     setAvatarLoading(true);
     try {
-      const { url } = await uploadFile(file);
-      await apiFetch(`/users/${user.id}`, { method: "PATCH", body: { avatar_url: url } });
+      const { url, thumbnail_url } = await uploadFile(file);
+      await apiFetch(`/users/${user.id}`, {
+        method: "PATCH",
+        body: { avatar_url: url, avatar_thumbnail_url: thumbnail_url ?? url },
+      });
       await refresh();
       toast.success(t("settings.avatarUpdated"));
     } catch (err) {
@@ -164,7 +167,10 @@ export default function SettingsPage() {
     if (!ok) return;
     setAvatarLoading(true);
     try {
-      await apiFetch(`/users/${user.id}`, { method: "PATCH", body: { avatar_url: null } });
+      await apiFetch(`/users/${user.id}`, {
+        method: "PATCH",
+        body: { avatar_url: null, avatar_thumbnail_url: null },
+      });
       await refresh();
       toast.success(t("settings.avatarRemoved"));
     } catch (err) {

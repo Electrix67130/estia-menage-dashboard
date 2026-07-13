@@ -148,7 +148,10 @@ function InfoSection({ logementId, isAdmin }: { logementId: string; isAdmin: boo
     setCoverUploading(true);
     try {
       const uploaded = await uploadFile(file);
-      await updateCover.mutateAsync({ cover_photo_url: uploaded.url });
+      await updateCover.mutateAsync({
+        cover_photo_url: uploaded.url,
+        cover_photo_thumbnail_url: uploaded.thumbnail_url ?? uploaded.url,
+      });
       toast.success("Photo de couverture mise à jour");
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Erreur");
@@ -1757,6 +1760,7 @@ function RoomItem({
           logement_id: logementId,
           logement_room_id: room.id,
           url: uploaded.url,
+          thumbnail_url: uploaded.thumbnail_url ?? undefined,
           file_size: uploaded.file_size,
           mime_type: uploaded.mime_type,
           taken_at: new Date().toISOString(),

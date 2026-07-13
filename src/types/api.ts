@@ -26,6 +26,7 @@ export interface User {
   last_name: string;
   phone?: string;
   avatar_url?: string;
+  avatar_thumbnail_url?: string | null;
   role: UserRole;
   company_name?: string;
   /** Entreprise propre du prestataire (indépendante de l'org). */
