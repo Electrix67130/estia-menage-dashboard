@@ -56,11 +56,13 @@ const STATUS_LABEL: Record<CalendarMenage["status"], string> = {
 
 // Validé/Annulé ne sont plus listés ici : les prestations clôturées vivent dans les
 // Archives (où elles sont filtrables par statut). La liste = worklist active.
+// Ordre : Tous → À venir → En cours → À valider. « Terminé » retiré : c'était
+// un doublon de « À valider » (un ménage `termine` est par définition non validé
+// → même ensemble). Validé/Annulé vivent dans l'Historique, pas dans la worklist.
 const FILTERS: { value: MenageFilter; label: string }[] = [
   { value: "all", label: "Tous" },
   { value: "a_venir", label: "À venir" },
   { value: "en_cours", label: "En cours" },
-  { value: "termine", label: "Terminé" },
   { value: "to_validate", label: "À valider" },
 ];
 
