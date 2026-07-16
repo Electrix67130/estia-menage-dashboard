@@ -314,6 +314,7 @@ const STATUS_HEX: Record<CalendarMenage["status"], string> = {
 
 const SPAN_LANE_H = 22; // hauteur d'une barre de séjour (px)
 const MAX_LANES = 4; // au-delà, on agrège en « +N »
+const SPAN_GAP = 0.03; // retrait (en fraction de journée) sur les extrémités réelles d'une barre → petit espace entre deux prestations
 
 interface Span {
   key: string;
@@ -582,10 +583,14 @@ function MonthSpanGrid({
                           {hits.map(({ s, g }) => {
                             const segLo = Math.max(g.lo, dayIdx);
                             const segHi = Math.min(g.hi, dayIdx + 1);
-                            const leftPct = (segLo - dayIdx) * 100;
-                            const widthPct = (segHi - segLo) * 100;
                             const roundLeft = segLo === g.lo;
                             const roundRight = segHi === g.hi;
+                            // Petit retrait aux extrémités réelles de la barre (pas aux
+                            // jonctions internes d'un séjour) → espace entre 2 prestations.
+                            const dispLo = segLo + (roundLeft ? SPAN_GAP : 0);
+                            const dispHi = segHi - (roundRight ? SPAN_GAP : 0);
+                            const leftPct = (dispLo - dayIdx) * 100;
+                            const widthPct = (dispHi - dispLo) * 100;
                             const isStartDay = dayIdx === g.si;
                             const isEndDay = dayIdx === g.ei;
                             const href = isStartDay ? s.startId : isEndDay ? s.endId : s.midId;
