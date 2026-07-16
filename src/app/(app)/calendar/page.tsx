@@ -89,9 +89,12 @@ export default function CalendarPage() {
   );
 
   const days = useMemo(() => buildMonthGrid(cursor), [cursor]);
+  const byDate = useMemo(() => groupByDate(filteredMenages), [filteredMenages]);
   // Séjours = barres multi-jours (check-in → check-out). Le ménage est créé le
   // jour du check-out (date_prevue) ; l'arrivée = date_prevue − stay_nights.
   const spans = useMemo(() => buildSpans(filteredMenages), [filteredMenages]);
+  // Vue « séjours » (barres multi-jours) vs vue classique (pastilles + liste).
+  const [spanView, setSpanView] = usePersistedState<boolean>("calendar.spanView", false);
   const todayIso = isoLocal(new Date());
   const filtersActive =
     prestataireFilter !== PRESTATAIRE_ALL ||
@@ -128,6 +131,15 @@ export default function CalendarPage() {
           >
             <RefreshCw size={14} className={menages.isFetching || usersQuery.isFetching ? "animate-spin" : undefined} />
           </Button>
+          <label className="mr-1 inline-flex cursor-pointer items-center gap-1.5 text-xs font-medium text-zinc-600 dark:text-zinc-300">
+            <input
+              type="checkbox"
+              checked={spanView}
+              onChange={(e) => setSpanView(e.target.checked)}
+              className="h-3.5 w-3.5 rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
+            />
+            Vue séjours
+          </label>
           <Button variant="ghost" size="sm" onClick={() => setCursor(addMonths(cursor, -1))}>
             <ChevronLeft size={16} />
           </Button>
@@ -215,7 +227,11 @@ export default function CalendarPage() {
         ) : null}
       </div>
 
-      <MonthSpanGrid days={days} spans={spans} todayIso={todayIso} />
+      {spanView ? (
+        <MonthSpanGrid days={days} spans={spans} todayIso={todayIso} />
+      ) : (
+        <MonthClassicGrid days={days} byDate={byDate} todayIso={todayIso} />
+      )}
 
       <div className="flex flex-wrap items-center gap-3 text-xs text-zinc-500">
         <span>Légende :</span>
@@ -308,6 +324,8 @@ interface Span {
   needsAttention: boolean;
   /** true = séjour multi-jours → demi-journées aux extrémités (turnover côte à côte). */
   isStay: boolean;
+  /** Nature pour la géométrie 1 jour : 'stay' (séjour iCal), ou le type de la presta. */
+  kind: "stay" | "menage" | "check_in" | "check_out";
   startId: string; // clic sur le jour d'arrivée → check-in (ou ménage)
   endId: string; // clic sur le jour de départ → check-out (ou ménage)
   midId: string; // clic au milieu → ménage
@@ -364,6 +382,7 @@ function buildSpans(menages: CalendarMenage[]): Span[] {
       label: anchor.prestataire_user_id ? prestataireLabel(anchor) : "Non assigné",
       needsAttention: rows.some((r) => r.needs_attention),
       isStay: startIso < endIso,
+      kind: "stay",
       startId: (checkIn ?? menage ?? anchor).id,
       endId: (checkOut ?? menage ?? anchor).id,
       midId: (menage ?? anchor).id,
@@ -387,11 +406,12 @@ function buildSpans(menages: CalendarMenage[]): Span[] {
       label: m.prestataire_user_id ? prestataireLabel(m) : "Non assigné",
       needsAttention: !!m.needs_attention,
       isStay: startIso < endIso,
+      kind: m.prestation_type,
       startId: m.id,
       endId: m.id,
       midId: m.id,
-      hasCheckIn: false,
-      hasCheckOut: false,
+      hasCheckIn: m.prestation_type === "check_in",
+      hasCheckOut: m.prestation_type === "check_out",
       checkInTime: m.horaire_prevu?.slice(0, 5) ?? null,
       checkOutTime: null,
     });
@@ -417,21 +437,22 @@ function MonthSpanGrid({
   const weeks: { date: Date; inMonth: boolean }[][] = [];
   for (let i = 0; i < days.length; i += 7) weeks.push(days.slice(i, i + 7));
 
-  // Jours où un check-in a lieu (arrivée d'un voyageur) → un événement 1 jour
-  // (ménage manuel) qui tombe ce jour-là ne prend que le matin (moitié gauche)
-  // pour laisser l'après-midi au check-in.
+  // Jours où un check-in a lieu (iCal OU manuel) → un ménage 1 jour ce jour-là
+  // ne prend que le matin (moitié gauche) pour laisser l'après-midi au check-in.
   const checkInDays = new Set<number>();
   for (const s of spans) if (s.hasCheckIn) checkInDays.add(dayIndex(s.startIso));
 
-  // Intervalle numérique [lo, hi] : demi-journées aux extrémités si séjour ;
-  // un événement 1 jour prend toute la journée, sauf s'il partage sa date avec
-  // un check-in → il se scinde (matin = moitié gauche).
+  // Intervalle numérique [lo, hi]. Demi-journées : check-in = après-midi (droite),
+  // check-out = matin (gauche), séjour iCal = de l'après-midi d'arrivée au matin
+  // du départ. Un ménage prend toute la journée, sauf s'il partage sa date avec
+  // un check-in → il se scinde (matin).
   const geom = (s: Span) => {
     const si = dayIndex(s.startIso);
     const ei = dayIndex(s.endIso);
     if (s.isStay) return { si, ei, lo: si + 0.5, hi: ei + 0.5 };
-    const splitForCheckIn = checkInDays.has(si);
-    return { si, ei, lo: si, hi: splitForCheckIn ? si + 0.5 : si + 1 };
+    if (s.kind === "check_in") return { si, ei, lo: si + 0.5, hi: si + 1 };
+    if (s.kind === "check_out") return { si, ei, lo: si, hi: si + 0.5 };
+    return { si, ei, lo: si, hi: checkInDays.has(si) ? si + 0.5 : si + 1 };
   };
 
   return (
@@ -543,6 +564,112 @@ function MonthSpanGrid({
           </div>
         );
       })}
+    </Card>
+  );
+}
+
+/** Vue mensuelle classique : numéro du jour + pastilles + liste des ménages du jour. */
+function MonthClassicGrid({
+  days,
+  byDate,
+  todayIso,
+}: {
+  days: { date: Date; inMonth: boolean }[];
+  byDate: Map<string, CalendarMenage[]>;
+  todayIso: string;
+}) {
+  return (
+    <Card className="p-0">
+      <div className="grid grid-cols-7 border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/40">
+        {WEEKDAYS.map((d) => (
+          <div key={d} className="px-2 py-2 text-center text-xs font-semibold uppercase tracking-wider text-zinc-500">
+            {d}
+          </div>
+        ))}
+      </div>
+      <div className="grid grid-cols-7">
+        {days.map(({ date, inMonth }) => {
+          const iso = isoLocal(date);
+          const dayMenages = byDate.get(iso) ?? [];
+          const isToday = iso === todayIso;
+          const hasMenages = dayMenages.length > 0;
+          return (
+            <div
+              key={iso}
+              className={`flex min-h-[110px] flex-col items-stretch border-b border-r border-zinc-100 p-2 text-xs last:border-r-0 dark:border-zinc-800 ${
+                inMonth ? "bg-white dark:bg-zinc-950" : "bg-zinc-50/50 dark:bg-zinc-900/30"
+              }`}
+            >
+              <div className="flex flex-col items-center gap-1">
+                <div
+                  className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-[12px] font-semibold ${
+                    isToday
+                      ? "bg-blue-600 text-white"
+                      : inMonth
+                        ? "text-zinc-700 dark:text-zinc-200"
+                        : "text-zinc-400 dark:text-zinc-600"
+                  }`}
+                >
+                  {date.getDate()}
+                </div>
+                {hasMenages ? (
+                  <div className="flex items-center justify-center gap-1">
+                    {dayMenages.slice(0, 5).map((m, i) => (
+                      <span
+                        key={i}
+                        className={`h-2 w-2 rounded-full ${m.logement_color ? "" : STATUS_DOT[m.status]}`}
+                        style={m.logement_color ? { backgroundColor: m.logement_color } : undefined}
+                        title={`${m.horaire_prevu ? m.horaire_prevu.slice(0, 5) + " · " : ""}${m.status}`}
+                      />
+                    ))}
+                    {dayMenages.length > 5 ? (
+                      <span className="text-[9px] font-bold text-zinc-500">+{dayMenages.length - 5}</span>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+              {hasMenages ? (
+                <div className="mt-2 flex flex-col gap-0.5">
+                  {dayMenages.slice(0, 3).map((m) => {
+                    const unassigned = !m.prestataire_user_id;
+                    const hasColor = !!m.logement_color;
+                    return (
+                      <Link
+                        key={m.id}
+                        href={`/menages/${m.id}`}
+                        title={m.needs_attention ? "Jour passé sans pointage" : undefined}
+                        className={`flex items-center gap-0.5 truncate rounded px-1 py-0.5 text-[10px] font-medium hover:opacity-90${
+                          m.needs_attention ? " ring-1 ring-rose-500 dark:ring-rose-400" : ""
+                        }`}
+                        style={
+                          hasColor
+                            ? { backgroundColor: m.logement_color ?? undefined, color: "#FFFFFF", borderLeft: `3px solid ${m.logement_color}` }
+                            : undefined
+                        }
+                      >
+                        {m.needs_attention ? <AlertTriangle size={9} className="flex-shrink-0 text-rose-500" /> : null}
+                        {m.horaire_prevu ? `${m.horaire_prevu.slice(0, 5)} · ` : ""}
+                        {unassigned ? (
+                          <span className="rounded bg-blue-100 px-1 py-px text-[9px] font-bold uppercase text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
+                            Non assigné
+                          </span>
+                        ) : (
+                          prestataireLabel(m)
+                        )}
+                      </Link>
+                    );
+                  })}
+                  {dayMenages.length > 3 ? (
+                    <span className="text-[10px] text-zinc-400">
+                      +{dayMenages.length - 3} autre{dayMenages.length - 3 > 1 ? "s" : ""}
+                    </span>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
     </Card>
   );
 }
