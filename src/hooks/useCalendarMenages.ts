@@ -20,6 +20,8 @@ export interface CalendarMenage {
   status: "a_venir" | "en_cours" | "termine" | "valide" | "annule";
   /** Type de prestation : ménage classique, check-in (arrivée) ou check-out (départ). */
   prestation_type: PrestationType;
+  /** UID de l'événement iCal : relie ménage / check-in / check-out d'une même réservation. */
+  external_event_uid?: string | null;
   date_prevue: string;
   /** Prochain check-in du logement (arrivée du prochain voyageur, via iCal). */
   next_checkin_at?: string | null;

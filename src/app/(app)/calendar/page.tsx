@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { usePersistedState } from "@/hooks/usePersistedState";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, CalendarDays, Plus, X, RefreshCw, AlertTriangle } from "lucide-react";
+import { ChevronLeft, ChevronRight, CalendarDays, Plus, X, RefreshCw, AlertTriangle, LogIn, LogOut } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Select from "@/components/ui/Select";
@@ -296,15 +296,25 @@ const STATUS_HEX: Record<CalendarMenage["status"], string> = {
   annule: "#a1a1aa",
 };
 
-const SPAN_LANE_H = 20; // hauteur d'une barre de séjour (px)
+const SPAN_LANE_H = 22; // hauteur d'une barre de séjour (px)
 const MAX_LANES = 4; // au-delà, on agrège en « +N »
 
 interface Span {
-  m: CalendarMenage;
-  /** Jour d'arrivée (check-in) = date_prevue − stay_nights. */
-  startIso: string;
-  /** Jour de départ (check-out) = date_prevue (jour du ménage). */
-  endIso: string;
+  key: string;
+  startIso: string; // jour d'arrivée (check-in)
+  endIso: string; // jour de départ (check-out / ménage)
+  color: string;
+  label: string;
+  needsAttention: boolean;
+  /** true = séjour multi-jours → demi-journées aux extrémités (turnover côte à côte). */
+  isStay: boolean;
+  startId: string; // clic sur le jour d'arrivée → check-in (ou ménage)
+  endId: string; // clic sur le jour de départ → check-out (ou ménage)
+  midId: string; // clic au milieu → ménage
+  hasCheckIn: boolean;
+  hasCheckOut: boolean;
+  checkInTime: string | null;
+  checkOutTime: string | null;
 }
 
 function addDays(d: Date, n: number): Date {
@@ -313,24 +323,87 @@ function addDays(d: Date, n: number): Date {
   return x;
 }
 
-/** Construit les séjours (barres multi-jours) à partir des ménages. */
-function buildSpans(menages: CalendarMenage[]): Span[] {
-  return menages
-    .map((m) => {
-      const endIso = m.date_prevue.slice(0, 10);
-      const nights = m.stay_nights ?? 0;
-      // stay_nights connu (iCal) → barre check-in→check-out ; sinon 1 jour.
-      const startIso =
-        nights > 0 ? isoLocal(addDays(new Date(`${endIso}T00:00:00`), -nights)) : endIso;
-      return { m, startIso, endIso };
-    })
-    .sort((a, b) => a.startIso.localeCompare(b.startIso) || a.endIso.localeCompare(b.endIso));
+/** Index de jour absolu (pour la géométrie des barres). */
+function dayIndex(iso: string): number {
+  return Math.round(new Date(`${iso}T00:00:00Z`).getTime() / 86400000);
 }
 
 /**
- * Grille mensuelle avec barres de séjour multi-jours. Chaque semaine (ligne de
- * 7 jours) calcule ses « couloirs » : un séjour occupe le même couloir sur tous
- * ses jours de la semaine → barres continues d'une case à l'autre.
+ * Regroupe ménage / check-in / check-out d'une même réservation (external_event_uid)
+ * en un séjour ; les ménages manuels (sans uid) deviennent des événements 1 jour.
+ */
+function buildSpans(menages: CalendarMenage[]): Span[] {
+  const groups = new Map<string, CalendarMenage[]>();
+  const singles: CalendarMenage[] = [];
+  for (const m of menages) {
+    if (m.external_event_uid) {
+      const arr = groups.get(m.external_event_uid) ?? [];
+      arr.push(m);
+      groups.set(m.external_event_uid, arr);
+    } else {
+      singles.push(m);
+    }
+  }
+
+  const spans: Span[] = [];
+  for (const rows of groups.values()) {
+    const menage = rows.find((r) => r.prestation_type === "menage");
+    const checkIn = rows.find((r) => r.prestation_type === "check_in");
+    const checkOut = rows.find((r) => r.prestation_type === "check_out");
+    const anchor = menage ?? checkOut ?? checkIn ?? rows[0];
+    const endIso = (checkOut ?? menage ?? anchor).date_prevue.slice(0, 10);
+    let startIso: string;
+    if (checkIn) startIso = checkIn.date_prevue.slice(0, 10);
+    else if (menage?.stay_nights) startIso = isoLocal(addDays(new Date(`${endIso}T00:00:00`), -menage.stay_nights));
+    else startIso = endIso;
+    spans.push({
+      key: anchor.id,
+      startIso,
+      endIso,
+      color: anchor.logement_color ?? STATUS_HEX[anchor.status],
+      label: anchor.prestataire_user_id ? prestataireLabel(anchor) : "Non assigné",
+      needsAttention: rows.some((r) => r.needs_attention),
+      isStay: startIso < endIso,
+      startId: (checkIn ?? menage ?? anchor).id,
+      endId: (checkOut ?? menage ?? anchor).id,
+      midId: (menage ?? anchor).id,
+      hasCheckIn: !!checkIn,
+      hasCheckOut: !!checkOut,
+      checkInTime: checkIn?.horaire_prevu?.slice(0, 5) ?? null,
+      checkOutTime: checkOut?.horaire_prevu?.slice(0, 5) ?? null,
+    });
+  }
+
+  for (const m of singles) {
+    const endIso = m.date_prevue.slice(0, 10);
+    const startIso = m.stay_nights
+      ? isoLocal(addDays(new Date(`${endIso}T00:00:00`), -m.stay_nights))
+      : endIso;
+    spans.push({
+      key: m.id,
+      startIso,
+      endIso,
+      color: m.logement_color ?? STATUS_HEX[m.status],
+      label: m.prestataire_user_id ? prestataireLabel(m) : "Non assigné",
+      needsAttention: !!m.needs_attention,
+      isStay: startIso < endIso,
+      startId: m.id,
+      endId: m.id,
+      midId: m.id,
+      hasCheckIn: false,
+      hasCheckOut: false,
+      checkInTime: m.horaire_prevu?.slice(0, 5) ?? null,
+      checkOutTime: null,
+    });
+  }
+  return spans.sort((a, b) => a.startIso.localeCompare(b.startIso) || a.endIso.localeCompare(b.endIso));
+}
+
+/**
+ * Grille mensuelle avec barres de séjour. Un séjour occupe des demi-journées à
+ * ses extrémités (check-in l'après-midi, check-out le matin) → un check-out et
+ * un check-in le même jour tiennent CÔTE À CÔTE dans le même couloir (pas de
+ * superposition). Le clic mène au check-in / check-out / ménage selon le jour.
  */
 function MonthSpanGrid({
   days,
@@ -344,6 +417,13 @@ function MonthSpanGrid({
   const weeks: { date: Date; inMonth: boolean }[][] = [];
   for (let i = 0; i < days.length; i += 7) weeks.push(days.slice(i, i + 7));
 
+  // Intervalle numérique [lo, hi] : demi-journées aux extrémités si séjour.
+  const geom = (s: Span) => {
+    const si = dayIndex(s.startIso);
+    const ei = dayIndex(s.endIso);
+    return { si, ei, lo: s.isStay ? si + 0.5 : si, hi: s.isStay ? ei + 0.5 : ei + 1 };
+  };
+
   return (
     <Card className="overflow-hidden p-0">
       <div className="grid grid-cols-7 border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/40">
@@ -354,39 +434,38 @@ function MonthSpanGrid({
         ))}
       </div>
       {weeks.map((week, wi) => {
-        const weekIsos = week.map((c) => isoLocal(c.date));
-        const w0 = weekIsos[0];
-        const w6 = weekIsos[6];
-        // Séjours qui intersectent la semaine.
-        const inWeek = spans.filter((s) => s.endIso >= w0 && s.startIso <= w6);
-        // Attribution des couloirs (interval partitioning sur la semaine).
-        const laneEnds: string[] = [];
+        const w0 = dayIndex(isoLocal(week[0].date));
+        const w6 = w0 + 6;
+        const inWeek = spans
+          .map((s) => ({ s, g: geom(s) }))
+          .filter(({ g }) => g.hi > w0 && g.lo < w6 + 1);
+        // Couloirs : first-fit sur la semaine (deux barres qui se touchent = même couloir).
+        const laneHi: number[] = [];
         const laneOf = new Map<string, number>();
-        for (const s of inWeek) {
-          const clipStart = s.startIso < w0 ? w0 : s.startIso;
-          let lane = laneEnds.findIndex((end) => end < clipStart);
+        for (const { s, g } of inWeek) {
+          let lane = laneHi.findIndex((hi) => hi <= g.lo);
           if (lane === -1) {
-            lane = laneEnds.length;
-            laneEnds.push("");
+            lane = laneHi.length;
+            laneHi.push(0);
           }
-          laneEnds[lane] = s.endIso > w6 ? w6 : s.endIso;
-          laneOf.set(s.m.id, lane);
+          laneHi[lane] = g.hi;
+          laneOf.set(s.key, lane);
         }
-        const laneCount = Math.min(laneEnds.length, MAX_LANES);
+        const laneCount = Math.min(laneHi.length, MAX_LANES);
 
         return (
           <div key={wi} className="grid grid-cols-7 border-b border-zinc-100 last:border-b-0 dark:border-zinc-800">
             {week.map((cell, di) => {
-              const iso = weekIsos[di];
+              const dayIdx = w0 + di;
+              const iso = isoLocal(cell.date);
               const isToday = iso === todayIso;
-              // Séjours (masqués au-delà de MAX_LANES) présents ce jour, pour le « +N ».
-              const hiddenCount = inWeek.filter(
-                (s) => s.startIso <= iso && s.endIso >= iso && (laneOf.get(s.m.id) ?? 0) >= MAX_LANES,
+              const hidden = inWeek.filter(
+                ({ s, g }) => g.lo < dayIdx + 1 && g.hi > dayIdx && (laneOf.get(s.key) ?? 0) >= MAX_LANES,
               ).length;
               return (
                 <div
                   key={iso}
-                  className={`min-h-[104px] border-r border-zinc-100 last:border-r-0 dark:border-zinc-800 ${
+                  className={`min-h-[112px] border-r border-zinc-100 last:border-r-0 dark:border-zinc-800 ${
                     cell.inMonth ? "bg-white dark:bg-zinc-950" : "bg-zinc-50/50 dark:bg-zinc-900/30"
                   }`}
                 >
@@ -403,38 +482,50 @@ function MonthSpanGrid({
                       {cell.date.getDate()}
                     </div>
                   </div>
-                  {/* Couloirs : un slot par lane, la barre s'étend bord à bord */}
                   <div className="mt-1 flex flex-col gap-0.5">
                     {Array.from({ length: laneCount }).map((_, lane) => {
-                      const s = inWeek.find(
-                        (x) => (laneOf.get(x.m.id) ?? -1) === lane && x.startIso <= iso && x.endIso >= iso,
+                      const hit = inWeek.find(
+                        ({ s, g }) => laneOf.get(s.key) === lane && g.lo < dayIdx + 1 && g.hi > dayIdx,
                       );
-                      if (!s) return <div key={lane} style={{ height: SPAN_LANE_H }} />;
-                      const isStart = s.startIso === iso || di === 0;
-                      const isEnd = s.endIso === iso || di === 6;
-                      const showLabel = s.startIso === iso || di === 0;
-                      const bg = s.m.logement_color ?? STATUS_HEX[s.m.status];
+                      if (!hit) return <div key={lane} style={{ height: SPAN_LANE_H }} />;
+                      const { s, g } = hit;
+                      const segLo = Math.max(g.lo, dayIdx);
+                      const segHi = Math.min(g.hi, dayIdx + 1);
+                      const leftPct = (segLo - dayIdx) * 100;
+                      const widthPct = (segHi - segLo) * 100;
+                      const roundLeft = segLo === g.lo;
+                      const roundRight = segHi === g.hi;
+                      const isStartDay = dayIdx === g.si;
+                      const isEndDay = dayIdx === g.ei;
+                      const href = isStartDay ? s.startId : isEndDay ? s.endId : s.midId;
                       return (
-                        <Link
-                          key={lane}
-                          href={`/menages/${s.m.id}`}
-                          title={`${s.m.logement_name ?? logementLabel(s.m)} · ${s.startIso} → ${s.endIso}`}
-                          className={`flex items-center overflow-hidden whitespace-nowrap px-1 text-[10px] font-medium text-white hover:opacity-90 ${
-                            isStart ? "rounded-l ml-0.5" : ""
-                          } ${isEnd ? "rounded-r mr-0.5" : ""} ${s.m.needs_attention ? "ring-1 ring-rose-400" : ""}`}
-                          style={{ height: SPAN_LANE_H, backgroundColor: bg }}
-                        >
-                          {showLabel ? (
-                            <span className="truncate">
-                              {s.m.prestataire_user_id ? prestataireLabel(s.m) : "Non assigné"}
-                            </span>
-                          ) : null}
-                        </Link>
+                        <div key={lane} className="relative" style={{ height: SPAN_LANE_H }}>
+                          <Link
+                            href={`/menages/${href}`}
+                            title={`${s.label} · ${s.startIso}${s.checkInTime ? " " + s.checkInTime : ""} → ${s.endIso}${s.checkOutTime ? " " + s.checkOutTime : ""}`}
+                            className={`absolute inset-y-0 flex items-center gap-0.5 overflow-hidden px-1 text-[10px] font-medium text-white hover:brightness-110 ${
+                              roundLeft ? "rounded-l" : ""
+                            } ${roundRight ? "rounded-r" : ""} ${s.needsAttention ? "ring-1 ring-rose-400" : ""}`}
+                            style={{ left: `${leftPct}%`, width: `${widthPct}%`, backgroundColor: s.color }}
+                          >
+                            {isStartDay && s.hasCheckIn ? (
+                              <>
+                                <LogIn size={9} className="flex-shrink-0" />
+                                <span className="truncate">{s.checkInTime ?? "arrivée"}</span>
+                              </>
+                            ) : isEndDay && s.hasCheckOut ? (
+                              <>
+                                <LogOut size={9} className="flex-shrink-0" />
+                                <span className="truncate">{s.checkOutTime ?? "départ"}</span>
+                              </>
+                            ) : di === 0 || isStartDay ? (
+                              <span className="truncate">{s.label}</span>
+                            ) : null}
+                          </Link>
+                        </div>
                       );
                     })}
-                    {hiddenCount > 0 ? (
-                      <span className="px-1 text-[9px] font-bold text-zinc-500">+{hiddenCount}</span>
-                    ) : null}
+                    {hidden > 0 ? <span className="px-1 text-[9px] font-bold text-zinc-500">+{hidden}</span> : null}
                   </div>
                 </div>
               );
