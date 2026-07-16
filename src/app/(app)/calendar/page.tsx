@@ -571,44 +571,50 @@ function MonthSpanGrid({
                   </div>
                   <div className="mt-1 flex flex-col gap-0.5">
                     {Array.from({ length: laneCount }).map((_, lane) => {
-                      const hit = inWeek.find(
+                      // Toutes les barres du couloir touchant ce jour : un turnover en
+                      // pose deux (départ le matin + arrivée l'après-midi) → filter, pas find.
+                      const hits = inWeek.filter(
                         ({ s, g }) => laneOf.get(s.key) === lane && g.lo < dayIdx + 1 && g.hi > dayIdx,
                       );
-                      if (!hit) return <div key={lane} style={{ height: SPAN_LANE_H }} />;
-                      const { s, g } = hit;
-                      const segLo = Math.max(g.lo, dayIdx);
-                      const segHi = Math.min(g.hi, dayIdx + 1);
-                      const leftPct = (segLo - dayIdx) * 100;
-                      const widthPct = (segHi - segLo) * 100;
-                      const roundLeft = segLo === g.lo;
-                      const roundRight = segHi === g.hi;
-                      const isStartDay = dayIdx === g.si;
-                      const isEndDay = dayIdx === g.ei;
-                      const href = isStartDay ? s.startId : isEndDay ? s.endId : s.midId;
+                      if (hits.length === 0) return <div key={lane} style={{ height: SPAN_LANE_H }} />;
                       return (
                         <div key={lane} className="relative" style={{ height: SPAN_LANE_H }}>
-                          <Link
-                            href={`/menages/${href}`}
-                            title={`${s.label} · ${s.startIso}${s.checkInTime ? " " + s.checkInTime : ""} → ${s.endIso}${s.checkOutTime ? " " + s.checkOutTime : ""}`}
-                            className={`absolute inset-y-0 flex items-center gap-0.5 overflow-hidden px-1 text-[10px] font-medium text-white hover:brightness-110 ${
-                              roundLeft ? "rounded-l" : ""
-                            } ${roundRight ? "rounded-r" : ""} ${s.needsAttention ? "ring-1 ring-rose-400" : ""}`}
-                            style={{ left: `${leftPct}%`, width: `${widthPct}%`, backgroundColor: s.color }}
-                          >
-                            {isStartDay && s.hasCheckIn ? (
-                              <>
-                                <LogIn size={9} className="flex-shrink-0" />
-                                <span className="truncate">{s.checkInTime ?? "arrivée"}</span>
-                              </>
-                            ) : isEndDay && s.hasCheckOut ? (
-                              <>
-                                <LogOut size={9} className="flex-shrink-0" />
-                                <span className="truncate">{s.checkOutTime ?? "départ"}</span>
-                              </>
-                            ) : di === 0 || isStartDay ? (
-                              <span className="truncate">{s.label}</span>
-                            ) : null}
-                          </Link>
+                          {hits.map(({ s, g }) => {
+                            const segLo = Math.max(g.lo, dayIdx);
+                            const segHi = Math.min(g.hi, dayIdx + 1);
+                            const leftPct = (segLo - dayIdx) * 100;
+                            const widthPct = (segHi - segLo) * 100;
+                            const roundLeft = segLo === g.lo;
+                            const roundRight = segHi === g.hi;
+                            const isStartDay = dayIdx === g.si;
+                            const isEndDay = dayIdx === g.ei;
+                            const href = isStartDay ? s.startId : isEndDay ? s.endId : s.midId;
+                            return (
+                              <Link
+                                key={s.key}
+                                href={`/menages/${href}`}
+                                title={`${s.label} · ${s.startIso}${s.checkInTime ? " " + s.checkInTime : ""} → ${s.endIso}${s.checkOutTime ? " " + s.checkOutTime : ""}`}
+                                className={`absolute inset-y-0 flex items-center gap-0.5 overflow-hidden px-1 text-[10px] font-medium text-white hover:brightness-110 ${
+                                  roundLeft ? "rounded-l" : ""
+                                } ${roundRight ? "rounded-r" : ""} ${s.needsAttention ? "ring-1 ring-rose-400" : ""}`}
+                                style={{ left: `${leftPct}%`, width: `${widthPct}%`, backgroundColor: s.color }}
+                              >
+                                {isStartDay && s.hasCheckIn ? (
+                                  <>
+                                    <LogIn size={9} className="flex-shrink-0" />
+                                    <span className="truncate">{s.checkInTime ?? "arrivée"}</span>
+                                  </>
+                                ) : isEndDay && s.hasCheckOut ? (
+                                  <>
+                                    <LogOut size={9} className="flex-shrink-0" />
+                                    <span className="truncate">{s.checkOutTime ?? "départ"}</span>
+                                  </>
+                                ) : di === 0 || isStartDay ? (
+                                  <span className="truncate">{s.label}</span>
+                                ) : null}
+                              </Link>
+                            );
+                          })}
                         </div>
                       );
                     })}
