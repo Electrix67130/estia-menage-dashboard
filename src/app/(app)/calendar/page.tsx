@@ -417,11 +417,21 @@ function MonthSpanGrid({
   const weeks: { date: Date; inMonth: boolean }[][] = [];
   for (let i = 0; i < days.length; i += 7) weeks.push(days.slice(i, i + 7));
 
-  // Intervalle numérique [lo, hi] : demi-journées aux extrémités si séjour.
+  // Jours où un check-in a lieu (arrivée d'un voyageur) → un événement 1 jour
+  // (ménage manuel) qui tombe ce jour-là ne prend que le matin (moitié gauche)
+  // pour laisser l'après-midi au check-in.
+  const checkInDays = new Set<number>();
+  for (const s of spans) if (s.hasCheckIn) checkInDays.add(dayIndex(s.startIso));
+
+  // Intervalle numérique [lo, hi] : demi-journées aux extrémités si séjour ;
+  // un événement 1 jour prend toute la journée, sauf s'il partage sa date avec
+  // un check-in → il se scinde (matin = moitié gauche).
   const geom = (s: Span) => {
     const si = dayIndex(s.startIso);
     const ei = dayIndex(s.endIso);
-    return { si, ei, lo: s.isStay ? si + 0.5 : si, hi: s.isStay ? ei + 0.5 : ei + 1 };
+    if (s.isStay) return { si, ei, lo: si + 0.5, hi: ei + 0.5 };
+    const splitForCheckIn = checkInDays.has(si);
+    return { si, ei, lo: si, hi: splitForCheckIn ? si + 0.5 : si + 1 };
   };
 
   return (
