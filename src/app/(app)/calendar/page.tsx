@@ -48,13 +48,7 @@ export default function CalendarPage() {
     "calendar.filter.type",
     TYPE_ALL,
   );
-  // Vue semaine chronologique (blocs à l'échelle de la durée) vs grille mensuelle.
-  const [weekView, setWeekView] = usePersistedState<boolean>("calendar.weekView", false);
-
-  const { from, to } = useMemo(
-    () => (weekView ? weekRange(cursor) : monthRange(cursor)),
-    [cursor, weekView],
-  );
+  const { from, to } = useMemo(() => monthRange(cursor), [cursor]);
   const menages = useCalendarMenages({ from, to });
   const allMenages = useMemo(() => menages.data?.data ?? [], [menages.data]);
   // Fetch tous les users de l'org pour qu'un prestataire sans ménage ce mois
@@ -94,9 +88,10 @@ export default function CalendarPage() {
     [allMenages, prestataireFilter, typeFilter, logementFilter],
   );
 
-  const byDate = useMemo(() => groupByDate(filteredMenages), [filteredMenages]);
   const days = useMemo(() => buildMonthGrid(cursor), [cursor]);
-  const weekDays = useMemo(() => buildWeekDays(cursor), [cursor]);
+  // Séjours = barres multi-jours (check-in → check-out). Le ménage est créé le
+  // jour du check-out (date_prevue) ; l'arrivée = date_prevue − stay_nights.
+  const spans = useMemo(() => buildSpans(filteredMenages), [filteredMenages]);
   const todayIso = isoLocal(new Date());
   const filtersActive =
     prestataireFilter !== PRESTATAIRE_ALL ||
@@ -111,16 +106,12 @@ export default function CalendarPage() {
           <CalendarDays size={24} className="text-zinc-500" />
           <div>
             <h1 className="text-2xl font-bold capitalize text-zinc-900 dark:text-white">
-              {weekView ? weekTitle(cursor) : formatDateFr(cursor, "month")}
+              {formatDateFr(cursor, "month")}
             </h1>
             <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              {(() => {
-                const total = menages.data?.meta.total ?? 0;
-                const period = weekView ? "cette semaine" : "ce mois";
-                return filtersActive
-                  ? `${filteredCount} / ${total} ménage${total > 1 ? "s" : ""} ${period}`
-                  : `${total} ménage${total > 1 ? "s" : ""} ${period}`;
-              })()}
+              {filtersActive
+                ? `${filteredCount} / ${menages.data?.meta.total ?? 0} ménage${(menages.data?.meta.total ?? 0) > 1 ? "s" : ""} ce mois`
+                : `${menages.data?.meta.total ?? 0} ménage${(menages.data?.meta.total ?? 0) > 1 ? "s" : ""} ce mois`}
             </p>
           </div>
         </div>
@@ -137,34 +128,13 @@ export default function CalendarPage() {
           >
             <RefreshCw size={14} className={menages.isFetching || usersQuery.isFetching ? "animate-spin" : undefined} />
           </Button>
-          <label className="mr-1 inline-flex cursor-pointer items-center gap-1.5 text-xs font-medium text-zinc-600 dark:text-zinc-300">
-            <input
-              type="checkbox"
-              checked={weekView}
-              onChange={(e) => setWeekView(e.target.checked)}
-              className="h-3.5 w-3.5 rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
-            />
-            Vue semaine (durées)
-          </label>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setCursor(weekView ? addDays(cursor, -7) : addMonths(cursor, -1))}
-          >
+          <Button variant="ghost" size="sm" onClick={() => setCursor(addMonths(cursor, -1))}>
             <ChevronLeft size={16} />
           </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setCursor(weekView ? new Date() : startOfMonth(new Date()))}
-          >
+          <Button variant="ghost" size="sm" onClick={() => setCursor(startOfMonth(new Date()))}>
             Aujourd&apos;hui
           </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setCursor(weekView ? addDays(cursor, 7) : addMonths(cursor, 1))}
-          >
+          <Button variant="ghost" size="sm" onClick={() => setCursor(addMonths(cursor, 1))}>
             <ChevronRight size={16} />
           </Button>
           {isAdmin ? (
@@ -245,122 +215,7 @@ export default function CalendarPage() {
         ) : null}
       </div>
 
-      {weekView ? (
-        <WeekTimeline weekDays={weekDays} byDate={byDate} todayIso={todayIso} />
-      ) : (
-      <Card className="p-0">
-        <div className="grid grid-cols-7 border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/40">
-          {WEEKDAYS.map((d) => (
-            <div
-              key={d}
-              className="px-2 py-2 text-center text-xs font-semibold uppercase tracking-wider text-zinc-500"
-            >
-              {d}
-            </div>
-          ))}
-        </div>
-        <div className="grid grid-cols-7">
-          {days.map(({ date, inMonth }) => {
-            const iso = isoLocal(date);
-            const dayMenages = byDate.get(iso) ?? [];
-            const isToday = iso === todayIso;
-            const hasMenages = dayMenages.length > 0;
-            return (
-              <div
-                key={iso}
-                className={`flex min-h-[110px] flex-col items-stretch border-b border-r border-zinc-100 p-2 text-xs last:border-r-0 dark:border-zinc-800 ${
-                  inMonth ? "bg-white dark:bg-zinc-950" : "bg-zinc-50/50 dark:bg-zinc-900/30"
-                }`}
-              >
-                {/* Date number centrée + dots juste en-dessous */}
-                <div className="flex flex-col items-center gap-1">
-                  <div
-                    className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-[12px] font-semibold ${
-                      isToday
-                        ? "bg-blue-600 text-white"
-                        : inMonth
-                          ? "text-zinc-700 dark:text-zinc-200"
-                          : "text-zinc-400 dark:text-zinc-600"
-                    }`}
-                  >
-                    {date.getDate()}
-                  </div>
-                  {hasMenages ? (
-                    <div className="flex items-center justify-center gap-1">
-                      {dayMenages.slice(0, 5).map((m, i) =>
-                        m.logement_color ? (
-                          <span
-                            key={i}
-                            className="h-2 w-2 rounded-full"
-                            style={{ backgroundColor: m.logement_color }}
-                            title={`${m.horaire_prevu ? m.horaire_prevu.slice(0, 5) + " · " : ""}${m.status}`}
-                          />
-                        ) : (
-                          <span
-                            key={i}
-                            className={`h-2 w-2 rounded-full ${STATUS_DOT[m.status]}`}
-                            title={`${m.horaire_prevu ? m.horaire_prevu.slice(0, 5) + " · " : ""}${m.status}`}
-                          />
-                        ),
-                      )}
-                      {dayMenages.length > 5 ? (
-                        <span className="text-[9px] font-bold text-zinc-500">+{dayMenages.length - 5}</span>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
-
-                {/* Liste des ménages du jour (compacte) */}
-                {hasMenages ? (
-                  <div className="mt-2 flex flex-col gap-0.5">
-                    {dayMenages.slice(0, 3).map((m) => {
-                      const unassigned = !m.prestataire_user_id;
-                      const hasColor = !!m.logement_color;
-                      return (
-                        <Link
-                          key={m.id}
-                          href={`/menages/${m.id}`}
-                          title={m.needs_attention ? "Jour passé sans pointage" : undefined}
-                          className={`flex items-center gap-0.5 truncate rounded px-1 py-0.5 text-[10px] font-medium hover:opacity-90${
-                            m.needs_attention ? " ring-1 ring-rose-500 dark:ring-rose-400" : ""
-                          }`}
-                          style={
-                            hasColor
-                              ? {
-                                  backgroundColor: m.logement_color ?? undefined,
-                                  color: "#FFFFFF",
-                                  borderLeft: `3px solid ${m.logement_color}`,
-                                }
-                              : undefined
-                          }
-                        >
-                          {m.needs_attention ? (
-                            <AlertTriangle size={9} className="flex-shrink-0 text-rose-500" />
-                          ) : null}
-                          {m.horaire_prevu ? `${m.horaire_prevu.slice(0, 5)} · ` : ""}
-                          {unassigned ? (
-                            <span className="rounded bg-blue-100 px-1 py-px text-[9px] font-bold uppercase text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
-                              Non assigné
-                            </span>
-                          ) : (
-                            prestataireLabel(m)
-                          )}
-                        </Link>
-                      );
-                    })}
-                    {dayMenages.length > 3 ? (
-                      <span className="text-[10px] text-zinc-400">
-                        +{dayMenages.length - 3} autre{dayMenages.length - 3 > 1 ? "s" : ""}
-                      </span>
-                    ) : null}
-                  </div>
-                ) : null}
-              </div>
-            );
-          })}
-        </div>
-      </Card>
-      )}
+      <MonthSpanGrid days={days} spans={spans} todayIso={todayIso} />
 
       <div className="flex flex-wrap items-center gap-3 text-xs text-zinc-500">
         <span>Légende :</span>
@@ -374,7 +229,7 @@ export default function CalendarPage() {
       {filteredMenages.length > 0 ? (
         <Card className="p-6">
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-zinc-500">
-            {weekView ? "Liste de la semaine" : "Liste du mois"}
+            Liste du mois
           </h2>
           <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
             {filteredMenages
@@ -441,220 +296,15 @@ const STATUS_HEX: Record<CalendarMenage["status"], string> = {
   annule: "#a1a1aa",
 };
 
-const HOUR_PX = 44;
-const WEEKDAYS_FULL = ["lun", "mar", "mer", "jeu", "ven", "sam", "dim"];
+const SPAN_LANE_H = 20; // hauteur d'une barre de séjour (px)
+const MAX_LANES = 4; // au-delà, on agrège en « +N »
 
-/**
- * Vue semaine chronologique : grille d'heures, chaque ménage est un bloc dont
- * la hauteur = sa durée estimée, positionné à son heure de début. Les ménages
- * sans heure sont listés dans une bande « sans heure » en haut de leur jour.
- */
-function WeekTimeline({
-  weekDays,
-  byDate,
-  todayIso,
-}: {
-  weekDays: Date[];
-  byDate: Map<string, CalendarMenage[]>;
-  todayIso: string;
-}) {
-  const perDay = weekDays.map((d) => {
-    const iso = isoLocal(d);
-    const events = byDate.get(iso) ?? [];
-    return {
-      d,
-      iso,
-      timed: layoutDay(events),
-      untimed: events.filter((e) => !e.horaire_prevu),
-    };
-  });
-
-  // Plage horaire affichée : au moins 7h–20h, élargie si des ménages débordent.
-  let startHour = 7;
-  let endHour = 20;
-  for (const p of perDay) {
-    for (const it of p.timed) {
-      startHour = Math.min(startHour, Math.floor(it.startMin / 60));
-      endHour = Math.max(endHour, Math.ceil(it.endMin / 60));
-    }
-  }
-  const hours: number[] = [];
-  for (let h = startHour; h <= endHour; h++) hours.push(h);
-  const bodyHeight = (endHour - startHour) * HOUR_PX;
-  const hasUntimed = perDay.some((p) => p.untimed.length > 0);
-  const gridCols = "48px repeat(7, minmax(0, 1fr))";
-
-  return (
-    <Card className="overflow-x-auto p-0">
-      <div className="min-w-[760px]">
-        {/* En-têtes de jours */}
-        <div className="grid border-b border-zinc-200 dark:border-zinc-800" style={{ gridTemplateColumns: gridCols }}>
-          <div className="border-r border-zinc-100 dark:border-zinc-800" />
-          {perDay.map((p) => {
-            const isToday = p.iso === todayIso;
-            return (
-              <div
-                key={p.iso}
-                className="border-r border-zinc-100 py-2 text-center last:border-r-0 dark:border-zinc-800"
-              >
-                <div className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
-                  {WEEKDAYS_FULL[(p.d.getDay() + 6) % 7]}
-                </div>
-                <div
-                  className={`mx-auto mt-0.5 inline-flex h-6 w-6 items-center justify-center rounded-full text-[12px] font-semibold ${
-                    isToday ? "bg-blue-600 text-white" : "text-zinc-700 dark:text-zinc-200"
-                  }`}
-                >
-                  {p.d.getDate()}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Bande « sans heure » */}
-        {hasUntimed ? (
-          <div className="grid border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/40" style={{ gridTemplateColumns: gridCols }}>
-            <div className="flex items-center justify-end pr-1 text-[9px] uppercase text-zinc-400">sans h.</div>
-            {perDay.map((p) => (
-              <div key={p.iso} className="flex flex-col gap-0.5 border-r border-zinc-100 p-1 last:border-r-0 dark:border-zinc-800">
-                {p.untimed.map((m) => (
-                  <TimelineChip key={m.id} m={m} />
-                ))}
-              </div>
-            ))}
-          </div>
-        ) : null}
-
-        {/* Corps chronologique */}
-        <div className="grid" style={{ gridTemplateColumns: gridCols }}>
-          {/* Gouttière des heures */}
-          <div className="relative border-r border-zinc-100 dark:border-zinc-800" style={{ height: bodyHeight }}>
-            {hours.map((h, i) => (
-              <div
-                key={h}
-                className="absolute right-1 text-[10px] text-zinc-400"
-                style={{ top: i * HOUR_PX - 6 }}
-              >
-                {String(h).padStart(2, "0")}:00
-              </div>
-            ))}
-          </div>
-          {perDay.map((p) => (
-            <div
-              key={p.iso}
-              className="relative border-r border-zinc-100 last:border-r-0 dark:border-zinc-800"
-              style={{ height: bodyHeight }}
-            >
-              {/* Lignes d'heures */}
-              {hours.map((h, i) => (
-                <div
-                  key={h}
-                  className="absolute inset-x-0 border-t border-zinc-100 dark:border-zinc-800/70"
-                  style={{ top: i * HOUR_PX }}
-                />
-              ))}
-              {/* Blocs ménages */}
-              {p.timed.map((it) => {
-                const top = ((it.startMin - startHour * 60) / 60) * HOUR_PX;
-                const height = Math.max(((it.endMin - it.startMin) / 60) * HOUR_PX, 16);
-                const widthPct = 100 / it.lanes;
-                const bg = it.m.logement_color ?? STATUS_HEX[it.m.status];
-                const unassigned = !it.m.prestataire_user_id;
-                return (
-                  <Link
-                    key={it.m.id}
-                    href={`/menages/${it.m.id}`}
-                    title={`${fmtHm(it.startMin)}–${fmtHm(it.endMin)} · ${logementLabel(it.m)}`}
-                    className={`absolute overflow-hidden rounded px-1 py-0.5 text-[10px] font-medium leading-tight text-white shadow-sm hover:opacity-90 ${
-                      it.m.needs_attention ? "ring-1 ring-rose-400" : ""
-                    }`}
-                    style={{
-                      top,
-                      height,
-                      left: `calc(${it.lane * widthPct}% + 1px)`,
-                      width: `calc(${widthPct}% - 2px)`,
-                      backgroundColor: bg,
-                    }}
-                  >
-                    <span className="block truncate">
-                      {fmtHm(it.startMin)} {unassigned ? "· Non assigné" : `· ${prestataireLabel(it.m)}`}
-                    </span>
-                    {height > 28 ? (
-                      <span className="block truncate opacity-90">{logementLabel(it.m)}</span>
-                    ) : null}
-                  </Link>
-                );
-              })}
-            </div>
-          ))}
-        </div>
-      </div>
-    </Card>
-  );
-}
-
-function TimelineChip({ m }: { m: CalendarMenage }) {
-  const bg = m.logement_color ?? STATUS_HEX[m.status];
-  const unassigned = !m.prestataire_user_id;
-  return (
-    <Link
-      href={`/menages/${m.id}`}
-      className="truncate rounded px-1 py-0.5 text-[9px] font-medium text-white hover:opacity-90"
-      style={{ backgroundColor: bg }}
-      title={logementLabel(m)}
-    >
-      {unassigned ? "Non assigné" : prestataireLabel(m)}
-    </Link>
-  );
-}
-
-interface LaidOutEvent {
+interface Span {
   m: CalendarMenage;
-  startMin: number;
-  endMin: number;
-  lane: number;
-  lanes: number;
-}
-
-/** Positionne les ménages horodatés d'un jour en couloirs (gestion des chevauchements). */
-function layoutDay(events: CalendarMenage[]): LaidOutEvent[] {
-  const timed: LaidOutEvent[] = events
-    .filter((e) => e.horaire_prevu)
-    .map((e) => {
-      const startMin = minutesFromHoraire(e.horaire_prevu as string);
-      const endMin = startMin + Math.max(e.duree_estimee_min ?? 60, 30);
-      return { m: e, startMin, endMin, lane: 0, lanes: 1 };
-    })
-    .sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin);
-
-  const result: LaidOutEvent[] = [];
-  let i = 0;
-  while (i < timed.length) {
-    let j = i;
-    let clusterEnd = timed[i].endMin;
-    const laneEnds: number[] = [];
-    const group: LaidOutEvent[] = [];
-    while (j < timed.length && timed[j].startMin < clusterEnd) {
-      let lane = laneEnds.findIndex((end) => end <= timed[j].startMin);
-      if (lane === -1) {
-        lane = laneEnds.length;
-        laneEnds.push(timed[j].endMin);
-      } else {
-        laneEnds[lane] = timed[j].endMin;
-      }
-      timed[j].lane = lane;
-      group.push(timed[j]);
-      clusterEnd = Math.max(clusterEnd, timed[j].endMin);
-      j++;
-    }
-    for (const g of group) {
-      g.lanes = laneEnds.length;
-      result.push(g);
-    }
-    i = j;
-  }
-  return result;
+  /** Jour d'arrivée (check-in) = date_prevue − stay_nights. */
+  startIso: string;
+  /** Jour de départ (check-out) = date_prevue (jour du ménage). */
+  endIso: string;
 }
 
 function addDays(d: Date, n: number): Date {
@@ -663,41 +313,137 @@ function addDays(d: Date, n: number): Date {
   return x;
 }
 
-function weekStart(d: Date): Date {
-  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  const dow = (x.getDay() + 6) % 7; // 0 = lundi
-  x.setDate(x.getDate() - dow);
-  return x;
+/** Construit les séjours (barres multi-jours) à partir des ménages. */
+function buildSpans(menages: CalendarMenage[]): Span[] {
+  return menages
+    .map((m) => {
+      const endIso = m.date_prevue.slice(0, 10);
+      const nights = m.stay_nights ?? 0;
+      // stay_nights connu (iCal) → barre check-in→check-out ; sinon 1 jour.
+      const startIso =
+        nights > 0 ? isoLocal(addDays(new Date(`${endIso}T00:00:00`), -nights)) : endIso;
+      return { m, startIso, endIso };
+    })
+    .sort((a, b) => a.startIso.localeCompare(b.startIso) || a.endIso.localeCompare(b.endIso));
 }
 
-function weekRange(cursor: Date): { from: string; to: string } {
-  const s = weekStart(cursor);
-  return { from: isoLocal(s), to: isoLocal(addDays(s, 6)) };
-}
+/**
+ * Grille mensuelle avec barres de séjour multi-jours. Chaque semaine (ligne de
+ * 7 jours) calcule ses « couloirs » : un séjour occupe le même couloir sur tous
+ * ses jours de la semaine → barres continues d'une case à l'autre.
+ */
+function MonthSpanGrid({
+  days,
+  spans,
+  todayIso,
+}: {
+  days: { date: Date; inMonth: boolean }[];
+  spans: Span[];
+  todayIso: string;
+}) {
+  const weeks: { date: Date; inMonth: boolean }[][] = [];
+  for (let i = 0; i < days.length; i += 7) weeks.push(days.slice(i, i + 7));
 
-function buildWeekDays(cursor: Date): Date[] {
-  const s = weekStart(cursor);
-  return Array.from({ length: 7 }, (_, i) => addDays(s, i));
-}
+  return (
+    <Card className="overflow-hidden p-0">
+      <div className="grid grid-cols-7 border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/40">
+        {WEEKDAYS.map((d) => (
+          <div key={d} className="px-2 py-2 text-center text-xs font-semibold uppercase tracking-wider text-zinc-500">
+            {d}
+          </div>
+        ))}
+      </div>
+      {weeks.map((week, wi) => {
+        const weekIsos = week.map((c) => isoLocal(c.date));
+        const w0 = weekIsos[0];
+        const w6 = weekIsos[6];
+        // Séjours qui intersectent la semaine.
+        const inWeek = spans.filter((s) => s.endIso >= w0 && s.startIso <= w6);
+        // Attribution des couloirs (interval partitioning sur la semaine).
+        const laneEnds: string[] = [];
+        const laneOf = new Map<string, number>();
+        for (const s of inWeek) {
+          const clipStart = s.startIso < w0 ? w0 : s.startIso;
+          let lane = laneEnds.findIndex((end) => end < clipStart);
+          if (lane === -1) {
+            lane = laneEnds.length;
+            laneEnds.push("");
+          }
+          laneEnds[lane] = s.endIso > w6 ? w6 : s.endIso;
+          laneOf.set(s.m.id, lane);
+        }
+        const laneCount = Math.min(laneEnds.length, MAX_LANES);
 
-const MONTHS_FR = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
-
-function weekTitle(cursor: Date): string {
-  const s = weekStart(cursor);
-  const e = addDays(s, 6);
-  if (s.getMonth() === e.getMonth()) {
-    return `${s.getDate()} – ${e.getDate()} ${MONTHS_FR[s.getMonth()]} ${s.getFullYear()}`;
-  }
-  return `${s.getDate()} ${MONTHS_FR[s.getMonth()]} – ${e.getDate()} ${MONTHS_FR[e.getMonth()]} ${e.getFullYear()}`;
-}
-
-function minutesFromHoraire(h: string): number {
-  const [hh, mm] = h.slice(0, 5).split(":").map(Number);
-  return hh * 60 + (mm || 0);
-}
-
-function fmtHm(min: number): string {
-  return `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
+        return (
+          <div key={wi} className="grid grid-cols-7 border-b border-zinc-100 last:border-b-0 dark:border-zinc-800">
+            {week.map((cell, di) => {
+              const iso = weekIsos[di];
+              const isToday = iso === todayIso;
+              // Séjours (masqués au-delà de MAX_LANES) présents ce jour, pour le « +N ».
+              const hiddenCount = inWeek.filter(
+                (s) => s.startIso <= iso && s.endIso >= iso && (laneOf.get(s.m.id) ?? 0) >= MAX_LANES,
+              ).length;
+              return (
+                <div
+                  key={iso}
+                  className={`min-h-[104px] border-r border-zinc-100 last:border-r-0 dark:border-zinc-800 ${
+                    cell.inMonth ? "bg-white dark:bg-zinc-950" : "bg-zinc-50/50 dark:bg-zinc-900/30"
+                  }`}
+                >
+                  <div className="flex justify-center pt-1">
+                    <div
+                      className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-[12px] font-semibold ${
+                        isToday
+                          ? "bg-blue-600 text-white"
+                          : cell.inMonth
+                            ? "text-zinc-700 dark:text-zinc-200"
+                            : "text-zinc-400 dark:text-zinc-600"
+                      }`}
+                    >
+                      {cell.date.getDate()}
+                    </div>
+                  </div>
+                  {/* Couloirs : un slot par lane, la barre s'étend bord à bord */}
+                  <div className="mt-1 flex flex-col gap-0.5">
+                    {Array.from({ length: laneCount }).map((_, lane) => {
+                      const s = inWeek.find(
+                        (x) => (laneOf.get(x.m.id) ?? -1) === lane && x.startIso <= iso && x.endIso >= iso,
+                      );
+                      if (!s) return <div key={lane} style={{ height: SPAN_LANE_H }} />;
+                      const isStart = s.startIso === iso || di === 0;
+                      const isEnd = s.endIso === iso || di === 6;
+                      const showLabel = s.startIso === iso || di === 0;
+                      const bg = s.m.logement_color ?? STATUS_HEX[s.m.status];
+                      return (
+                        <Link
+                          key={lane}
+                          href={`/menages/${s.m.id}`}
+                          title={`${s.m.logement_name ?? logementLabel(s.m)} · ${s.startIso} → ${s.endIso}`}
+                          className={`flex items-center overflow-hidden whitespace-nowrap px-1 text-[10px] font-medium text-white hover:opacity-90 ${
+                            isStart ? "rounded-l ml-0.5" : ""
+                          } ${isEnd ? "rounded-r mr-0.5" : ""} ${s.m.needs_attention ? "ring-1 ring-rose-400" : ""}`}
+                          style={{ height: SPAN_LANE_H, backgroundColor: bg }}
+                        >
+                          {showLabel ? (
+                            <span className="truncate">
+                              {s.m.prestataire_user_id ? prestataireLabel(s.m) : "Non assigné"}
+                            </span>
+                          ) : null}
+                        </Link>
+                      );
+                    })}
+                    {hiddenCount > 0 ? (
+                      <span className="px-1 text-[9px] font-bold text-zinc-500">+{hiddenCount}</span>
+                    ) : null}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })}
+    </Card>
+  );
 }
 
 function startOfMonth(d: Date) {
