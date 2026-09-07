@@ -428,6 +428,7 @@ const tr: Dict = {
   "beds.double": "Çift kişilik yatak",
   "beds.sofa": "Yataklı koltuk",
   "beds.extra": "Ek yatak",
+  "beds.crib": "Seyahat beşiği",
   "beds.hintLogement": "Varsayılan değerler her temizliğe kopyalanır (her temizlik için sonradan düzenlenebilir).",
   "beds.hintMenage": "Mülkten önceden doldurulmuştur. Bu temizlik için gerekirse ayarlayın.",
 

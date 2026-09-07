@@ -11,7 +11,14 @@ import type {
 
 const CLIENTS_KEY = ["clients"] as const;
 
-export function useClients(params: { page?: number; limit?: number; search?: string } = {}) {
+/**
+ * Annuaire client de l'org. **Réservé aux admins côté API** (403 sinon) : ne
+ * l'appelle pas depuis un écran accessible aux prestataires, ou passe
+ * `enabled: false`.
+ */
+export function useClients(
+  params: { page?: number; limit?: number; search?: string; enabled?: boolean } = {},
+) {
   const search = params.search?.trim();
   const qs = new URLSearchParams();
   if (params.page) qs.set("page", String(params.page));
@@ -22,6 +29,7 @@ export function useClients(params: { page?: number; limit?: number; search?: str
     queryKey: [...CLIENTS_KEY, params.page ?? 1, params.limit ?? 20, search ?? ""],
     queryFn: () =>
       apiFetch<PaginatedResponse<Client>>(`/clients${query ? `?${query}` : ""}`),
+    enabled: params.enabled ?? true,
   });
 }
 

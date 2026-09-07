@@ -60,6 +60,7 @@ export default function NewLogementPage() {
   const [nLitDouble, setNLitDouble] = useState("0");
   const [nCanapeLit, setNCanapeLit] = useState("0");
   const [nLitAppoint, setNLitAppoint] = useState("0");
+  const [nLitParapluie, setNLitParapluie] = useState("0");
   const [hasBasement, setHasBasement] = useState(false);
   const [hasLaundry, setHasLaundry] = useState(false);
   const [hasPool, setHasPool] = useState(false);
@@ -143,6 +144,7 @@ export default function NewLogementPage() {
       n_lit_double: parseInt0(nLitDouble),
       n_canape_lit: parseInt0(nCanapeLit),
       n_lit_appoint: parseInt0(nLitAppoint),
+      n_lit_parapluie: parseInt0(nLitParapluie),
       has_basement: hasBasement,
       has_laundry: hasLaundry,
       has_pool: hasPool,
@@ -351,6 +353,7 @@ export default function NewLogementPage() {
             <Input label={t("beds.double")} type="number" min={0} value={nLitDouble} onChange={(e) => setNLitDouble(e.target.value)} />
             <Input label={t("beds.sofa")} type="number" min={0} value={nCanapeLit} onChange={(e) => setNCanapeLit(e.target.value)} />
             <Input label={t("beds.extra")} type="number" min={0} value={nLitAppoint} onChange={(e) => setNLitAppoint(e.target.value)} />
+            <Input label={t("beds.crib")} type="number" min={0} value={nLitParapluie} onChange={(e) => setNLitParapluie(e.target.value)} />
           </div>
         </Card>
 

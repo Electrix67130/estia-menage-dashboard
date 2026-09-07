@@ -25,6 +25,7 @@ export interface Logement {
   n_lit_double: number;
   n_canape_lit: number;
   n_lit_appoint: number;
+  n_lit_parapluie: number;
   has_basement: boolean;
   has_laundry: boolean;
   has_pool: boolean;
@@ -76,6 +77,7 @@ export interface UpdateLogementInput {
   n_lit_double?: number;
   n_canape_lit?: number;
   n_lit_appoint?: number;
+  n_lit_parapluie?: number;
   has_basement?: boolean;
   has_laundry?: boolean;
   has_pool?: boolean;
@@ -137,6 +139,7 @@ export interface CreateLogementInput {
   n_lit_double?: number;
   n_canape_lit?: number;
   n_lit_appoint?: number;
+  n_lit_parapluie?: number;
   has_basement?: boolean;
   has_laundry?: boolean;
   has_pool?: boolean;

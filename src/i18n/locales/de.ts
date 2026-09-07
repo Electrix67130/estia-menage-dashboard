@@ -428,6 +428,7 @@ const de: Dict = {
   "beds.double": "Doppelbett",
   "beds.sofa": "Schlafsofa",
   "beds.extra": "Zustellbett",
+  "beds.crib": "Reisebett",
   "beds.hintLogement": "Standardwerte werden für jede Reinigung übernommen (anschließend pro Reinigung bearbeitbar).",
   "beds.hintMenage": "Aus der Immobilie vorausgefüllt. Bei Bedarf für diese spezifische Reinigung anpassen.",
 

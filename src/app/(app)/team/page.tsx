@@ -33,10 +33,15 @@ export default function TeamPage() {
   const { user: me } = useAuth();
   const { t } = useI18n();
   const isAdmin = me?.role === "admin";
-  const [tab, setTab] = usePersistedState<Tab>("team.tab", "members");
+  const [persistedTab, setTab] = usePersistedState<Tab>("team.tab", "members");
+  // L'onglet est mémorisé : un prestataire qui l'avait laissé sur « Clients »
+  // (ou avant ce durcissement) doit retomber sur « Membres », pas sur du vide.
+  const tab: Tab = !isAdmin && persistedTab === "clients" ? "members" : persistedTab;
   const [showInvite, setShowInvite] = useState(false);
   const [clientSearch, setClientSearch] = useState("");
-  const clientsList = useClients({ limit: 500, search: clientSearch });
+  // Onglet « Clients » réservé à l'admin : un prestataire n'a pas à voir le
+  // fichier client de l'org (l'API renvoie 403 de toute façon).
+  const clientsList = useClients({ limit: 500, search: clientSearch, enabled: isAdmin });
   const roleLabel = (r: UserRole) => t(ROLE_LABEL_KEYS[r]);
 
   const members = useQuery({
@@ -153,7 +158,8 @@ export default function TeamPage() {
       <div className="inline-flex w-fit rounded-full bg-zinc-100 p-1 dark:bg-zinc-800">
         {([
           { key: "members" as Tab, label: "Membres" },
-          { key: "clients" as Tab, label: "Clients" },
+          // Fichier client = admin only.
+          ...(isAdmin ? [{ key: "clients" as Tab, label: "Clients" }] : []),
         ]).map((tt) => {
           const active = tab === tt.key;
           return (
@@ -174,7 +180,7 @@ export default function TeamPage() {
 
       {showInvite && tab === "members" ? <InviteForm onClose={() => setShowInvite(false)} /> : null}
 
-      {tab === "clients" ? (
+      {tab === "clients" && isAdmin ? (
         <Card className="p-0">
           <div className="border-b border-zinc-200 p-4 dark:border-zinc-800">
             <Input

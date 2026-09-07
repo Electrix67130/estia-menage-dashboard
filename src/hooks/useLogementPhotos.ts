@@ -48,20 +48,14 @@ export interface CreatePhotoInput {
   mime_type?: string;
 }
 
-export function useCreatePhoto() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (input: CreatePhotoInput) =>
-      apiFetch<LogementPhoto>(`/photos`, { method: "POST", body: input }),
-    onSuccess: (_data, vars) => {
-      if (vars.logement_id) {
-        qc.invalidateQueries({ queryKey: ["logement-photos", vars.logement_id] });
-      }
-      if (vars.menage_id) {
-        qc.invalidateQueries({ queryKey: ["menage-photos", vars.menage_id] });
-      }
-    },
-  });
+/**
+ * Création d'une photo. Volontairement sans invalidation de cache : les envois
+ * se font par lot (sélection multiple de fichiers), donc l'appelant crée les
+ * photos une par une puis invalide UNE seule fois — au lieu d'un refetch de la
+ * galerie par photo.
+ */
+export function createPhotoRequest(input: CreatePhotoInput): Promise<LogementPhoto> {
+  return apiFetch<LogementPhoto>(`/photos`, { method: "POST", body: input });
 }
 
 export function useDeletePhoto() {

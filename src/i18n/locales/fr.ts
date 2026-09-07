@@ -444,6 +444,7 @@ const fr: Dict = {
   "beds.double": "Lit double",
   "beds.sofa": "Canapé-lit",
   "beds.extra": "Lit d'appoint",
+  "beds.crib": "Lit parapluie",
   "beds.hintLogement": "Valeurs par défaut copiées sur chaque ménage (modifiables ensuite par ménage).",
   "beds.hintMenage": "Préremplie depuis le logement. Ajustez si nécessaire pour ce ménage spécifique.",
 

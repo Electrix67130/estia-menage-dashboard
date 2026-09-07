@@ -2,7 +2,7 @@
 
 import { use, useEffect, useRef, useState, FormEvent } from "react";
 import Link from "next/link";
-import { Plus, Trash2, Pencil, GripVertical, MapPin, Camera, Clock, AlertTriangle, PackageCheck, RefreshCw, CalendarClock, RotateCcw } from "lucide-react";
+import { Plus, Trash2, Pencil, GripVertical, MapPin, Camera, Clock, AlertTriangle, PackageCheck, RefreshCw, CalendarClock, RotateCcw, Boxes, Package, Key, Eye, EyeOff, Gift } from "lucide-react";
 import BackLink from "@/components/BackLink";
 import { toast } from "sonner";
 import Card from "@/components/ui/Card";
@@ -17,7 +17,7 @@ import { useI18n } from "@/contexts/I18nContext";
 import { ChevronDown, User } from "lucide-react";
 import {
   useLogementPhotos,
-  useCreatePhoto,
+  createPhotoRequest,
   useDeletePhoto,
 } from "@/hooks/useLogementPhotos";
 import { useMenages } from "@/hooks/useMenages";
@@ -50,6 +50,33 @@ import {
   type UpdateLogementInput,
 } from "@/hooks/useLogement";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  useLogementOptions,
+  useOptionSuggestions,
+  useCreateLogementOption,
+  useUpdateLogementOption,
+  useDeleteLogementOption,
+  type LogementOption,
+} from "@/hooks/useLogementOptions";
+import {
+  useLogementCodes,
+  useCodeLabelSuggestions,
+  useCreateLogementCode,
+  useUpdateLogementCode,
+  useDeleteLogementCode,
+  type LogementCode,
+} from "@/hooks/useLogementCodes";
+import {
+  useLogementEquipements,
+  useEquipementCatalog,
+  useCreateEquipement,
+  useUpdateEquipement,
+  useDeleteEquipement,
+  useBulkCreateEquipements,
+  type LogementEquipement,
+  type EquipementCategory,
+} from "@/hooks/useLogementEquipements";
 import {
   useLogementConsommables,
   useCreateConsommable,
@@ -120,8 +147,11 @@ export default function LogementSettingsPage({
       <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">Paramètres logement</h1>
 
       <InfoSection logementId={id} isAdmin={isAdmin} />
+      <AccessCodesSection logementId={id} isAdmin={isAdmin} />
       <LogementMembersSection logementId={id} isAdmin={isAdmin} />
       <RoomsSection logementId={id} isAdmin={isAdmin} />
+      <EquipementsSection logementId={id} isAdmin={isAdmin} />
+      <OptionsSection logementId={id} isAdmin={isAdmin} />
       <ConsommablesSection logementId={id} isAdmin={isAdmin} />
       {isAdmin ? <ExternalCalendarsSection logementId={id} /> : null}
       <MenagesLinkedSection logementId={id} />
@@ -378,6 +408,7 @@ function LogementInfoForm({ logement }: { logement: Logement }) {
   const [nLitDouble, setNLitDouble] = useState(String(logement.n_lit_double ?? 0));
   const [nCanapeLit, setNCanapeLit] = useState(String(logement.n_canape_lit ?? 0));
   const [nLitAppoint, setNLitAppoint] = useState(String(logement.n_lit_appoint ?? 0));
+  const [nLitParapluie, setNLitParapluie] = useState(String(logement.n_lit_parapluie ?? 0));
   const [hasBasement, setHasBasement] = useState(logement.has_basement);
   const [hasLaundry, setHasLaundry] = useState(logement.has_laundry);
   const [hasPool, setHasPool] = useState(logement.has_pool);
@@ -388,7 +419,6 @@ function LogementInfoForm({ logement }: { logement: Logement }) {
     logement.surface_m2 !== null ? String(logement.surface_m2) : "",
   );
   const [notes, setNotes] = useState(logement.notes ?? "");
-  const [keySafeCode, setKeySafeCode] = useState(logement.key_safe_code ?? "");
   const toStr = (v: number | string | null | undefined) =>
     v === null || v === undefined || v === "" ? "" : String(v);
   const [defDuration, setDefDuration] = useState(toStr(logement.default_duration_min));
@@ -449,6 +479,7 @@ function LogementInfoForm({ logement }: { logement: Logement }) {
       n_lit_double: parseInt0(nLitDouble),
       n_canape_lit: parseInt0(nCanapeLit),
       n_lit_appoint: parseInt0(nLitAppoint),
+      n_lit_parapluie: parseInt0(nLitParapluie),
       has_basement: hasBasement,
       has_laundry: hasLaundry,
       has_pool: hasPool,
@@ -457,7 +488,6 @@ function LogementInfoForm({ logement }: { logement: Logement }) {
       enable_check_out: enableCheckOut,
       surface_m2: surface,
       notes: notes.trim() || null,
-      key_safe_code: keySafeCode.trim() || null,
       default_duration_min: parseIntOrNull(defDuration),
       default_client_price_ht: parseMoneyOrNull(defClientPrice),
       default_client_vat_rate: parseMoneyOrNull(defClientVat),
@@ -482,9 +512,9 @@ function LogementInfoForm({ logement }: { logement: Logement }) {
   const stateKey = [
     name, clientId, address, postalCode, city, latitude, longitude,
     nBedrooms, nBathrooms, nWc, nKitchens, nLivingRooms, nExteriorSpaces,
-    nLitSimple, nLitDouble, nCanapeLit, nLitAppoint,
+    nLitSimple, nLitDouble, nCanapeLit, nLitAppoint, nLitParapluie,
     hasBasement, hasLaundry, hasPool, hasJacuzzi, enableCheckIn, enableCheckOut,
-    surfaceM2, notes, keySafeCode, color,
+    surfaceM2, notes, color,
     defDuration, defClientPrice, defClientVat, defProviderPrice,
     defLaundryIncluded, defLaundryClient, defLaundryProvider, defHoraireDebut, defHoraireFin,
   ].join("¦");
@@ -675,19 +705,9 @@ function LogementInfoForm({ logement }: { logement: Logement }) {
             <Input label={t("beds.double")} type="number" min={0} value={nLitDouble} onChange={(e) => setNLitDouble(e.target.value)} />
             <Input label={t("beds.sofa")} type="number" min={0} value={nCanapeLit} onChange={(e) => setNCanapeLit(e.target.value)} />
             <Input label={t("beds.extra")} type="number" min={0} value={nLitAppoint} onChange={(e) => setNLitAppoint(e.target.value)} />
+            <Input label={t("beds.crib")} type="number" min={0} value={nLitParapluie} onChange={(e) => setNLitParapluie(e.target.value)} />
           </div>
         </div>
-
-        <Input
-          label="Code boîte à clés"
-          type="password"
-          name="key-safe-code"
-          autoComplete="new-password"
-          value={keySafeCode}
-          onChange={(e) => setKeySafeCode(e.target.value)}
-          maxLength={50}
-          placeholder="Ex. 1984"
-        />
 
         <Textarea
           label="Notes"
@@ -1744,19 +1764,28 @@ function RoomItem({
   onDelete: () => void;
 }) {
   const { confirm } = useDialog();
+  const qc = useQueryClient();
   const photos = useLogementPhotos(logementId, room.id);
-  const create = useCreatePhoto();
   const remove = useDeletePhoto();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  /** Progression de l'envoi en cours (sélection multiple de fichiers). */
+  const [uploading, setUploading] = useState<{ done: number; total: number } | null>(null);
   const items = (photos.data?.data ?? []).filter((p) => p.logement_room_id === room.id);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
+    if (fileInputRef.current) fileInputRef.current.value = "";
     if (files.length === 0) return;
-    try {
-      for (const file of files) {
-        const uploaded = await uploadFile(file);
-        await create.mutateAsync({
+
+    setUploading({ done: 0, total: files.length });
+    let failed = 0;
+    // Chaque photo est créée dès son upload → une erreur en cours de route ne
+    // fait pas perdre les précédentes. Le cache n'est invalidé qu'une fois, à la
+    // fin : sinon un lot de 10 photos déclencherait 10 refetch de la galerie.
+    for (let i = 0; i < files.length; i++) {
+      try {
+        const uploaded = await uploadFile(files[i]);
+        await createPhotoRequest({
           logement_id: logementId,
           logement_room_id: room.id,
           url: uploaded.url,
@@ -1765,11 +1794,23 @@ function RoomItem({
           mime_type: uploaded.mime_type,
           taken_at: new Date().toISOString(),
         });
+      } catch {
+        failed++;
       }
-      toast.success(`Ajouté à ${room.name}`);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Échec");
+      setUploading({ done: i + 1, total: files.length });
+    }
+
+    await qc.invalidateQueries({ queryKey: ["logement-photos", logementId] });
+    setUploading(null);
+
+    if (failed === 0) {
+      toast.success(
+        files.length > 1 ? `${files.length} photos ajoutées à ${room.name}` : `Ajouté à ${room.name}`,
+      );
+    } else if (failed === files.length) {
+      toast.error("Aucune photo n'a pu être envoyée");
+    } else {
+      toast.error(`${files.length - failed} photo(s) ajoutée(s), ${failed} en échec`);
     }
   };
 
@@ -1794,11 +1835,15 @@ function RoomItem({
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              disabled={create.isPending}
+              disabled={!!uploading}
               className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline disabled:opacity-50"
             >
               <Camera size={12} />
-              Photo
+              {uploading
+                ? uploading.total > 1
+                  ? `Envoi ${uploading.done}/${uploading.total}…`
+                  : "Envoi…"
+                : "Photo"}
             </button>
             <button
               type="button"
@@ -1998,9 +2043,17 @@ function ExternalCalendarsSection({ logementId }: { logementId: string }) {
       if (r.error) {
         toast.error(`Synchronisation échouée : ${r.error}`);
       } else {
-        toast.success(
-          `Synchro OK — ${r.created_menages} créé(s), ${r.cancelled_menages} annulé(s)`,
-        );
+        // `fetched_events` = événements lus dans le flux. L'afficher distingue
+        // « le lien ne renvoie rien » de « le flux est lu mais rien n'en sort ».
+        const detail = `${r.created_menages} créé(s), ${r.updated_menages} mis à jour, ${r.cancelled_menages} annulé(s)`;
+        const lus = `${r.fetched_events} événement${r.fetched_events > 1 ? "s" : ""} lu${r.fetched_events > 1 ? "s" : ""}`;
+        if (r.fetched_events === 0) {
+          toast.warning(`Synchro OK — aucun événement dans le flux (calendrier vide ou lien invalide)`);
+        } else if (r.created_menages + r.updated_menages + r.cancelled_menages === 0) {
+          toast.warning(`Synchro OK — ${lus}, aucune prestation impactée (déjà à jour ou dates bloquées)`);
+        } else {
+          toast.success(`Synchro OK — ${lus} · ${detail}`);
+        }
       }
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Erreur de synchronisation");
@@ -2205,5 +2258,808 @@ function MenagesLinkedSection({ logementId }: { logementId: string }) {
         </ul>
       )}
     </Card>
+  );
+}
+
+/**
+ * Inventaire des équipements du logement (appareil à raclette, plaque de
+ * cuisson, lave-vaisselle…). Écriture admin ; lecture pour tous (le prestataire
+ * doit savoir ce qu'il trouvera sur place). Groupé par famille.
+ */
+function EquipementsSection({ logementId, isAdmin }: { logementId: string; isAdmin: boolean }) {
+  const { confirm } = useDialog();
+  const equipements = useLogementEquipements(logementId);
+  const rooms = useLogementRooms(logementId);
+  const create = useCreateEquipement();
+  const update = useUpdateEquipement(logementId);
+  const remove = useDeleteEquipement(logementId);
+  const [showCreate, setShowCreate] = useState(false);
+  const [showCatalog, setShowCatalog] = useState(false);
+  const [editing, setEditing] = useState<LogementEquipement | null>(null);
+
+  const list = equipements.data ?? [];
+  const total = list.reduce((sum, e) => sum + e.quantity, 0);
+
+  // Regroupement par famille, dans l'ordre du catalogue (« Autre » en dernier).
+  const groups = EQUIPEMENT_CATEGORIES.map((cat) => ({
+    ...cat,
+    items: list.filter((e) => (e.category ?? "autre") === cat.value),
+  })).filter((g) => g.items.length > 0);
+
+  return (
+    <Card className="p-6">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div>
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-zinc-900 dark:text-white">
+            Équipements
+            {total > 0 ? (
+              <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+                {total}
+              </span>
+            ) : null}
+          </h2>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">
+            Inventaire du bien : ce que le prestataire trouvera sur place (appareil à raclette,
+            plaque de cuisson, lave-vaisselle…).
+          </p>
+        </div>
+        {isAdmin ? (
+          <div className="flex shrink-0 gap-2">
+            <Button size="sm" variant="secondary" onClick={() => setShowCatalog(true)}>
+              <Boxes size={14} />
+              Catalogue
+            </Button>
+            <Button size="sm" onClick={() => setShowCreate(true)}>
+              <Plus size={14} />
+              Ajouter
+            </Button>
+          </div>
+        ) : null}
+      </div>
+
+      {equipements.isLoading ? (
+        <p className="text-sm text-zinc-500">Chargement…</p>
+      ) : groups.length > 0 ? (
+        <div className="flex flex-col gap-4">
+          {groups.map((group) => (
+            <div key={group.value}>
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                {group.label}
+              </p>
+              <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
+                {group.items.map((e) => (
+                  <li key={e.id} className="flex items-center gap-3 py-2.5 text-sm">
+                    <Package size={16} className="shrink-0 text-zinc-300" />
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-zinc-900 dark:text-white">
+                        {e.label}
+                        {e.quantity > 1 ? (
+                          <span className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
+                            ×{e.quantity}
+                          </span>
+                        ) : null}
+                      </p>
+                      {e.room_name || e.notes ? (
+                        <p className="truncate text-xs text-zinc-500">
+                          {[e.room_name, e.notes].filter(Boolean).join(" · ")}
+                        </p>
+                      ) : null}
+                    </div>
+                    {isAdmin ? (
+                      <>
+                        <button
+                          onClick={() => setEditing(e)}
+                          className="text-zinc-400 hover:text-blue-600"
+                          aria-label="Modifier"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        <button
+                          onClick={async () => {
+                            const ok = await confirm({
+                              title: `Supprimer « ${e.label} » de l'inventaire ?`,
+                              tone: "danger",
+                              confirmLabel: "Supprimer",
+                            });
+                            if (!ok) return;
+                            try {
+                              await remove.mutateAsync(e.id);
+                              toast.success("Équipement supprimé");
+                            } catch (err) {
+                              toast.error(err instanceof ApiError ? err.message : "Erreur");
+                            }
+                          }}
+                          className="text-zinc-400 hover:text-rose-600"
+                          aria-label="Supprimer"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm text-zinc-500">
+          Aucun équipement renseigné.
+          {isAdmin ? " Utilise le catalogue pour en ajouter plusieurs d'un coup." : ""}
+        </p>
+      )}
+
+      {showCreate ? (
+        <Modal open onClose={() => setShowCreate(false)} title="Ajouter un équipement">
+          <EquipementForm
+            rooms={rooms.data ?? []}
+            onSubmit={(input) => create.mutateAsync({ logement_id: logementId, ...input })}
+            onSuccess={() => setShowCreate(false)}
+          />
+        </Modal>
+      ) : null}
+
+      {editing ? (
+        <Modal open onClose={() => setEditing(null)} title="Modifier l'équipement">
+          <EquipementForm
+            initial={editing}
+            rooms={rooms.data ?? []}
+            onSubmit={(input) => update.mutateAsync({ id: editing.id, input })}
+            onSuccess={() => setEditing(null)}
+          />
+        </Modal>
+      ) : null}
+
+      {showCatalog ? (
+        <Modal open onClose={() => setShowCatalog(false)} title="Ajouter depuis le catalogue">
+          <EquipementCatalogPicker
+            logementId={logementId}
+            existing={list}
+            onDone={() => setShowCatalog(false)}
+          />
+        </Modal>
+      ) : null}
+    </Card>
+  );
+}
+
+/** Familles d'équipements — miroir de l'enum côté API. */
+const EQUIPEMENT_CATEGORIES: { value: EquipementCategory; label: string }[] = [
+  { value: "cuisine", label: "Cuisine" },
+  { value: "electromenager", label: "Électroménager" },
+  { value: "confort", label: "Confort" },
+  { value: "exterieur", label: "Extérieur" },
+  { value: "loisirs", label: "Loisirs" },
+  { value: "bebe", label: "Bébé" },
+  { value: "securite", label: "Sécurité" },
+  { value: "autre", label: "Autre" },
+];
+
+function EquipementForm({
+  initial,
+  rooms,
+  onSubmit,
+  onSuccess,
+}: {
+  initial?: LogementEquipement;
+  rooms: LogementRoom[];
+  onSubmit: (input: {
+    label: string;
+    category: EquipementCategory;
+    quantity: number;
+    logement_room_id: string | null;
+    notes: string | null;
+  }) => Promise<unknown>;
+  onSuccess: () => void;
+}) {
+  const [label, setLabel] = useState(initial?.label ?? "");
+  const [category, setCategory] = useState<EquipementCategory>(initial?.category ?? "cuisine");
+  const [quantity, setQuantity] = useState(String(initial?.quantity ?? 1));
+  const [roomId, setRoomId] = useState(initial?.logement_room_id ?? "");
+  const [notes, setNotes] = useState(initial?.notes ?? "");
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!label.trim()) {
+      toast.error("Le nom est obligatoire");
+      return;
+    }
+    const qty = parseInt(quantity, 10);
+    if (Number.isNaN(qty) || qty < 1) {
+      toast.error("Quantité invalide");
+      return;
+    }
+    setSaving(true);
+    try {
+      await onSubmit({
+        label: label.trim(),
+        category,
+        quantity: qty,
+        logement_room_id: roomId || null,
+        notes: notes.trim() || null,
+      });
+      toast.success(initial ? "Équipement modifié" : "Équipement ajouté");
+      onSuccess();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Erreur");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+      <label className="flex flex-col gap-1 text-sm">
+        <span className="font-medium">Nom</span>
+        <Input
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+          placeholder="Appareil à raclette"
+          autoFocus
+        />
+      </label>
+      <div className="grid grid-cols-2 gap-3">
+        <Select
+          label="Famille"
+          value={category}
+          onChange={(e) => setCategory(e.target.value as EquipementCategory)}
+        >
+          {EQUIPEMENT_CATEGORIES.map((c) => (
+            <option key={c.value} value={c.value}>
+              {c.label}
+            </option>
+          ))}
+        </Select>
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium">Quantité</span>
+          <Input
+            type="number"
+            min={1}
+            value={quantity}
+            onChange={(e) => setQuantity(e.target.value)}
+          />
+        </label>
+      </div>
+      <Select
+        label="Pièce (optionnel)"
+        value={roomId}
+        onChange={(e) => setRoomId(e.target.value)}
+        hint="Où se trouve l'équipement dans le logement."
+      >
+        <option value="">— Aucune —</option>
+        {rooms.map((r) => (
+          <option key={r.id} value={r.id}>
+            {r.name}
+          </option>
+        ))}
+      </Select>
+      <label className="flex flex-col gap-1 text-sm">
+        <span className="font-medium">Notes (optionnel)</span>
+        <Input
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="Dans le placard du haut"
+        />
+      </label>
+      <div className="flex justify-end gap-2">
+        <Button type="submit" size="sm" loading={saving}>
+          {initial ? "Enregistrer" : "Ajouter"}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+/**
+ * Sélection multiple depuis le catalogue servi par l'API (même liste que sur
+ * mobile). Les équipements déjà présents sont affichés cochés et désactivés —
+ * l'API dédoublonne de toute façon.
+ */
+function EquipementCatalogPicker({
+  logementId,
+  existing,
+  onDone,
+}: {
+  logementId: string;
+  existing: LogementEquipement[];
+  onDone: () => void;
+}) {
+  const catalog = useEquipementCatalog();
+  const bulkCreate = useBulkCreateEquipements(logementId);
+  const [selected, setSelected] = useState<Record<string, EquipementCategory>>({});
+  const [saving, setSaving] = useState(false);
+
+  const alreadyThere = new Set(existing.map((e) => e.label.trim().toLowerCase()));
+  const selectedLabels = Object.keys(selected);
+
+  const toggle = (label: string, category: EquipementCategory) => {
+    setSelected((prev) => {
+      const next = { ...prev };
+      if (next[label]) delete next[label];
+      else next[label] = category;
+      return next;
+    });
+  };
+
+  const handleSubmit = async () => {
+    if (selectedLabels.length === 0) return;
+    setSaving(true);
+    try {
+      await bulkCreate.mutateAsync(
+        selectedLabels.map((label) => ({ label, category: selected[label] })),
+      );
+      toast.success(
+        selectedLabels.length > 1
+          ? `${selectedLabels.length} équipements ajoutés`
+          : "Équipement ajouté",
+      );
+      onDone();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Erreur");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (catalog.isLoading) return <p className="text-sm text-zinc-500">Chargement…</p>;
+
+  return (
+    <div className="flex flex-col gap-4">
+      <p className="text-sm text-zinc-500">
+        Coche les équipements présents dans le logement. Tu peux toujours en ajouter un sur mesure
+        avec « Ajouter ».
+      </p>
+      <div className="flex max-h-[50vh] flex-col gap-4 overflow-y-auto">
+        {(catalog.data?.categories ?? [])
+          .filter((c) => c.suggestions.length > 0)
+          .map((cat) => (
+            <div key={cat.key}>
+              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                {cat.label}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {cat.suggestions.map((label) => {
+                  const present = alreadyThere.has(label.trim().toLowerCase());
+                  const isSelected = !!selected[label];
+                  return (
+                    <button
+                      key={label}
+                      type="button"
+                      disabled={present}
+                      onClick={() => toggle(label, cat.key)}
+                      className={
+                        present
+                          ? "cursor-default rounded-full border border-zinc-200 bg-zinc-100 px-3 py-1 text-xs text-zinc-400 dark:border-zinc-800 dark:bg-zinc-800"
+                          : isSelected
+                            ? "rounded-full border border-blue-500 bg-blue-500 px-3 py-1 text-xs font-medium text-white"
+                            : "rounded-full border border-zinc-300 px-3 py-1 text-xs text-zinc-700 hover:border-blue-400 dark:border-zinc-700 dark:text-zinc-200"
+                      }
+                    >
+                      {present ? "✓ " : ""}
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+      </div>
+      <div className="flex justify-end gap-2">
+        <Button
+          size="sm"
+          onClick={handleSubmit}
+          loading={saving}
+          disabled={selectedLabels.length === 0}
+        >
+          Ajouter{selectedLabels.length > 0 ? ` (${selectedLabels.length})` : ""}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Codes d'accès du logement : plusieurs codes, chacun avec son libellé libre
+ * (« Boîte à clés », « Portail », « Alarme »…). Écriture admin ; lecture pour
+ * qui doit entrer dans le logement. Le code est masqué par défaut, révélé au clic.
+ */
+function AccessCodesSection({ logementId, isAdmin }: { logementId: string; isAdmin: boolean }) {
+  const { confirm } = useDialog();
+  const codes = useLogementCodes(logementId);
+  const create = useCreateLogementCode();
+  const update = useUpdateLogementCode(logementId);
+  const remove = useDeleteLogementCode(logementId);
+  const [showCreate, setShowCreate] = useState(false);
+  const [editing, setEditing] = useState<LogementCode | null>(null);
+
+  const list = codes.data ?? [];
+
+  return (
+    <Card className="p-6">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div>
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-zinc-900 dark:text-white">
+            <Key size={18} className="text-zinc-400" />
+            Codes d&apos;accès
+          </h2>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">
+            Autant de codes que nécessaire (boîte à clés, portail, alarme…), chacun avec son propre
+            libellé. Visibles par les prestataires qui interviennent dans le logement.
+          </p>
+        </div>
+        {isAdmin ? (
+          <Button size="sm" onClick={() => setShowCreate(true)}>
+            <Plus size={14} />
+            Ajouter
+          </Button>
+        ) : null}
+      </div>
+
+      {codes.isLoading ? (
+        <p className="text-sm text-zinc-500">Chargement…</p>
+      ) : list.length > 0 ? (
+        <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
+          {list.map((c) => (
+            <li key={c.id} className="flex items-center gap-3 py-3 text-sm">
+              <div className="min-w-0 flex-1">
+                <p className="font-medium text-zinc-900 dark:text-white">{c.label}</p>
+                {c.notes ? <p className="truncate text-xs text-zinc-500">{c.notes}</p> : null}
+              </div>
+              <SecretCode value={c.code} />
+              {isAdmin ? (
+                <>
+                  <button
+                    onClick={() => setEditing(c)}
+                    className="text-zinc-400 hover:text-blue-600"
+                    aria-label="Modifier"
+                  >
+                    <Pencil size={14} />
+                  </button>
+                  <button
+                    onClick={async () => {
+                      const ok = await confirm({
+                        title: `Supprimer le code « ${c.label} » ?`,
+                        tone: "danger",
+                        confirmLabel: "Supprimer",
+                      });
+                      if (!ok) return;
+                      try {
+                        await remove.mutateAsync(c.id);
+                        toast.success("Code supprimé");
+                      } catch (err) {
+                        toast.error(err instanceof ApiError ? err.message : "Erreur");
+                      }
+                    }}
+                    className="text-zinc-400 hover:text-rose-600"
+                    aria-label="Supprimer"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-sm text-zinc-500">Aucun code d&apos;accès renseigné.</p>
+      )}
+
+      {showCreate ? (
+        <Modal open onClose={() => setShowCreate(false)} title="Ajouter un code d'accès">
+          <AccessCodeForm
+            onSubmit={(input) => create.mutateAsync({ logement_id: logementId, ...input })}
+            onSuccess={() => setShowCreate(false)}
+          />
+        </Modal>
+      ) : null}
+
+      {editing ? (
+        <Modal open onClose={() => setEditing(null)} title="Modifier le code d'accès">
+          <AccessCodeForm
+            initial={editing}
+            onSubmit={(input) => update.mutateAsync({ id: editing.id, input })}
+            onSuccess={() => setEditing(null)}
+          />
+        </Modal>
+      ) : null}
+    </Card>
+  );
+}
+
+/** Code masqué (•••) révélé au clic — même esprit que le champ mobile. */
+function SecretCode({ value }: { value: string }) {
+  const [revealed, setRevealed] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={() => setRevealed((v) => !v)}
+      title={revealed ? "Masquer" : "Révéler"}
+      className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1 font-mono text-sm tracking-wider text-zinc-800 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-100"
+    >
+      {revealed ? value : "•".repeat(Math.min(value.length, 8))}
+      {revealed ? <EyeOff size={13} className="text-zinc-400" /> : <Eye size={13} className="text-zinc-400" />}
+    </button>
+  );
+}
+
+function AccessCodeForm({
+  initial,
+  onSubmit,
+  onSuccess,
+}: {
+  initial?: LogementCode;
+  onSubmit: (input: { label: string; code: string; notes: string | null }) => Promise<unknown>;
+  onSuccess: () => void;
+}) {
+  const suggestions = useCodeLabelSuggestions();
+  const [label, setLabel] = useState(initial?.label ?? "");
+  const [code, setCode] = useState(initial?.code ?? "");
+  const [notes, setNotes] = useState(initial?.notes ?? "");
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!label.trim()) {
+      toast.error("Le libellé est obligatoire");
+      return;
+    }
+    if (!code.trim()) {
+      toast.error("Le code est obligatoire");
+      return;
+    }
+    setSaving(true);
+    try {
+      await onSubmit({ label: label.trim(), code: code.trim(), notes: notes.trim() || null });
+      toast.success(initial ? "Code modifié" : "Code ajouté");
+      onSuccess();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Erreur");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+      <label className="flex flex-col gap-1 text-sm">
+        <span className="font-medium">Libellé</span>
+        <Input
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+          placeholder="Ex. Portail"
+          maxLength={100}
+          autoFocus
+        />
+      </label>
+      {/* Suggestions : simple aide à la saisie, le libellé reste libre. */}
+      <div className="flex flex-wrap gap-1.5">
+        {(suggestions.data?.labels ?? []).map((s) => (
+          <button
+            key={s}
+            type="button"
+            onClick={() => setLabel(s)}
+            className={
+              label === s
+                ? "rounded-full border border-blue-500 bg-blue-500 px-2.5 py-0.5 text-xs font-medium text-white"
+                : "rounded-full border border-zinc-300 px-2.5 py-0.5 text-xs text-zinc-600 hover:border-blue-400 dark:border-zinc-700 dark:text-zinc-300"
+            }
+          >
+            {s}
+          </button>
+        ))}
+      </div>
+      <label className="flex flex-col gap-1 text-sm">
+        <span className="font-medium">Code</span>
+        <Input
+          value={code}
+          onChange={(e) => setCode(e.target.value)}
+          placeholder="Ex. 1984"
+          maxLength={100}
+        />
+      </label>
+      <label className="flex flex-col gap-1 text-sm">
+        <span className="font-medium">Notes (optionnel)</span>
+        <Input
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="Ex. à gauche de la porte"
+        />
+      </label>
+      <div className="flex justify-end gap-2">
+        <Button type="submit" size="sm" loading={saving}>
+          {initial ? "Enregistrer" : "Ajouter"}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+/**
+ * Options proposées au client sur ce logement (pack romantique, pack
+ * anniversaire…). L'admin les configure ici ; sur une prestation il coche
+ * celles retenues, et le prestataire les installe.
+ */
+function OptionsSection({ logementId, isAdmin }: { logementId: string; isAdmin: boolean }) {
+  const { confirm } = useDialog();
+  const options = useLogementOptions(logementId);
+  const create = useCreateLogementOption();
+  const update = useUpdateLogementOption(logementId);
+  const remove = useDeleteLogementOption(logementId);
+  const [showCreate, setShowCreate] = useState(false);
+  const [editing, setEditing] = useState<LogementOption | null>(null);
+
+  const list = options.data ?? [];
+
+  return (
+    <Card className="p-6">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div>
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-zinc-900 dark:text-white">
+            <Gift size={18} className="text-zinc-400" />
+            Options
+          </h2>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">
+            Packs proposés au client (romantique, anniversaire…). Sur une prestation, tu coches
+            celui qu&apos;il a choisi : le prestataire voit ce qu&apos;il doit installer.
+          </p>
+        </div>
+        {isAdmin ? (
+          <Button size="sm" onClick={() => setShowCreate(true)}>
+            <Plus size={14} />
+            Ajouter
+          </Button>
+        ) : null}
+      </div>
+
+      {options.isLoading ? (
+        <p className="text-sm text-zinc-500">Chargement…</p>
+      ) : list.length > 0 ? (
+        <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
+          {list.map((o) => (
+            <li key={o.id} className="flex items-start gap-3 py-3 text-sm">
+              <div className="min-w-0 flex-1">
+                <p className="font-medium text-zinc-900 dark:text-white">{o.label}</p>
+                {o.description ? (
+                  <p className="text-xs text-zinc-500">{o.description}</p>
+                ) : null}
+              </div>
+              {isAdmin ? (
+                <>
+                  <button
+                    onClick={() => setEditing(o)}
+                    className="text-zinc-400 hover:text-blue-600"
+                    aria-label="Modifier"
+                  >
+                    <Pencil size={14} />
+                  </button>
+                  <button
+                    onClick={async () => {
+                      const ok = await confirm({
+                        title: `Supprimer l'option « ${o.label} » ?`,
+                        description:
+                          "Elle sera retirée des prestations où elle était cochée.",
+                        tone: "danger",
+                        confirmLabel: "Supprimer",
+                      });
+                      if (!ok) return;
+                      try {
+                        await remove.mutateAsync(o.id);
+                        toast.success("Option supprimée");
+                      } catch (err) {
+                        toast.error(err instanceof ApiError ? err.message : "Erreur");
+                      }
+                    }}
+                    className="text-zinc-400 hover:text-rose-600"
+                    aria-label="Supprimer"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-sm text-zinc-500">Aucune option proposée sur ce logement.</p>
+      )}
+
+      {showCreate ? (
+        <Modal open onClose={() => setShowCreate(false)} title="Ajouter une option">
+          <OptionForm
+            onSubmit={(input) => create.mutateAsync({ logement_id: logementId, ...input })}
+            onSuccess={() => setShowCreate(false)}
+          />
+        </Modal>
+      ) : null}
+
+      {editing ? (
+        <Modal open onClose={() => setEditing(null)} title="Modifier l'option">
+          <OptionForm
+            initial={editing}
+            onSubmit={(input) => update.mutateAsync({ id: editing.id, input })}
+            onSuccess={() => setEditing(null)}
+          />
+        </Modal>
+      ) : null}
+    </Card>
+  );
+}
+
+function OptionForm({
+  initial,
+  onSubmit,
+  onSuccess,
+}: {
+  initial?: LogementOption;
+  onSubmit: (input: { label: string; description: string | null }) => Promise<unknown>;
+  onSuccess: () => void;
+}) {
+  const suggestions = useOptionSuggestions();
+  const [label, setLabel] = useState(initial?.label ?? "");
+  const [description, setDescription] = useState(initial?.description ?? "");
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!label.trim()) {
+      toast.error("Le libellé est obligatoire");
+      return;
+    }
+    setSaving(true);
+    try {
+      await onSubmit({ label: label.trim(), description: description.trim() || null });
+      toast.success(initial ? "Option modifiée" : "Option ajoutée");
+      onSuccess();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Erreur");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+      <label className="flex flex-col gap-1 text-sm">
+        <span className="font-medium">Libellé</span>
+        <Input
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+          placeholder="Ex. Pack romantique"
+          maxLength={150}
+          autoFocus
+        />
+      </label>
+      <div className="flex flex-wrap gap-1.5">
+        {(suggestions.data?.labels ?? []).map((s) => (
+          <button
+            key={s}
+            type="button"
+            onClick={() => setLabel(s)}
+            className={
+              label === s
+                ? "rounded-full border border-blue-500 bg-blue-500 px-2.5 py-0.5 text-xs font-medium text-white"
+                : "rounded-full border border-zinc-300 px-2.5 py-0.5 text-xs text-zinc-600 hover:border-blue-400 dark:border-zinc-700 dark:text-zinc-300"
+            }
+          >
+            {s}
+          </button>
+        ))}
+      </div>
+      <label className="flex flex-col gap-1 text-sm">
+        <span className="font-medium">À installer (optionnel)</span>
+        <Textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="Pétales sur le lit, bougies, champagne au frais"
+          rows={3}
+        />
+      </label>
+      <div className="flex justify-end gap-2">
+        <Button type="submit" size="sm" loading={saving}>
+          {initial ? "Enregistrer" : "Ajouter"}
+        </Button>
+      </div>
+    </form>
   );
 }

@@ -3,7 +3,7 @@
 import { use, useState, useEffect, FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { MapPin, Clock, Timer, User as UserIcon, Pencil, Trash2, CheckCircle2, ListChecks, Camera, MessageSquare, Send, Maximize2, Lock, AlertTriangle, Key, Moon, RotateCcw } from "lucide-react";
+import { MapPin, Clock, Timer, User as UserIcon, Pencil, Trash2, CheckCircle2, ListChecks, Camera, MessageSquare, Send, Maximize2, Lock, AlertTriangle, Key, Moon, RotateCcw, Gift, Package } from "lucide-react";
 import BackLink from "@/components/BackLink";
 import { toast } from "sonner";
 import Card from "@/components/ui/Card";
@@ -20,6 +20,22 @@ import PhotoLightbox from "@/components/PhotoLightbox";
 import { useI18n } from "@/contexts/I18nContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDialog } from "@/contexts/DialogContext";
+import { useLogementCodes } from "@/hooks/useLogementCodes";
+import { useLogementEquipements } from "@/hooks/useLogementEquipements";
+import { useLogementPhotos } from "@/hooks/useLogementPhotos";
+import { useLogementRooms } from "@/hooks/useLogementRooms";
+import {
+  useLogementOptions,
+  useMenageOptions,
+  useSetMenageOptions,
+  type MenageOption,
+} from "@/hooks/useLogementOptions";
+import {
+  useMenageEquipements,
+  useSetMenageEquipements,
+  useToggleMenageEquipement,
+  type MenageEquipement,
+} from "@/hooks/useMenageEquipements";
 import { formatDateFr } from "@/lib/date-fr";
 import {
   useMenageDetail,
@@ -124,6 +140,9 @@ export default function MenageDetailPage({
                 <PointageProofSection menage={menage} />
               ) : null}
               <BedsSection menage={menage} isAdmin={isAdmin} />
+              <MenageOptionsSection menage={menage} isAdmin={isAdmin} />
+              <EquipementsToPrepareSection menage={menage} isAdmin={isAdmin} />
+              <LogementReferencePhotosSection logementId={menage.logement_id} />
               {menage.notes_intervention ? <NotesSection notes={menage.notes_intervention} /> : null}
               <FinancialsSection menage={menage} />
             </>
@@ -275,14 +294,7 @@ function Header({
 
       <CheckinInfo menage={menage} />
 
-      {menage.logement_key_safe_code ? (
-        <div className="flex flex-wrap items-center gap-2 text-sm">
-          <span className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1 font-medium text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-200">
-            <Key size={14} />
-            Boîte à clés : <span className="font-mono tracking-wider">{menage.logement_key_safe_code}</span>
-          </span>
-        </div>
-      ) : null}
+      <AccessCodes logementId={menage.logement_id} fallback={menage.logement_key_safe_code} />
 
       {isAdmin && !isEditing ? (
         <div className="flex flex-wrap items-center gap-2">
@@ -1082,9 +1094,10 @@ function suggestBeds(travelers: number): {
   n_lit_simple: number;
   n_canape_lit: number;
   n_lit_appoint: number;
+  n_lit_parapluie: number;
 } {
   const n = Math.max(0, travelers);
-  return { n_lit_double: Math.floor(n / 2), n_lit_simple: n % 2, n_canape_lit: 0, n_lit_appoint: 0 };
+  return { n_lit_double: Math.floor(n / 2), n_lit_simple: n % 2, n_canape_lit: 0, n_lit_appoint: 0, n_lit_parapluie: 0 };
 }
 
 function parseMoneyInput(s: string): number | null | "invalid" {
@@ -1122,6 +1135,7 @@ function MenageEditForm({ menage, onClose }: { menage: MenageDetail; onClose: ()
   const [nLitDouble, setNLitDouble] = useState(String(menage.n_lit_double ?? 0));
   const [nCanapeLit, setNCanapeLit] = useState(String(menage.n_canape_lit ?? 0));
   const [nLitAppoint, setNLitAppoint] = useState(String(menage.n_lit_appoint ?? 0));
+  const [nLitParapluie, setNLitParapluie] = useState(String(menage.n_lit_parapluie ?? 0));
   const [nTravelers, setNTravelers] = useState(menage.n_travelers != null ? String(menage.n_travelers) : "");
   const [arrivedAt, setArrivedAt] = useState(toLocalDatetimeInput(menage.arrived_at));
   const [departedAt, setDepartedAt] = useState(toLocalDatetimeInput(menage.departed_at));
@@ -1136,6 +1150,7 @@ function MenageEditForm({ menage, onClose }: { menage: MenageDetail; onClose: ()
     setNLitSimple(String(s.n_lit_simple));
     setNCanapeLit(String(s.n_canape_lit));
     setNLitAppoint(String(s.n_lit_appoint));
+    setNLitParapluie(String(s.n_lit_parapluie));
   };
 
   const handleSubmit = async (e: FormEvent) => {
@@ -1175,6 +1190,7 @@ function MenageEditForm({ menage, onClose }: { menage: MenageDetail; onClose: ()
       n_lit_double: parseCountInput(nLitDouble),
       n_canape_lit: parseCountInput(nCanapeLit),
       n_lit_appoint: parseCountInput(nLitAppoint),
+      n_lit_parapluie: parseCountInput(nLitParapluie),
       n_travelers: nTravelers.trim() ? parseCountInput(nTravelers) : null,
       arrived_at: arrivedAt ? new Date(arrivedAt).toISOString() : null,
       departed_at: departedAt ? new Date(departedAt).toISOString() : null,
@@ -1276,11 +1292,12 @@ function MenageEditForm({ menage, onClose }: { menage: MenageDetail; onClose: ()
           ) : null}
         </div>
         <Input label="Voyageurs" type="number" min={0} value={nTravelers} onChange={(e) => setNTravelers(e.target.value)} />
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           <Input label={t("beds.simple")} type="number" min={0} value={nLitSimple} onChange={(e) => setNLitSimple(e.target.value)} />
           <Input label={t("beds.double")} type="number" min={0} value={nLitDouble} onChange={(e) => setNLitDouble(e.target.value)} />
           <Input label={t("beds.sofa")} type="number" min={0} value={nCanapeLit} onChange={(e) => setNCanapeLit(e.target.value)} />
           <Input label={t("beds.extra")} type="number" min={0} value={nLitAppoint} onChange={(e) => setNLitAppoint(e.target.value)} />
+          <Input label={t("beds.crib")} type="number" min={0} value={nLitParapluie} onChange={(e) => setNLitParapluie(e.target.value)} />
         </div>
       </Card>
 
@@ -1320,6 +1337,7 @@ function BedsSection({ menage, isAdmin }: { menage: MenageDetail; isAdmin: boole
     { field: "n_lit_double", value: menage.n_lit_double ?? 0, label: t("beds.double") },
     { field: "n_canape_lit", value: menage.n_canape_lit ?? 0, label: t("beds.sofa") },
     { field: "n_lit_appoint", value: menage.n_lit_appoint ?? 0, label: t("beds.extra") },
+    { field: "n_lit_parapluie", value: menage.n_lit_parapluie ?? 0, label: t("beds.crib") },
   ];
   const totalBeds = beds.reduce((s, b) => s + b.value, 0);
 
@@ -1342,7 +1360,7 @@ function BedsSection({ menage, isAdmin }: { menage: MenageDetail; isAdmin: boole
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {beds.map((b) => (
           <div key={b.field} className={cell}>
             <span className="text-2xl font-bold tabular-nums text-zinc-900 dark:text-white">{b.value}</span>
@@ -1766,3 +1784,469 @@ function CommentsTab({ menageId }: { menageId: string }) {
   );
 }
 
+/**
+ * Codes d'accès du logement sur le détail d'une prestation (boîte à clés,
+ * portail, alarme…). `fallback` = champ legacy `logement_key_safe_code` joint au
+ * ménage, affiché tant que la liste n'a pas répondu ou si elle est vide.
+ */
+function AccessCodes({
+  logementId,
+  fallback,
+}: {
+  logementId: string;
+  fallback?: string | null;
+}) {
+  const codes = useLogementCodes(logementId);
+  const list = codes.data ?? [];
+
+  if (list.length === 0) {
+    if (!fallback) return null;
+    return (
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <span className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1 font-medium text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-200">
+          <Key size={14} />
+          Boîte à clés : <span className="font-mono tracking-wider">{fallback}</span>
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-sm">
+      {list.map((c) => (
+        <span
+          key={c.id}
+          title={c.notes ?? undefined}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1 font-medium text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-200"
+        >
+          <Key size={14} />
+          {c.label} : <span className="font-mono tracking-wider">{c.code}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * « À préparer » : équipements de l'inventaire du logement que l'admin demande
+ * de sortir/installer pour cette prestation (chaise haute, baignoire bébé, lit
+ * parapluie…). Le prestataire les coche une fois préparés.
+ */
+function EquipementsToPrepareSection({
+  menage,
+  isAdmin,
+}: {
+  menage: MenageDetail;
+  isAdmin: boolean;
+}) {
+  const list = useMenageEquipements(menage.id);
+  const toggle = useToggleMenageEquipement(menage.id);
+  const [picking, setPicking] = useState(false);
+
+  const items = list.data ?? [];
+  // Rien à afficher pour un non-admin tant que rien n'est demandé.
+  if (items.length === 0 && !isAdmin) return null;
+
+  const doneCount = items.filter((i) => i.done_at).length;
+
+  return (
+    <Card className="p-6">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">
+          À préparer
+          {items.length > 0 ? (
+            <span className="ml-2 font-mono text-xs text-zinc-400">
+              {doneCount}/{items.length}
+            </span>
+          ) : null}
+        </h2>
+        {isAdmin ? (
+          <Button size="sm" variant="secondary" onClick={() => setPicking(true)}>
+            <Pencil size={14} />
+            Modifier
+          </Button>
+        ) : null}
+      </div>
+
+      {items.length === 0 ? (
+        <p className="text-sm text-zinc-500">
+          Aucun équipement à préparer. « Modifier » pour en demander depuis l&apos;inventaire du
+          logement.
+        </p>
+      ) : (
+        <ul className="flex flex-col gap-2">
+          {items.map((i) => (
+            <li key={i.id} className="flex items-center gap-3 text-sm">
+              {/* Le prestataire est en lecture seule : seul l'admin coche. */}
+              {isAdmin ? (
+                <input
+                  type="checkbox"
+                  checked={!!i.done_at}
+                  onChange={(e) =>
+                    toggle
+                      .mutateAsync({
+                        equipementId: i.logement_equipement_id,
+                        done: e.target.checked,
+                      })
+                      .catch((err) =>
+                        toast.error(err instanceof ApiError ? err.message : "Erreur"),
+                      )
+                  }
+                  className="h-4 w-4 rounded border-zinc-300 accent-blue-600"
+                />
+              ) : (
+                <Package size={14} className="text-zinc-300" />
+              )}
+              <span
+                className={
+                  i.done_at
+                    ? "text-zinc-400 line-through"
+                    : "font-medium text-zinc-900 dark:text-white"
+                }
+              >
+                {i.label}
+                {i.quantity > 1 ? ` ×${i.quantity}` : ""}
+              </span>
+              {i.room_name ? <span className="text-xs text-zinc-500">{i.room_name}</span> : null}
+              {i.done_at && i.done_by_first_name ? (
+                <span className="ml-auto text-xs text-zinc-400">
+                  par {i.done_by_first_name}
+                </span>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {picking ? (
+        <Modal open onClose={() => setPicking(false)} title="Équipements à préparer">
+          <EquipementsToPreparePicker
+            menageId={menage.id}
+            logementId={menage.logement_id}
+            selected={items}
+            onDone={() => setPicking(false)}
+          />
+        </Modal>
+      ) : null}
+    </Card>
+  );
+}
+
+/** Sélection des équipements à préparer, depuis l'inventaire du logement. */
+function EquipementsToPreparePicker({
+  menageId,
+  logementId,
+  selected,
+  onDone,
+}: {
+  menageId: string;
+  logementId: string;
+  selected: MenageEquipement[];
+  onDone: () => void;
+}) {
+  const inventory = useLogementEquipements(logementId);
+  const save = useSetMenageEquipements(menageId);
+  const [checked, setChecked] = useState<Set<string>>(
+    new Set(selected.map((s) => s.logement_equipement_id)),
+  );
+  const [saving, setSaving] = useState(false);
+
+  const toggle = (id: string) =>
+    setChecked((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await save.mutateAsync([...checked].map((id) => ({ logement_equipement_id: id })));
+      toast.success("Liste enregistrée");
+      onDone();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Erreur");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const items = inventory.data ?? [];
+
+  if (inventory.isLoading) return <p className="text-sm text-zinc-500">Chargement…</p>;
+  if (items.length === 0) {
+    return (
+      <p className="text-sm text-zinc-500">
+        L&apos;inventaire de ce logement est vide. Ajoute d&apos;abord des équipements sur la fiche
+        logement.
+      </p>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <p className="text-sm text-zinc-500">
+        Coche ce que le prestataire doit préparer pour cette prestation.
+      </p>
+      <ul className="flex max-h-[50vh] flex-col gap-2 overflow-y-auto">
+        {items.map((e) => (
+          <li key={e.id}>
+            <label className="flex cursor-pointer items-center gap-3 text-sm">
+              <input
+                type="checkbox"
+                checked={checked.has(e.id)}
+                onChange={() => toggle(e.id)}
+                className="h-4 w-4 rounded border-zinc-300 accent-blue-600"
+              />
+              <span className="font-medium text-zinc-900 dark:text-white">{e.label}</span>
+              {e.room_name ? <span className="text-xs text-zinc-500">{e.room_name}</span> : null}
+            </label>
+          </li>
+        ))}
+      </ul>
+      <div className="flex justify-end">
+        <Button size="sm" onClick={handleSave} loading={saving}>
+          Enregistrer{checked.size > 0 ? ` (${checked.size})` : ""}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Options retenues par le client pour cette prestation (pack romantique,
+ * anniversaire…). L'admin coche ce que le client a choisi ; le prestataire les
+ * consulte pour les installer — il ne coche rien.
+ */
+function MenageOptionsSection({
+  menage,
+  isAdmin,
+}: {
+  menage: MenageDetail;
+  isAdmin: boolean;
+}) {
+  const list = useMenageOptions(menage.id);
+  const [picking, setPicking] = useState(false);
+
+  const items = list.data ?? [];
+  if (items.length === 0 && !isAdmin) return null;
+
+  return (
+    <Card className="p-6">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-zinc-500">
+          <Gift size={14} />
+          Options choisies
+        </h2>
+        {isAdmin ? (
+          <Button size="sm" variant="secondary" onClick={() => setPicking(true)}>
+            <Pencil size={14} />
+            Modifier
+          </Button>
+        ) : null}
+      </div>
+
+      {items.length === 0 ? (
+        <p className="text-sm text-zinc-500">
+          Aucune option pour cette prestation. « Modifier » pour cocher un pack proposé sur le
+          logement.
+        </p>
+      ) : (
+        <ul className="flex flex-col gap-3">
+          {items.map((o) => (
+            <li
+              key={o.id}
+              className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-900/50 dark:bg-amber-950/30"
+            >
+              <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">{o.label}</p>
+              {o.description ? (
+                <p className="mt-0.5 text-xs text-amber-800/80 dark:text-amber-200/70">
+                  {o.description}
+                </p>
+              ) : null}
+              {o.notes ? (
+                <p className="mt-0.5 text-xs italic text-amber-800/80 dark:text-amber-200/70">
+                  {o.notes}
+                </p>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {picking ? (
+        <Modal open onClose={() => setPicking(false)} title="Options choisies par le client">
+          <MenageOptionsPicker
+            menageId={menage.id}
+            logementId={menage.logement_id}
+            selected={items}
+            onDone={() => setPicking(false)}
+          />
+        </Modal>
+      ) : null}
+    </Card>
+  );
+}
+
+function MenageOptionsPicker({
+  menageId,
+  logementId,
+  selected,
+  onDone,
+}: {
+  menageId: string;
+  logementId: string;
+  selected: MenageOption[];
+  onDone: () => void;
+}) {
+  const options = useLogementOptions(logementId);
+  const save = useSetMenageOptions(menageId);
+  const [checked, setChecked] = useState<Set<string>>(
+    new Set(selected.map((s) => s.logement_option_id)),
+  );
+  const [saving, setSaving] = useState(false);
+
+  const toggle = (id: string) =>
+    setChecked((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await save.mutateAsync([...checked].map((id) => ({ logement_option_id: id })));
+      toast.success("Options enregistrées");
+      onDone();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Erreur");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const items = options.data ?? [];
+  if (options.isLoading) return <p className="text-sm text-zinc-500">Chargement…</p>;
+  if (items.length === 0) {
+    return (
+      <p className="text-sm text-zinc-500">
+        Aucune option configurée sur ce logement. Ajoute-les d&apos;abord dans la fiche logement,
+        section « Options ».
+      </p>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <p className="text-sm text-zinc-500">Coche les options retenues par le client.</p>
+      <ul className="flex max-h-[50vh] flex-col gap-2 overflow-y-auto">
+        {items.map((o) => (
+          <li key={o.id}>
+            <label className="flex cursor-pointer items-start gap-3 text-sm">
+              <input
+                type="checkbox"
+                checked={checked.has(o.id)}
+                onChange={() => toggle(o.id)}
+                className="mt-0.5 h-4 w-4 rounded border-zinc-300 accent-blue-600"
+              />
+              <span>
+                <span className="font-medium text-zinc-900 dark:text-white">{o.label}</span>
+                {o.description ? (
+                  <span className="block text-xs text-zinc-500">{o.description}</span>
+                ) : null}
+              </span>
+            </label>
+          </li>
+        ))}
+      </ul>
+      <div className="flex justify-end">
+        <Button size="sm" onClick={handleSave} loading={saving}>
+          Enregistrer{checked.size > 0 ? ` (${checked.size})` : ""}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Photos de référence du logement sur le détail d'une prestation : à quoi
+ * chaque pièce doit ressembler une fois le ménage fait.
+ *
+ * Ce sont les photos de pièces du paramétrage du logement, en lecture seule —
+ * elles s'ajoutent depuis la fiche logement. Le prestataire y a accès sur
+ * mobile de la même façon (parité).
+ */
+function LogementReferencePhotosSection({ logementId }: { logementId: string }) {
+  const photos = useLogementPhotos(logementId);
+  const rooms = useLogementRooms(logementId);
+  const [lightbox, setLightbox] = useState<{ url: string; label: string } | null>(null);
+
+  const all = photos.data?.data ?? [];
+  if (all.length === 0) return null;
+
+  // Groupé par pièce, dans l'ordre des pièces ; les photos sans pièce en dernier.
+  const byRoom = new Map<string, typeof all>();
+  for (const p of all) {
+    const key = p.logement_room_id ?? "__none__";
+    if (!byRoom.has(key)) byRoom.set(key, []);
+    byRoom.get(key)!.push(p);
+  }
+  const groups: { id: string; label: string; photos: typeof all }[] = [];
+  for (const r of rooms.data ?? []) {
+    const list = byRoom.get(r.id);
+    if (list?.length) groups.push({ id: r.id, label: r.name, photos: list });
+  }
+  const orphans = byRoom.get("__none__");
+  if (orphans?.length) groups.push({ id: "__none__", label: "Logement", photos: orphans });
+  if (groups.length === 0) return null;
+
+  return (
+    <Card className="p-6">
+      <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">
+        Photos du logement
+      </h2>
+      <p className="mb-4 text-sm text-zinc-500 dark:text-zinc-400">
+        À quoi le logement doit ressembler une fois le ménage terminé. Elles s&apos;ajoutent depuis
+        la fiche logement.
+      </p>
+
+      <div className="flex flex-col gap-4">
+        {groups.map((g) => (
+          <div key={g.id}>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-400">
+              {g.label} · {g.photos.length}
+            </p>
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
+              {g.photos.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setLightbox({ url: p.url, label: g.label })}
+                  className="group relative aspect-square overflow-hidden rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={p.thumbnail_url ?? p.url}
+                    alt={p.caption ?? g.label}
+                    className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                  />
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <PhotoLightbox
+        open={!!lightbox}
+        onClose={() => setLightbox(null)}
+        photoUrl={lightbox?.url ?? null}
+        title={lightbox?.label}
+        subtitle="Photo de référence du logement"
+      />
+    </Card>
+  );
+}

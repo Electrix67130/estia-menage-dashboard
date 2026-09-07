@@ -428,6 +428,7 @@ const pl: Dict = {
   "beds.double": "Łóżko podwójne",
   "beds.sofa": "Sofa rozkładana",
   "beds.extra": "Łóżko dostawne",
+  "beds.crib": "Łóżeczko turystyczne",
   "beds.hintLogement": "Wartości domyślne kopiowane do każdego sprzątania (potem edytowalne dla każdego).",
   "beds.hintMenage": "Wstępnie wypełnione z lokalu. Dostosuj w razie potrzeby dla tego sprzątania.",
 

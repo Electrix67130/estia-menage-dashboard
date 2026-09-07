@@ -428,6 +428,7 @@ const pt: Dict = {
   "beds.double": "Cama de casal",
   "beds.sofa": "Sofá-cama",
   "beds.extra": "Cama extra",
+  "beds.crib": "Berço de viagem",
   "beds.hintLogement": "Valores predefinidos copiados em cada limpeza (editáveis por limpeza depois).",
   "beds.hintMenage": "Pré-preenchido a partir do imóvel. Ajuste se necessário para esta limpeza.",
 
