@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Building2, Archive, Users, FileText, CreditCard, Settings, ShieldCheck, CalendarClock, CalendarDays, CalendarRange, Home, Wallet, Receipt, LogIn, LogOut } from "lucide-react";
+import { LayoutDashboard, Building2, Archive, Users, FileText, CreditCard, Settings, ShieldCheck, CalendarClock, CalendarDays, CalendarRange, Home, Wallet, Receipt, LogIn, LogOut, MessageSquareWarning } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useI18n } from "@/contexts/I18nContext";
@@ -24,6 +24,7 @@ const NAV_ALL = [
   { href: "/earnings", labelKey: "nav.earnings", icon: Wallet, key: "earnings" as const },
   { href: "/invoices", labelKey: "nav.invoices", icon: Receipt, key: "invoices" as const },
   { href: "/billing", labelKey: "nav.billing", icon: CreditCard, key: "billing" as const },
+  { href: "/feedbacks", labelKey: "nav.feedbacks", icon: MessageSquareWarning, key: "feedbacks" as const },
   { href: "/settings", labelKey: "nav.settings", icon: Settings, key: "settings" as const },
 ];
 
@@ -31,6 +32,7 @@ const SUPER_ADMIN_NAV = [
   { href: "/admin", labelKey: "admin.overview", icon: ShieldCheck, key: "admin-overview" as const },
   { href: "/admin/orgs", labelKey: "admin.orgs", icon: Building2, key: "admin-orgs" as const },
   { href: "/admin/users", labelKey: "admin.users", icon: Users, key: "admin-users" as const },
+  { href: "/admin/feedback", labelKey: "admin.feedback", icon: MessageSquareWarning, key: "admin-feedback" as const },
   { href: "/admin/audit", labelKey: "admin.audit", icon: FileText, key: "admin-audit" as const },
   { href: "/admin/errors", labelKey: "admin.errors", icon: ShieldCheck, key: "admin-errors" as const },
 ];

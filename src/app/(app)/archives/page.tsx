@@ -90,6 +90,10 @@ export default function ArchivesPage() {
     closed: true,
     logement_id: logementFilter || undefined,
     prestataire_user_id: prestaFilter || undefined,
+    // Un prestataire ne voit dans l'historique que les prestations qu'il a
+    // réellement faites (référent ou co-presta) — pas celles restées non
+    // assignées sur ses logements. L'admin garde la vue complète.
+    assigned: isAdmin ? undefined : "me",
     from: range.min,
     to: range.max,
     limit: 500,

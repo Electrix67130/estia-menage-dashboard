@@ -25,6 +25,9 @@ interface Params {
   from?: string;
   to?: string;
   managerOnly?: boolean;
+  /** 'me' = uniquement les prestations où l'utilisateur est affecté (référent OU
+   *  co-presta). Historique presta : ne voir que ce qu'il a réellement fait. */
+  assigned?: "me";
   page?: number;
   limit?: number;
 }
@@ -41,6 +44,7 @@ export function useMenages(params: Params = {}, options?: { enabled?: boolean })
   if (params.from) qs.set("from", params.from);
   if (params.to) qs.set("to", params.to);
   if (params.managerOnly) qs.set("manager", "me");
+  if (params.assigned) qs.set("assigned", params.assigned);
   qs.set("limit", String(params.limit ?? 100));
   if (params.page) qs.set("page", String(params.page));
 
