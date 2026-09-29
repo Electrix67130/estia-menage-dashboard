@@ -23,6 +23,7 @@ import {
 import { useMenages } from "@/hooks/useMenages";
 import { uploadFile } from "@/lib/upload";
 import { formatDateFr } from "@/lib/date-fr";
+import { formatQtyUnit } from "@/lib/unit-fr";
 import {
   useLogementRooms,
   useCreateLogementRoom,
@@ -875,8 +876,7 @@ function ConsommablesSection({ logementId, isAdmin }: { logementId: string; isAd
               <div className="min-w-0 flex-1">
                 <p className="font-medium text-zinc-900 dark:text-white">{c.label}</p>
                 <p className="text-xs text-zinc-500">
-                  Seuil d&apos;alerte : {c.seuil_alerte}
-                  {c.unit ? ` ${c.unit}` : ""}
+                  Seuil d&apos;alerte : {formatQtyUnit(c.seuil_alerte, c.unit)}
                 </p>
               </div>
               {/* Stock courant — cliquable par l'admin pour le fixer/initialiser */}
@@ -888,13 +888,11 @@ function ConsommablesSection({ logementId, isAdmin }: { logementId: string; isAd
                     </span>
                   ) : c.needs_restock ? (
                     <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-rose-700 dark:bg-rose-900/50 dark:text-rose-300">
-                      {c.qty}
-                      {c.unit ? ` ${c.unit}` : ""} · à racheter
+                      {formatQtyUnit(c.qty, c.unit)} · à racheter
                     </span>
                   ) : (
                     <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
-                      {c.qty}
-                      {c.unit ? ` ${c.unit}` : ""}
+                      {formatQtyUnit(c.qty, c.unit)}
                     </span>
                   );
                 return isAdmin ? (
