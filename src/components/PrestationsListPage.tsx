@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { usePersistedState } from "@/hooks/usePersistedState";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { Plus, Search, Building2, User as UserIcon, Clock, List as ListIcon, Map as MapIcon, CheckSquare, X, Trash2, ClipboardCheck, CheckCircle2, Lock, AlertTriangle, ChevronLeft, ChevronRight, Bell, CheckCheck, Ban } from "lucide-react";
+import { Plus, Search, Building2, User as UserIcon, Clock, List as ListIcon, Map as MapIcon, CheckSquare, X, Trash2, ClipboardCheck, CheckCircle2, Lock, AlertTriangle, Bell, CheckCheck, Ban } from "lucide-react";
 import { toast } from "sonner";
 import { apiFetch, ApiError } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
@@ -143,12 +143,6 @@ export default function PrestationsListPage({ prestationType }: { prestationType
   const [logementFilter, setLogementFilter] = usePersistedState(`${copy.storeKey}.filter.logement`, "");
   const [prestaFilter, setPrestaFilter] = usePersistedState(`${copy.storeKey}.filter.presta`, "");
   const [creatorFilter, setCreatorFilter] = usePersistedState(`${copy.storeKey}.filter.creator`, "");
-  const [periodFilter, setPeriodFilter] = usePersistedState<"week" | "month" | "year" | "all">(
-    `${copy.storeKey}.filter.period`,
-    "all",
-  );
-  // Décalage de période (0 = courante, -1 = précédente, +1 = suivante…).
-  const [periodOffset, setPeriodOffset] = useState(0);
   const [viewMode, setViewMode] = usePersistedState<ViewMode>(`${copy.storeKey}.filter.viewMode`, "list");
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -207,11 +201,8 @@ export default function PrestationsListPage({ prestationType }: { prestationType
     // « Non assigné » vit dans le filtre prestataire → param unassigned côté API.
     const unassigned = prestaFilter === "__unassigned__" ? true : undefined;
     const base = { type: prestationType, ...(unassigned ? { unassigned: true } : {}) };
-    // « Tous » sans période explicite = aujourd'hui + à venir uniquement : le
-    // passé a son filtre. Une période choisie (semaine/mois/année) prime et peut
-    // remonter du passé, rangé alors dans une section « Passées » atténuée.
-    if (filter === "all")
-      return { ...base, closed: false, ...(periodFilter === "all" ? { from: todayYmd } : {}) };
+    // « Tous » = aujourd'hui + à venir uniquement : le passé a son filtre.
+    if (filter === "all") return { ...base, closed: false, from: todayYmd };
     if (filter === "past")
       return {
         ...base,
@@ -222,7 +213,7 @@ export default function PrestationsListPage({ prestationType }: { prestationType
     if (filter === "to_validate") return { ...base, status: "termine" as const, validated: false };
     if (filter === "unassigned") return { ...base, unassigned: true };
     return { ...base, status: filter };
-  }, [filter, prestationType, prestaFilter, periodFilter, todayYmd]);
+  }, [filter, prestationType, prestaFilter, todayYmd]);
 
   const list = useMenages(queryParams);
   const logements = useLogementsList();
@@ -238,38 +229,8 @@ export default function PrestationsListPage({ prestationType }: { prestationType
     return u ? [u.first_name, u.last_name].filter(Boolean).join(" ") || u.email : "—";
   };
 
-  // Période sélectionnée (bornes + libellé) selon granularité + décalage.
-  const period = useMemo<{ min: string | null; max: string | null; label: string }>(() => {
-    if (periodFilter === "all") return { min: null, max: null, label: "" };
-    const ymd = (d: Date) =>
-      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    const now = new Date();
-    if (periodFilter === "week") {
-      const dow = (now.getDay() + 6) % 7;
-      const monday = new Date(now);
-      monday.setDate(now.getDate() - dow + periodOffset * 7);
-      const sunday = new Date(monday);
-      sunday.setDate(monday.getDate() + 6);
-      const f = (d: Date) => d.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
-      return { min: ymd(monday), max: ymd(sunday), label: `${f(monday)} – ${f(sunday)} ${sunday.getFullYear()}` };
-    }
-    if (periodFilter === "month") {
-      const first = new Date(now.getFullYear(), now.getMonth() + periodOffset, 1);
-      const last = new Date(now.getFullYear(), now.getMonth() + periodOffset + 1, 0);
-      return {
-        min: ymd(first),
-        max: ymd(last),
-        label: first.toLocaleDateString("fr-FR", { month: "long", year: "numeric" }),
-      };
-    }
-    const y = now.getFullYear() + periodOffset;
-    return { min: `${y}-01-01`, max: `${y}-12-31`, label: String(y) };
-  }, [periodFilter, periodOffset]);
-
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const periodMin = period.min;
-    const periodMax = period.max;
     return (list.data?.data ?? [])
       .filter((m) => {
         if (logementFilter && m.logement_id !== logementFilter) return false;
@@ -285,8 +246,6 @@ export default function PrestationsListPage({ prestationType }: { prestationType
             return false;
           }
         }
-        if (periodMin && m.date_prevue.slice(0, 10) < periodMin) return false;
-        if (periodMax && m.date_prevue.slice(0, 10) > periodMax) return false;
         if (!q) return true;
         return (
           (m.logement_name ?? "").toLowerCase().includes(q) ||
@@ -307,7 +266,7 @@ export default function PrestationsListPage({ prestationType }: { prestationType
         if (!aUp && !bUp) return bd.localeCompare(ad);
         return aUp ? -1 : 1;
       });
-  }, [list.data, search, logementFilter, prestaFilter, creatorFilter, period.min, period.max, todayYmd]);
+  }, [list.data, search, logementFilter, prestaFilter, creatorFilter, todayYmd]);
 
   // Sections : Aujourd'hui / À venir / Passées (parité mobile). Le tri ci-dessus
   // est conservé à l'intérieur de chaque section.
@@ -426,8 +385,6 @@ export default function PrestationsListPage({ prestationType }: { prestationType
     setPrestaFilter("");
     setCreatorFilter("");
     setSearch("");
-    setPeriodFilter("all");
-    setPeriodOffset(0);
   };
 
   // Filtres actifs (mémorisés, donc invisibles au 1er coup d'œil) → on les rend
@@ -435,7 +392,6 @@ export default function PrestationsListPage({ prestationType }: { prestationType
   // prestations ? » quand un filtre discret (créateur/presta/période) masque tout.
   const activeFilters = [
     filter !== "all" && "Statut",
-    (periodFilter !== "all" || periodOffset !== 0) && "Période",
     logementFilter && "Logement",
     prestaFilter && "Prestataire",
     creatorFilter && "Créateur",
@@ -598,64 +554,6 @@ export default function PrestationsListPage({ prestationType }: { prestationType
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <div className="inline-flex rounded-full bg-zinc-100 p-1 dark:bg-zinc-800">
-          {(
-            [
-              { key: "week" as const, label: "Semaine" },
-              { key: "month" as const, label: "Mois" },
-              { key: "year" as const, label: "Année" },
-              { key: "all" as const, label: "Tout" },
-            ]
-          ).map((p) => (
-            <button
-              key={p.key}
-              type="button"
-              onClick={() => {
-                setPeriodFilter(p.key);
-                setPeriodOffset(0);
-              }}
-              className={
-                periodFilter === p.key
-                  ? "rounded-full bg-white px-3 py-1 text-xs font-semibold text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-white"
-                  : "rounded-full px-3 py-1 text-xs font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white"
-              }
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
-        {periodFilter !== "all" ? (
-          <div className="inline-flex items-center gap-1 rounded-full border border-zinc-200 bg-white px-1 py-0.5 dark:border-zinc-800 dark:bg-zinc-900">
-            <button
-              type="button"
-              onClick={() => setPeriodOffset((o) => o - 1)}
-              aria-label="Période précédente"
-              className="rounded-full p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-white"
-            >
-              <ChevronLeft size={16} />
-            </button>
-            <span className="min-w-[9rem] text-center text-xs font-medium capitalize text-zinc-700 dark:text-zinc-300">
-              {period.label}
-            </span>
-            <button
-              type="button"
-              onClick={() => setPeriodOffset((o) => o + 1)}
-              aria-label="Période suivante"
-              className="rounded-full p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-white"
-            >
-              <ChevronRight size={16} />
-            </button>
-            {periodOffset !== 0 ? (
-              <button
-                type="button"
-                onClick={() => setPeriodOffset(0)}
-                className="rounded-full px-2 py-1 text-[11px] font-medium text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20"
-              >
-                Aujourd&apos;hui
-              </button>
-            ) : null}
-          </div>
-        ) : null}
         <div className="flex flex-wrap gap-1.5 rounded-lg border border-zinc-200 bg-white p-1 dark:border-zinc-800 dark:bg-zinc-900">
           {FILTERS.map((f) => (
             <button
