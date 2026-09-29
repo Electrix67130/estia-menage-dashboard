@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { usePersistedState } from "@/hooks/usePersistedState";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { Plus, Search, Building2, User as UserIcon, Clock, List as ListIcon, Map as MapIcon, CheckSquare, X, Trash2, ClipboardCheck, CheckCircle2, Lock, AlertTriangle, ChevronLeft, ChevronRight, Bell } from "lucide-react";
+import { Plus, Search, Building2, User as UserIcon, Clock, List as ListIcon, Map as MapIcon, CheckSquare, X, Trash2, ClipboardCheck, CheckCircle2, Lock, AlertTriangle, ChevronLeft, ChevronRight, Bell, CheckCheck, Ban } from "lucide-react";
 import { toast } from "sonner";
 import { apiFetch, ApiError } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
@@ -24,7 +24,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { User, PaginatedResponse } from "@/types/api";
 import { formatDateFr } from "@/lib/date-fr";
 import { cn } from "@/lib/utils";
-import { prestationTypeLabel, prestationTypePill, type PrestationType } from "@/lib/prestation";
+import { prestationTypeLabel, prestationTypePill, PAST_WINDOW_DAYS, ymdLocal, addDays, type PrestationType } from "@/lib/prestation";
 
 // Leaflet manipule window → désactive le SSR.
 const MenagesMap = dynamic(() => import("@/components/MenagesMap"), {
@@ -56,15 +56,26 @@ const STATUS_LABEL: Record<CalendarMenage["status"], string> = {
 
 // Validé/Annulé ne sont plus listés ici : les prestations clôturées vivent dans les
 // Archives (où elles sont filtrables par statut). La liste = worklist active.
-// Ordre : Tous → À venir → En cours → À valider. « Terminé » retiré : c'était
-// un doublon de « À valider » (un ménage `termine` est par définition non validé
-// → même ensemble). Validé/Annulé vivent dans l'Historique, pas dans la worklist.
+// Ordre : Tous → À venir → En cours → À valider → Passées. « Terminé » retiré :
+// c'était un doublon de « À valider » (un ménage `termine` est par définition non
+// validé → même ensemble). Validé/Annulé vivent dans l'Historique, pas dans la
+// worklist. « Passées » = les non clôturées des 30 derniers jours (à valider /
+// non pointées) : elles ne traînent plus au fond de « Tous », qui ne montre que
+// le présent et le futur, mais restent à un clic (parité mobile).
 const FILTERS: { value: MenageFilter; label: string }[] = [
   { value: "all", label: "Tous" },
   { value: "a_venir", label: "À venir" },
   { value: "en_cours", label: "En cours" },
   { value: "to_validate", label: "À valider" },
+  { value: "past", label: "Passées" },
 ];
+
+interface MenageSection {
+  key: "today" | "upcoming" | "past";
+  title: string;
+  subtitle?: string;
+  items: CalendarMenage[];
+}
 
 /** Libellés dépendant du type de prestation (ménage / check-in / check-out). */
 const COPY: Record<
@@ -142,7 +153,10 @@ export default function PrestationsListPage({ prestationType }: { prestationType
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
   const qc = useQueryClient();
+  const todayYmd = ymdLocal(new Date());
+  const isPast = filter === "past";
 
   const toggleSelection = (id: string) => {
     setSelectedIds((prev) => {
@@ -193,11 +207,22 @@ export default function PrestationsListPage({ prestationType }: { prestationType
     // « Non assigné » vit dans le filtre prestataire → param unassigned côté API.
     const unassigned = prestaFilter === "__unassigned__" ? true : undefined;
     const base = { type: prestationType, ...(unassigned ? { unassigned: true } : {}) };
-    if (filter === "all") return { ...base, closed: false };
+    // « Tous » sans période explicite = aujourd'hui + à venir uniquement : le
+    // passé a son filtre. Une période choisie (semaine/mois/année) prime et peut
+    // remonter du passé, rangé alors dans une section « Passées » atténuée.
+    if (filter === "all")
+      return { ...base, closed: false, ...(periodFilter === "all" ? { from: todayYmd } : {}) };
+    if (filter === "past")
+      return {
+        ...base,
+        closed: false,
+        from: ymdLocal(addDays(new Date(), -PAST_WINDOW_DAYS)),
+        to: ymdLocal(addDays(new Date(), -1)),
+      };
     if (filter === "to_validate") return { ...base, status: "termine" as const, validated: false };
     if (filter === "unassigned") return { ...base, unassigned: true };
     return { ...base, status: filter };
-  }, [filter, prestationType, prestaFilter]);
+  }, [filter, prestationType, prestaFilter, periodFilter, todayYmd]);
 
   const list = useMenages(queryParams);
   const logements = useLogementsList();
@@ -273,7 +298,7 @@ export default function PrestationsListPage({ prestationType }: { prestationType
       })
       .sort((a, b) => {
         // Agenda : à venir d'abord (plus proche → lointain), puis passé (récent → ancien).
-        const today = new Date().toISOString().slice(0, 10);
+        const today = todayYmd;
         const ad = a.date_prevue.slice(0, 10);
         const bd = b.date_prevue.slice(0, 10);
         const aUp = ad >= today;
@@ -282,7 +307,100 @@ export default function PrestationsListPage({ prestationType }: { prestationType
         if (!aUp && !bUp) return bd.localeCompare(ad);
         return aUp ? -1 : 1;
       });
-  }, [list.data, search, logementFilter, prestaFilter, creatorFilter, period.min, period.max]);
+  }, [list.data, search, logementFilter, prestaFilter, creatorFilter, period.min, period.max, todayYmd]);
+
+  // Sections : Aujourd'hui / À venir / Passées (parité mobile). Le tri ci-dessus
+  // est conservé à l'intérieur de chaque section.
+  const sections = useMemo<MenageSection[]>(() => {
+    if (isPast) return filtered.length ? [{ key: "past", title: `${PAST_WINDOW_DAYS} derniers jours`, items: filtered }] : [];
+    const today: CalendarMenage[] = [];
+    const upcoming: CalendarMenage[] = [];
+    const past: CalendarMenage[] = [];
+    for (const m of filtered) {
+      const d = m.date_prevue.slice(0, 10);
+      if (d === todayYmd) today.push(m);
+      else if (d > todayYmd) upcoming.push(m);
+      else past.push(m);
+    }
+    const out: MenageSection[] = [];
+    if (today.length) out.push({ key: "today", title: "Aujourd'hui", subtitle: formatDateFr(todayYmd, "weekday"), items: today });
+    if (upcoming.length) out.push({ key: "upcoming", title: "À venir", items: upcoming });
+    if (past.length) out.push({ key: "past", title: "Passées", items: past });
+    return out;
+  }, [filtered, isPast, todayYmd]);
+
+  // Sélection → objets (pour savoir ce qui est validable).
+  const selectedMenages = useMemo(() => filtered.filter((m) => selectedIds.has(m.id)), [filtered, selectedIds]);
+  const validableCount = selectedMenages.filter((m) => m.status === "termine").length;
+
+  // Valider en lot : seules les terminées (rapport rendu) sont validables — la
+  // validation engage la facturation, on ne valide jamais une prestation jamais
+  // pointée. Pas de clôture automatique : c'est un geste de l'admin.
+  const handleBulkValidate = async () => {
+    const ids = selectedMenages.filter((m) => m.status === "termine").map((m) => m.id);
+    const ignored = selectedMenages.length - ids.length;
+    if (ids.length === 0) {
+      toast.error("Seules les prestations terminées (rapport rendu) peuvent être validées.");
+      return;
+    }
+    const ok = await confirm({
+      title: `Valider ${ids.length} ${copy.noun(ids.length)} ?`,
+      description:
+        `Passage en « validée » au prix prévu, puis Historique.` +
+        (ignored > 0 ? ` ${ignored} sélectionnée${ignored > 1 ? "s" : ""} non terminée${ignored > 1 ? "s" : ""} sera ignorée.` : ""),
+      confirmLabel: "Valider",
+    });
+    if (!ok) return;
+    setBulkBusy(true);
+    let succeeded = 0;
+    for (const id of ids) {
+      try {
+        await apiFetch(`/menages/${id}/validate`, { method: "POST", body: {} });
+        succeeded++;
+      } catch (err) {
+        toast.error(err instanceof ApiError ? `${id}: ${err.message}` : `Échec sur ${id}`);
+      }
+    }
+    setBulkBusy(false);
+    if (succeeded > 0) {
+      toast.success(`${succeeded} ${copy.noun(succeeded)} validé${succeeded > 1 ? "s" : ""}`);
+      qc.invalidateQueries({ queryKey: ["menages"] });
+      qc.invalidateQueries({ queryKey: ["calendar-menages"] });
+    }
+    exitSelection();
+  };
+
+  // Annuler en lot : la prestation reste (Historique), les prestataires affectés
+  // sont prévenus par l'API (« Ménage annulé »).
+  const handleBulkCancel = async () => {
+    const ids = selectedMenages.filter((m) => m.status !== "annule").map((m) => m.id);
+    if (ids.length === 0) return;
+    const ok = await confirm({
+      title: `Annuler ${ids.length} ${copy.noun(ids.length)} ?`,
+      description:
+        "Passage en « annulée » puis Historique (retrouvables, pas supprimées). Les prestataires affectés seront prévenus.",
+      tone: "danger",
+      confirmLabel: "Annuler les prestations",
+    });
+    if (!ok) return;
+    setBulkBusy(true);
+    let succeeded = 0;
+    for (const id of ids) {
+      try {
+        await apiFetch(`/menages/${id}`, { method: "PATCH", body: { status: "annule" } });
+        succeeded++;
+      } catch (err) {
+        toast.error(err instanceof ApiError ? `${id}: ${err.message}` : `Échec sur ${id}`);
+      }
+    }
+    setBulkBusy(false);
+    if (succeeded > 0) {
+      toast.success(`${succeeded} ${copy.noun(succeeded)} annulé${succeeded > 1 ? "s" : ""}`);
+      qc.invalidateQueries({ queryKey: ["menages"] });
+      qc.invalidateQueries({ queryKey: ["calendar-menages"] });
+    }
+    exitSelection();
+  };
 
   const total = list.data?.meta.total ?? 0;
 
@@ -429,16 +547,40 @@ export default function PrestationsListPage({ prestationType }: { prestationType
             {selectedIds.size} {copy.noun(selectedIds.size)} sélectionné
             {selectedIds.size > 1 ? "s" : ""}
           </p>
-          <Button
-            variant="danger"
-            size="sm"
-            onClick={handleBulkDelete}
-            disabled={selectedIds.size === 0 || deleting}
-            loading={deleting}
-          >
-            <Trash2 size={14} />
-            Supprimer
-          </Button>
+          {/* Actions groupées : Valider (terminées seulement) · Annuler · Supprimer.
+              Valider/Annuler vident la file des passées sans rien perdre (Historique). */}
+          <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleBulkValidate}
+              disabled={selectedIds.size === 0 || bulkBusy || deleting}
+              loading={bulkBusy}
+              title="Seules les prestations terminées (rapport rendu) sont validées"
+            >
+              <CheckCheck size={14} />
+              Valider{validableCount > 0 ? ` (${validableCount})` : ""}
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleBulkCancel}
+              disabled={selectedIds.size === 0 || bulkBusy || deleting}
+            >
+              <Ban size={14} />
+              Annuler
+            </Button>
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={handleBulkDelete}
+              disabled={selectedIds.size === 0 || deleting || bulkBusy}
+              loading={deleting}
+            >
+              <Trash2 size={14} />
+              Supprimer
+            </Button>
+          </div>
         </div>
       ) : null}
 
@@ -653,16 +795,51 @@ export default function PrestationsListPage({ prestationType }: { prestationType
           description={
             search
               ? "Aucun résultat pour cette recherche."
-              : filter === "all"
-                ? copy.emptyAll
-                : copy.emptyFilter
+              : isPast
+                ? `Aucune prestation passée à traiter sur les ${PAST_WINDOW_DAYS} derniers jours.`
+                : filter === "all"
+                  ? copy.emptyAll
+                  : copy.emptyFilter
           }
         />
       ) : (
-        <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-          {filtered.map((m) => {
+        <div className="flex flex-col gap-3">
+          {sections.map((section) => (
+          <section key={section.key} className="flex flex-col gap-3">
+            <header
+              className={cn(
+                "sticky top-0 z-10 flex items-baseline gap-2 bg-zinc-50/95 py-1.5 backdrop-blur dark:bg-zinc-950/90",
+              )}
+            >
+              <h2
+                className={cn(
+                  "text-xs font-bold uppercase tracking-wider",
+                  section.key === "today" ? "text-blue-600 dark:text-blue-400" : "text-zinc-500 dark:text-zinc-400",
+                )}
+              >
+                {section.title}
+              </h2>
+              {section.subtitle ? (
+                <span className="text-xs capitalize text-zinc-500 dark:text-zinc-400">{section.subtitle}</span>
+              ) : null}
+              <span
+                className={cn(
+                  "ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-bold",
+                  section.key === "today"
+                    ? "bg-blue-600 text-white"
+                    : "bg-zinc-200 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300",
+                )}
+              >
+                {section.items.length}
+              </span>
+            </header>
+          <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+          {section.items.map((m) => {
             const unassigned = !m.prestataire_user_id;
             const isSelected = selectedIds.has(m.id);
+            // Passées : carte atténuée, sans relief — c'est de l'information à
+            // retrouver, pas la liste de travail.
+            const muted = section.key === "past";
             const CardWrapper: React.ElementType = selectionMode ? "button" : Link;
             const wrapperProps = selectionMode
               ? {
@@ -680,7 +857,9 @@ export default function PrestationsListPage({ prestationType }: { prestationType
                       ? "border-blue-500 ring-2 ring-blue-500/40 dark:border-blue-400"
                       : m.needs_attention
                         ? "border-rose-300 bg-rose-50 dark:border-rose-800/70 dark:bg-rose-950/30"
-                        : "",
+                        : muted
+                          ? "bg-zinc-100 shadow-none dark:bg-zinc-900/60"
+                          : "",
                   )}
                 >
                   <div className="flex items-start justify-between gap-3">
@@ -753,19 +932,23 @@ export default function PrestationsListPage({ prestationType }: { prestationType
                             <Clock size={11} />
                           </span>
                         ) : null}
-                        <span
-                          className={cn(
-                            "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
-                            STATUS_PILL[m.status],
-                          )}
-                        >
-                          {m.status === "termine" ? (
-                            <ClipboardCheck size={11} />
-                          ) : m.status === "valide" ? (
-                            <CheckCircle2 size={11} />
-                          ) : null}
-                          {STATUS_LABEL[m.status]}
-                        </span>
+                        {/* « Non pointé » tient lieu de statut : un « À venir » dont
+                            le jour est passé sans pointage n'a plus de sens à côté. */}
+                        {m.needs_attention ? null : (
+                          <span
+                            className={cn(
+                              "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
+                              STATUS_PILL[m.status],
+                            )}
+                          >
+                            {m.status === "termine" ? (
+                              <ClipboardCheck size={11} />
+                            ) : m.status === "valide" ? (
+                              <CheckCircle2 size={11} />
+                            ) : null}
+                            {STATUS_LABEL[m.status]}
+                          </span>
+                        )}
                       </div>
                       <span
                         className={cn(
@@ -781,6 +964,17 @@ export default function PrestationsListPage({ prestationType }: { prestationType
               </CardWrapper>
             );
           })}
+          </div>
+          </section>
+          ))}
+          {isPast ? (
+            <p className="py-4 text-center text-sm text-zinc-500 dark:text-zinc-400">
+              Plus ancien que {PAST_WINDOW_DAYS} jours ?{" "}
+              <Link href="/archives" className="font-semibold text-blue-600 hover:underline dark:text-blue-400">
+                Voir l’Historique
+              </Link>
+            </p>
+          ) : null}
         </div>
       )}
     </div>

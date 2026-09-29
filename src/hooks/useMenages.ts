@@ -6,7 +6,7 @@ import type { CalendarMenage } from "./useCalendarMenages";
 import type { PrestationType } from "@/lib/prestation";
 
 export type MenageStatus = CalendarMenage["status"];
-export type MenageFilter = MenageStatus | "all" | "to_validate" | "unassigned";
+export type MenageFilter = MenageStatus | "all" | "to_validate" | "unassigned" | "past";
 
 interface ApiResponse {
   data: CalendarMenage[];
@@ -24,6 +24,9 @@ interface Params {
   prestataire_user_id?: string;
   from?: string;
   to?: string;
+  /** Avec `closed: true` : inclut aussi les non clôturées dont la date est
+   *  antérieure (les « oubliées » de l'Historique). */
+  stale_before?: string;
   managerOnly?: boolean;
   /** 'me' = uniquement les prestations où l'utilisateur est affecté (référent OU
    *  co-presta). Historique presta : ne voir que ce qu'il a réellement fait. */
@@ -43,6 +46,7 @@ export function useMenages(params: Params = {}, options?: { enabled?: boolean })
   if (params.prestataire_user_id) qs.set("prestataire_user_id", params.prestataire_user_id);
   if (params.from) qs.set("from", params.from);
   if (params.to) qs.set("to", params.to);
+  if (params.stale_before) qs.set("stale_before", params.stale_before);
   if (params.managerOnly) qs.set("manager", "me");
   if (params.assigned) qs.set("assigned", params.assigned);
   qs.set("limit", String(params.limit ?? 100));

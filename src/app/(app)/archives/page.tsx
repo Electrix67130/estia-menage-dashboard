@@ -18,20 +18,30 @@ import { logementLabel, prestataireLabel } from "@/hooks/useCalendarMenages";
 import type { User, PaginatedResponse } from "@/types/api";
 import { formatDateFr } from "@/lib/date-fr";
 import { cn } from "@/lib/utils";
+import { PAST_WINDOW_DAYS, ymdLocal, addDays } from "@/lib/prestation";
+import type { CalendarMenage } from "@/hooks/useCalendarMenages";
 
-const STATUS_PILL: Record<"valide" | "annule", string> = {
+const STATUS_PILL: Record<"valide" | "annule" | "untreated", string> = {
   valide: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
   annule: "bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-400",
+  untreated: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
 };
 
-type StatusFilter = "all" | "valide" | "annule";
+type StatusFilter = "all" | "valide" | "annule" | "untreated";
 type Granularity = "week" | "month" | "year" | "all";
 
 const STATUSES: { key: StatusFilter; label: string }[] = [
   { key: "all", label: "Tous" },
   { key: "valide", label: "Validés" },
   { key: "annule", label: "Annulés" },
+  { key: "untreated", label: "Non traitées" },
 ];
+
+/** Non clôturée (jamais validée / jamais pointée) : « oubliée », rangée ici passé
+ *  la fenêtre du filtre « Passées » pour que rien ne se perde. */
+function isUntreated(m: CalendarMenage): boolean {
+  return m.status !== "valide" && m.status !== "annule";
+}
 
 const GRANULARITIES: { key: Granularity; label: string }[] = [
   { key: "week", label: "Semaine" },
@@ -80,7 +90,12 @@ export default function ArchivesPage() {
   const [statusFilter, setStatusFilter] = usePersistedState<StatusFilter>("archives.filter.status", "all");
   const [logementFilter, setLogementFilter] = usePersistedState("archives.filter.logement", "");
   const [prestaFilter, setPrestaFilter] = usePersistedState("archives.filter.presta", "");
-  const [granularity, setGranularity] = usePersistedState<Granularity>("archives.filter.period", "all");
+  // Un mois à la fois par défaut (parité mobile) : l'Historique grandit sans
+  // fin, une fenêtre glissante le garde lisible. « Tout » reste disponible.
+  const [granularity, setGranularity] = usePersistedState<Granularity>("archives.filter.period", "month");
+  // Au-delà de la fenêtre du filtre « Passées », une non clôturée est « oubliée » :
+  // elle apparaît ici (étiquette « Non traitée ») au lieu de disparaître.
+  const staleBefore = useMemo(() => ymdLocal(addDays(new Date(), -PAST_WINDOW_DAYS)), []);
   const [offset, setOffset] = useState(0);
   const range = useMemo(() => computeRange(granularity, offset), [granularity, offset]);
 
@@ -88,6 +103,7 @@ export default function ArchivesPage() {
   // période. Le statut (validé/annulé) et la recherche texte restent côté client.
   const list = useMenages({
     closed: true,
+    stale_before: staleBefore,
     logement_id: logementFilter || undefined,
     prestataire_user_id: prestaFilter || undefined,
     // Un prestataire ne voit dans l'historique que les prestations qu'il a
@@ -104,7 +120,11 @@ export default function ArchivesPage() {
   const archived = useMemo(() => {
     const q = search.trim().toLowerCase();
     return (list.data?.data ?? [])
-      .filter((m) => (statusFilter === "all" ? true : m.status === statusFilter))
+      .filter((m) => {
+        if (statusFilter === "all") return true;
+        if (statusFilter === "untreated") return isUntreated(m);
+        return m.status === statusFilter;
+      })
       .filter((m) => {
         if (!q) return true;
         return (
@@ -226,14 +246,15 @@ export default function ArchivesPage() {
         <EmptyState
           icon={<Archive size={32} />}
           title="Aucun ménage archivé"
-          description="Les ménages validés ou annulés apparaissent ici."
+          description={`Les ménages validés ou annulés apparaissent ici, ainsi que les prestations passées depuis plus de ${PAST_WINDOW_DAYS} jours jamais traitées.`}
         />
       ) : (
         <Card className="p-0">
           <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
             {archived.map((m) => {
               const unassigned = !m.prestataire_user_id;
-              const pill = m.status === "valide" ? STATUS_PILL.valide : STATUS_PILL.annule;
+              const untreated = isUntreated(m);
+              const pill = m.status === "valide" ? STATUS_PILL.valide : untreated ? STATUS_PILL.untreated : STATUS_PILL.annule;
               return (
                 <li key={m.id}>
                   <Link
@@ -271,7 +292,13 @@ export default function ArchivesPage() {
                         </div>
                       )}
                       <span className={cn("inline-flex flex-shrink-0 items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider", pill)}>
-                        {m.status === "valide" ? "Validé" : "Annulé"}
+                        {m.status === "valide"
+                          ? "Validé"
+                          : untreated
+                            ? m.status === "termine"
+                              ? "Non traitée · à valider"
+                              : "Non traitée · jamais pointée"
+                            : "Annulé"}
                       </span>
                     </div>
                   </Link>
