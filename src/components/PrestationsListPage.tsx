@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { usePersistedState } from "@/hooks/usePersistedState";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { Plus, Search, Building2, User as UserIcon, Clock, List as ListIcon, Map as MapIcon, CheckSquare, X, Trash2, ClipboardCheck, CheckCircle2, Lock, AlertTriangle, Bell, CheckCheck, Ban } from "lucide-react";
+import { Plus, Search, Building2, User as UserIcon, Clock, List as ListIcon, Map as MapIcon, CheckSquare, X, Trash2, ClipboardCheck, CheckCircle2, Lock, AlertTriangle, Bell, CheckCheck, Ban, SlidersHorizontal, History, Check } from "lucide-react";
 import { toast } from "sonner";
 import { apiFetch, ApiError } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
@@ -16,7 +16,8 @@ import EmptyState from "@/components/ui/EmptyState";
 import Avatar from "@/components/ui/Avatar";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDialog } from "@/contexts/DialogContext";
-import { useMenages, type MenageFilter } from "@/hooks/useMenages";
+import { useMenages } from "@/hooks/useMenages";
+import { useRescheduleRequests, useDecideReschedule } from "@/hooks/useRescheduleRequests";
 import { logementLabel, prestataireLabel, type CalendarMenage } from "@/hooks/useCalendarMenages";
 import { useLogementsList } from "@/hooks/useLogementsList";
 import { useUnreadSummary } from "@/hooks/useMenageViews";
@@ -24,7 +25,8 @@ import { useQuery } from "@tanstack/react-query";
 import type { User, PaginatedResponse } from "@/types/api";
 import { formatDateFr } from "@/lib/date-fr";
 import { cn } from "@/lib/utils";
-import { prestationTypeLabel, prestationTypePill, PAST_WINDOW_DAYS, ymdLocal, addDays, type PrestationType } from "@/lib/prestation";
+import { prestationTypeLabel, prestationTypePill, PAST_WINDOW_DAYS, ymdLocal, type PrestationType } from "@/lib/prestation";
+import type { RescheduleRequest } from "@/types/api";
 
 // Leaflet manipule window → désactive le SSR.
 const MenagesMap = dynamic(() => import("@/components/MenagesMap"), {
@@ -54,27 +56,28 @@ const STATUS_LABEL: Record<CalendarMenage["status"], string> = {
   annule: "Annulé",
 };
 
-// Validé/Annulé ne sont plus listés ici : les prestations clôturées vivent dans les
-// Archives (où elles sont filtrables par statut). La liste = worklist active.
-// Ordre : Tous → À venir → En cours → À valider → Passées. « Terminé » retiré :
-// c'était un doublon de « À valider » (un ménage `termine` est par définition non
-// validé → même ensemble). Validé/Annulé vivent dans l'Historique, pas dans la
-// worklist. « Passées » = les non clôturées des 30 derniers jours (à valider /
-// non pointées) : elles ne traînent plus au fond de « Tous », qui ne montre que
-// le présent et le futur, mais restent à un clic (parité mobile).
-const FILTERS: { value: MenageFilter; label: string }[] = [
-  { value: "all", label: "Tous" },
-  { value: "a_venir", label: "À venir" },
-  { value: "en_cours", label: "En cours" },
-  { value: "to_validate", label: "À valider" },
-  { value: "past", label: "Passées" },
-];
+// Une question par vue (parité mobile) : Planning = qu'est-ce qui se passe ?
+// (par jour, à partir d'aujourd'hui) ; À traiter = qu'est-ce qui m'attend ?
+// (à valider, non pointées, sans prestataire, demandes de report) ;
+// l'Historique (un mois à la fois) est la page /archives.
+type MainView = "planning" | "todo";
 
 interface MenageSection {
-  key: "today" | "upcoming" | "past";
+  key: "today" | "upcoming";
   title: string;
   subtitle?: string;
   items: CalendarMenage[];
+}
+
+type TodoItem =
+  | { kind: "menage"; id: string; m: CalendarMenage }
+  | { kind: "reschedule"; id: string; r: RescheduleRequest; m: CalendarMenage | undefined };
+
+interface TodoSection {
+  key: "validate" | "late" | "unassigned" | "reschedule";
+  title: string;
+  color: string;
+  items: TodoItem[];
 }
 
 /** Libellés dépendant du type de prestation (ménage / check-in / check-out). */
@@ -138,7 +141,8 @@ export default function PrestationsListPage({ prestationType }: { prestationType
 
   // Filtres persistés en localStorage : reprend l'état au prochain chargement.
   // La clé est namespacée par type pour ne pas mélanger ménages / check-in / check-out.
-  const [filter, setFilter] = usePersistedState<MenageFilter>(`${copy.storeKey}.filter.status`, "all");
+  const [view, setView] = useState<MainView>("planning");
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [logementFilter, setLogementFilter] = usePersistedState(`${copy.storeKey}.filter.logement`, "");
   const [prestaFilter, setPrestaFilter] = usePersistedState(`${copy.storeKey}.filter.presta`, "");
@@ -150,7 +154,6 @@ export default function PrestationsListPage({ prestationType }: { prestationType
   const [bulkBusy, setBulkBusy] = useState(false);
   const qc = useQueryClient();
   const todayYmd = ymdLocal(new Date());
-  const isPast = filter === "past";
 
   const toggleSelection = (id: string) => {
     setSelectedIds((prev) => {
@@ -201,21 +204,14 @@ export default function PrestationsListPage({ prestationType }: { prestationType
     // « Non assigné » vit dans le filtre prestataire → param unassigned côté API.
     const unassigned = prestaFilter === "__unassigned__" ? true : undefined;
     const base = { type: prestationType, ...(unassigned ? { unassigned: true } : {}) };
-    // « Tous » = aujourd'hui + à venir uniquement : le passé a son filtre.
-    if (filter === "all") return { ...base, closed: false, from: todayYmd };
-    if (filter === "past")
-      return {
-        ...base,
-        closed: false,
-        from: ymdLocal(addDays(new Date(), -PAST_WINDOW_DAYS)),
-        to: ymdLocal(addDays(new Date(), -1)),
-      };
-    if (filter === "to_validate") return { ...base, status: "termine" as const, validated: false };
-    if (filter === "unassigned") return { ...base, unassigned: true };
-    return { ...base, status: filter };
-  }, [filter, prestationType, prestaFilter, todayYmd]);
+    // Une seule requête : toute la worklist active (non clôturée). Planning et
+    // À traiter s'en déduisent côté client ; les clôturées vivent dans l'Historique.
+    return { ...base, closed: false };
+  }, [prestationType, prestaFilter]);
 
   const list = useMenages(queryParams);
+  const pendingReschedules = useRescheduleRequests({ status: "pending" });
+  const decide = useDecideReschedule();
   const logements = useLogementsList();
   const usersQuery = useQuery({
     queryKey: ["users", "list"],
@@ -268,25 +264,96 @@ export default function PrestationsListPage({ prestationType }: { prestationType
       });
   }, [list.data, search, logementFilter, prestaFilter, creatorFilter, todayYmd]);
 
-  // Sections : Aujourd'hui / À venir / Passées (parité mobile). Le tri ci-dessus
-  // est conservé à l'intérieur de chaque section.
+  // Planning : Aujourd'hui / À venir (le passé non traité est dans « À traiter »).
   const sections = useMemo<MenageSection[]>(() => {
-    if (isPast) return filtered.length ? [{ key: "past", title: `${PAST_WINDOW_DAYS} derniers jours`, items: filtered }] : [];
     const today: CalendarMenage[] = [];
     const upcoming: CalendarMenage[] = [];
-    const past: CalendarMenage[] = [];
     for (const m of filtered) {
       const d = m.date_prevue.slice(0, 10);
       if (d === todayYmd) today.push(m);
       else if (d > todayYmd) upcoming.push(m);
-      else past.push(m);
     }
     const out: MenageSection[] = [];
     if (today.length) out.push({ key: "today", title: "Aujourd'hui", subtitle: formatDateFr(todayYmd, "weekday"), items: today });
     if (upcoming.length) out.push({ key: "upcoming", title: "À venir", items: upcoming });
-    if (past.length) out.push({ key: "past", title: "Passées", items: past });
     return out;
-  }, [filtered, isPast, todayYmd]);
+  }, [filtered, todayYmd]);
+  const planningCount = sections.reduce((n, s) => n + s.items.length, 0);
+  const summary = useMemo(() => {
+    const today = filtered.filter((m) => m.date_prevue.slice(0, 10) === todayYmd);
+    return {
+      today: today.length,
+      todayDone: today.filter((m) => m.status === "termine").length,
+      enCours: today.filter((m) => m.status === "en_cours").length,
+      unassigned: filtered.filter((m) => m.date_prevue.slice(0, 10) >= todayYmd && !m.prestataire_user_id).length,
+      late: filtered.filter((m) => !!m.needs_attention).length,
+    };
+  }, [filtered, todayYmd]);
+
+  // À traiter : tout ce qui attend l'admin, avec son action.
+  const todo = useMemo<TodoSection[]>(() => {
+    const byId = new Map((list.data?.data ?? []).map((m) => [m.id, m]));
+    const shown = new Set(filtered.map((m) => m.id));
+    const toValidate = filtered.filter((m) => m.status === "termine");
+    const late = filtered.filter((m) => !!m.needs_attention);
+    const unassigned = filtered.filter(
+      (m) => m.status === "a_venir" && !m.needs_attention && m.date_prevue.slice(0, 10) >= todayYmd && !m.prestataire_user_id,
+    );
+    // Les demandes portent sur des prestations de ce type (celles de la worklist) ;
+    // une demande sur une prestation inconnue ici appartient à un autre type.
+    const reschedules = (pendingReschedules.data?.data ?? []).filter((r) => byId.has(r.menage_id) && shown.has(r.menage_id));
+    const out: TodoSection[] = [];
+    if (toValidate.length) out.push({ key: "validate", title: "À valider", color: "purple", items: toValidate.map((m) => ({ kind: "menage", id: m.id, m })) });
+    if (late.length) out.push({ key: "late", title: late.length > 1 ? "Non pointées" : "Non pointée", color: "rose", items: late.map((m) => ({ kind: "menage", id: m.id, m })) });
+    if (unassigned.length) out.push({ key: "unassigned", title: "Sans prestataire", color: "blue", items: unassigned.map((m) => ({ kind: "menage", id: m.id, m })) });
+    if (reschedules.length)
+      out.push({
+        key: "reschedule",
+        title: reschedules.length > 1 ? "Demandes de report" : "Demande de report",
+        color: "amber",
+        items: reschedules.map((r) => ({ kind: "reschedule", id: `r-${r.id}`, r, m: byId.get(r.menage_id) })),
+      });
+    return out;
+  }, [filtered, list.data, pendingReschedules.data, todayYmd]);
+  const todoCount = todo.reduce((n, s) => n + s.items.length, 0);
+
+  const handleValidateAll = async () => {
+    const ids = filtered.filter((m) => m.status === "termine").map((m) => m.id);
+    if (ids.length === 0) return;
+    const ok = await confirm({
+      title: `Valider ${ids.length} ${copy.noun(ids.length)} ?`,
+      description: "Passage en « validée » au prix prévu, puis Historique.",
+      confirmLabel: "Tout valider",
+    });
+    if (!ok) return;
+    setBulkBusy(true);
+    let succeeded = 0;
+    for (const id of ids) {
+      try {
+        await apiFetch(`/menages/${id}/validate`, { method: "POST", body: {} });
+        succeeded++;
+      } catch (err) {
+        toast.error(err instanceof ApiError ? `${id}: ${err.message}` : `Échec sur ${id}`);
+      }
+    }
+    setBulkBusy(false);
+    if (succeeded > 0) {
+      toast.success(`${succeeded} ${copy.noun(succeeded)} validé${succeeded > 1 ? "s" : ""}`);
+      qc.invalidateQueries({ queryKey: ["menages"] });
+      qc.invalidateQueries({ queryKey: ["calendar-menages"] });
+    }
+  };
+
+  const handleDecide = async (r: RescheduleRequest, decision: "approved" | "rejected") => {
+    try {
+      await decide.mutateAsync({ id: r.id, decision, apply_to_menage: decision === "approved" });
+      toast.success(decision === "approved" ? "Report accepté" : "Report refusé");
+      qc.invalidateQueries({ queryKey: ["menages"] });
+      qc.invalidateQueries({ queryKey: ["calendar-menages"] });
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Échec");
+    }
+  };
 
   // Sélection → objets (pour savoir ce qui est validable).
   const selectedMenages = useMemo(() => filtered.filter((m) => selectedIds.has(m.id)), [filtered, selectedIds]);
@@ -380,7 +447,6 @@ export default function PrestationsListPage({ prestationType }: { prestationType
   }, [unreadScan.data, filtered, unreadByMenage, unreadOfThisType]);
 
   const resetFilters = () => {
-    setFilter("all");
     setLogementFilter("");
     setPrestaFilter("");
     setCreatorFilter("");
@@ -391,12 +457,12 @@ export default function PrestationsListPage({ prestationType }: { prestationType
   // explicites avec un bouton « Réinitialiser » pour éviter les « où sont mes
   // prestations ? » quand un filtre discret (créateur/presta/période) masque tout.
   const activeFilters = [
-    filter !== "all" && "Statut",
     logementFilter && "Logement",
     prestaFilter && "Prestataire",
     creatorFilter && "Créateur",
     search.trim() && "Recherche",
   ].filter(Boolean) as string[];
+  const filterCount = [logementFilter, prestaFilter, creatorFilter].filter(Boolean).length;
 
   const logementOptions = (logements.data?.data ?? []).filter((l) => !l.archived_at);
   const prestaOptions = allUsers.filter((u) => u.role === "prestataire");
@@ -554,27 +620,63 @@ export default function PrestationsListPage({ prestationType }: { prestationType
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <div className="flex flex-wrap gap-1.5 rounded-lg border border-zinc-200 bg-white p-1 dark:border-zinc-800 dark:bg-zinc-900">
-          {FILTERS.map((f) => (
+        <div className="flex gap-1 rounded-lg border border-zinc-200 bg-white p-1 dark:border-zinc-800 dark:bg-zinc-900">
+          {(
+            [
+              { key: "planning" as const, label: "Planning", badge: 0 },
+              { key: "todo" as const, label: "À traiter", badge: todoCount },
+            ]
+          ).map((v) => (
             <button
-              key={f.value}
+              key={v.key}
               type="button"
-              onClick={() => setFilter(f.value)}
+              onClick={() => {
+                setView(v.key);
+                exitSelection();
+              }}
+              aria-pressed={view === v.key}
               className={cn(
-                "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
-                filter === f.value
+                "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                view === v.key
                   ? "bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300"
                   : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100",
               )}
             >
-              {f.label}
+              {v.label}
+              {v.badge > 0 ? (
+                <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white">
+                  {v.badge > 99 ? "99+" : v.badge}
+                </span>
+              ) : null}
             </button>
           ))}
         </div>
+        <Button
+          variant="secondary"
+          onClick={() => setFiltersOpen((o) => !o)}
+          aria-expanded={filtersOpen}
+          title="Filtres : logement, prestataire, source"
+        >
+          <SlidersHorizontal size={16} />
+          Filtres
+          {filterCount > 0 ? (
+            <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-600 px-1 text-[10px] font-bold text-white">
+              {filterCount}
+            </span>
+          ) : null}
+        </Button>
+        <Link
+          href="/archives"
+          className="inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+        >
+          <History size={14} />
+          Historique
+        </Link>
       </div>
 
-      {/* Filtres avancés : logement (tous), prestataire + créateur (admin) */}
-      <div className="flex flex-col gap-3 sm:flex-row">
+      {/* Filtres (logement ; prestataire + source pour l'admin), repliés derrière
+          le bouton « Filtres » : ils sortent du chemin de la liste (parité mobile). */}
+      <div className={cn("flex flex-col gap-3 rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900 sm:flex-row sm:items-center", !filtersOpen && "hidden")}>
         <Select
           aria-label="Filtrer par logement"
           value={logementFilter}
@@ -615,28 +717,20 @@ export default function PrestationsListPage({ prestationType }: { prestationType
             </Select>
           </>
         ) : null}
+        <button
+          type="button"
+          onClick={resetFilters}
+          disabled={activeFilters.length === 0}
+          className="text-xs font-semibold text-blue-600 hover:underline disabled:text-zinc-400 disabled:no-underline dark:text-blue-400 sm:ml-auto"
+        >
+          Réinitialiser
+        </button>
       </div>
 
       {list.error ? (
         <Card className="border-rose-200 bg-rose-50 p-4 text-sm text-rose-800 dark:border-rose-900 dark:bg-rose-900/20 dark:text-rose-300">
           {list.error instanceof Error ? list.error.message : "Erreur de chargement"}
         </Card>
-      ) : null}
-
-      {activeFilters.length > 0 ? (
-        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm dark:border-amber-900/50 dark:bg-amber-950/30">
-          <span className="font-medium text-amber-800 dark:text-amber-200">
-            Filtres actifs : {activeFilters.join(", ")}
-          </span>
-          <span className="text-amber-500">·</span>
-          <button
-            type="button"
-            onClick={resetFilters}
-            className="font-semibold text-amber-700 underline hover:text-amber-900 dark:text-amber-300"
-          >
-            Réinitialiser
-          </button>
-        </div>
       ) : null}
 
       {hiddenUnread.length > 0 ? (
@@ -686,22 +780,87 @@ export default function PrestationsListPage({ prestationType }: { prestationType
         </Card>
       ) : viewMode === "map" ? (
         <MenagesMap menages={filtered} />
-      ) : filtered.length === 0 ? (
+      ) : view === "todo" ? (
+        todo.length === 0 ? (
+          <EmptyState
+            icon={<CheckCircle2 size={32} />}
+            title="Tout est à jour"
+            description="Rien à valider, rien en retard, personne à affecter, aucune demande en attente."
+          />
+        ) : (
+          <div className="flex flex-col gap-3">
+            {todo.map((section) => (
+              <section key={section.key} className="flex flex-col gap-3">
+                <header className="sticky top-0 z-10 flex items-center gap-2 bg-zinc-50/95 py-1.5 backdrop-blur dark:bg-zinc-950/90">
+                  <h2 className={cn("text-xs font-bold uppercase tracking-wider", TODO_TITLE[section.color])}>{section.title}</h2>
+                  <span className={cn("inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-bold", TODO_COUNT[section.color])}>
+                    {section.items.length}
+                  </span>
+                  {section.key === "validate" && isAdmin && !selectionMode ? (
+                    <Button size="sm" className="ml-auto" onClick={handleValidateAll} disabled={bulkBusy} loading={bulkBusy}>
+                      <CheckCheck size={14} />
+                      Tout valider
+                    </Button>
+                  ) : null}
+                </header>
+                <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+                  {section.items.map((item) =>
+                    item.kind === "reschedule" ? (
+                      <RescheduleCard
+                        key={item.id}
+                        r={item.r}
+                        m={item.m}
+                        requester={userName(item.r.requested_by)}
+                        busy={decide.isPending}
+                        onDecide={handleDecide}
+                      />
+                    ) : (
+                      renderMenageCard(
+                        item.m,
+                        section.key === "validate",
+                        section.key === "validate"
+                          ? item.m.departed_at
+                            ? `Terminé le ${formatDateFr(item.m.departed_at, "datetime")}`
+                            : "Rapport rendu"
+                          : section.key === "late"
+                            ? "Jour passé sans pointage · ouvre la fiche pour corriger les heures ou annuler"
+                            : undefined,
+                      )
+                    ),
+                  )}
+                </div>
+              </section>
+            ))}
+            <p className="py-4 text-center text-sm text-zinc-500 dark:text-zinc-400">
+              Les prestations passées non traitées depuis plus de {PAST_WINDOW_DAYS} jours sont dans{" "}
+              <Link href="/archives" className="font-semibold text-blue-600 hover:underline dark:text-blue-400">
+                l’Historique
+              </Link>
+              .
+            </p>
+          </div>
+        )
+      ) : planningCount === 0 ? (
         <EmptyState
           icon={<Building2 size={32} />}
           title={copy.emptyTitle}
-          description={
-            search
-              ? "Aucun résultat pour cette recherche."
-              : isPast
-                ? `Aucune prestation passée à traiter sur les ${PAST_WINDOW_DAYS} derniers jours.`
-                : filter === "all"
-                  ? copy.emptyAll
-                  : copy.emptyFilter
-          }
+          description={search || filterCount ? "Aucune prestation pour ces filtres." : copy.emptyAll}
         />
       ) : (
         <div className="flex flex-col gap-3">
+          <div className="grid grid-cols-2 gap-3 rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900 sm:grid-cols-4">
+            {[
+              { n: summary.today, label: "aujourd'hui", cls: "text-zinc-900 dark:text-white" },
+              { n: summary.enCours, label: "en cours", cls: "text-amber-600 dark:text-amber-400" },
+              { n: summary.unassigned, label: summary.unassigned > 1 ? "non assignées" : "non assignée", cls: "text-blue-600 dark:text-blue-400" },
+              { n: summary.late, label: summary.late > 1 ? "non pointées" : "non pointée", cls: "text-rose-600 dark:text-rose-400" },
+            ].map((c) => (
+              <div key={c.label} className="flex flex-col">
+                <span className={cn("text-xl font-bold tabular-nums", c.n > 0 ? c.cls : "text-zinc-400")}>{c.n}</span>
+                <span className="text-xs text-zinc-500 dark:text-zinc-400">{c.label}</span>
+              </div>
+            ))}
+          </div>
           {sections.map((section) => (
           <section key={section.key} className="flex flex-col gap-3">
             <header
@@ -732,12 +891,22 @@ export default function PrestationsListPage({ prestationType }: { prestationType
               </span>
             </header>
           <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-          {section.items.map((m) => {
+          {section.items.map((m) => renderMenageCard(m))}
+          </div>
+          </section>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  // Carte d'une prestation (Planning et À traiter). Fonction de rendu (pas un
+  // composant) : définie dans la fermeture pour accéder à la sélection et aux
+  // non-lus sans changer d'identité à chaque rendu.
+  function renderMenageCard(m: CalendarMenage, muted = false, note?: string) {
+    {
             const unassigned = !m.prestataire_user_id;
             const isSelected = selectedIds.has(m.id);
-            // Passées : carte atténuée, sans relief — c'est de l'information à
-            // retrouver, pas la liste de travail.
-            const muted = section.key === "past";
             const CardWrapper: React.ElementType = selectionMode ? "button" : Link;
             const wrapperProps = selectionMode
               ? {
@@ -784,6 +953,7 @@ export default function PrestationsListPage({ prestationType }: { prestationType
                           <span className="text-zinc-400"> · {m.logement_city}</span>
                         ) : null}
                       </p>
+                      {note ? <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{note}</p> : null}
                       <div className="mt-2 flex min-h-8 items-center gap-2">
                         {unassigned ? (
                           <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
@@ -861,20 +1031,74 @@ export default function PrestationsListPage({ prestationType }: { prestationType
                 </Card>
               </CardWrapper>
             );
-          })}
-          </div>
-          </section>
-          ))}
-          {isPast ? (
-            <p className="py-4 text-center text-sm text-zinc-500 dark:text-zinc-400">
-              Plus ancien que {PAST_WINDOW_DAYS} jours ?{" "}
-              <Link href="/archives" className="font-semibold text-blue-600 hover:underline dark:text-blue-400">
-                Voir l’Historique
-              </Link>
+    }
+  }
+}
+
+const TODO_TITLE: Record<string, string> = {
+  purple: "text-purple-600 dark:text-purple-400",
+  rose: "text-rose-600 dark:text-rose-400",
+  blue: "text-blue-600 dark:text-blue-400",
+  amber: "text-amber-600 dark:text-amber-400",
+};
+const TODO_COUNT: Record<string, string> = {
+  purple: "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300",
+  rose: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
+  blue: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+  amber: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+};
+
+/** Demande de report en attente : qui propose quoi, et Accepter / Refuser inline. */
+function RescheduleCard({
+  r,
+  m,
+  requester,
+  busy,
+  onDecide,
+}: {
+  r: RescheduleRequest;
+  m: CalendarMenage | undefined;
+  requester: string;
+  busy: boolean;
+  onDecide: (r: RescheduleRequest, decision: "approved" | "rejected") => void;
+}) {
+  const proposed = `${formatDateFr(r.proposed_date.slice(0, 10), "weekday")}${r.proposed_time ? ` à ${r.proposed_time.slice(0, 5)}` : ""}`;
+  return (
+    <Card className="bg-zinc-100 shadow-none dark:bg-zinc-900/60">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <Link href={`/menages/${r.menage_id}`} className="text-base font-semibold capitalize text-zinc-900 hover:underline dark:text-white">
+            {formatDateFr(r.original_date.slice(0, 10), "weekday")}
+          </Link>
+          {m ? (
+            <p className="mt-1 truncate text-sm text-zinc-700 dark:text-zinc-300">
+              <Building2 size={12} className="inline-block mr-1 -mt-0.5 text-zinc-400" />
+              {logementLabel(m)}
+              {m.logement_city ? <span className="text-zinc-400"> · {m.logement_city}</span> : null}
             </p>
           ) : null}
+          <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+            <span className="font-medium text-zinc-900 dark:text-white">{requester}</span> propose{" "}
+            <span className="font-medium text-amber-700 dark:text-amber-300">{proposed}</span>
+            {r.reason ? <span className="text-zinc-500"> · « {r.reason} »</span> : null}
+          </p>
         </div>
-      )}
-    </div>
+        {m ? (
+          <span className={cn("inline-flex flex-shrink-0 items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider", prestationTypePill(m.prestation_type))}>
+            {prestationTypeLabel(m.prestation_type)}
+          </span>
+        ) : null}
+      </div>
+      <div className="mt-3 flex justify-end gap-2 border-t border-zinc-200 pt-3 dark:border-zinc-800">
+        <Button variant="secondary" size="sm" onClick={() => onDecide(r, "rejected")} disabled={busy}>
+          <X size={14} />
+          Refuser
+        </Button>
+        <Button size="sm" onClick={() => onDecide(r, "approved")} disabled={busy}>
+          <Check size={14} />
+          Accepter
+        </Button>
+      </div>
+    </Card>
   );
 }

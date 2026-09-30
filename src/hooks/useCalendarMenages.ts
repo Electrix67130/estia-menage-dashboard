@@ -33,6 +33,8 @@ export interface CalendarMenage {
   date_locked?: boolean;
   /** Calculé côté API : jour passé + aucun pointage + statut a_venir. */
   needs_attention?: boolean;
+  /** Horodatage du pointage de départ (rapport rendu). */
+  departed_at?: string | null;
 }
 
 export function logementLabel(m: {
