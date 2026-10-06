@@ -1,11 +1,16 @@
+import { tFr, type TFn } from "@/i18n/translations";
+
 /** Type de prestation d'un « ménage » (au sens large : intervention datée). */
 export type PrestationType = "menage" | "check_in" | "check_out";
 
-/** Libellé UI d'un type de prestation (Ménage / Check-in / Check-out). */
-export function prestationTypeLabel(type: PrestationType | null | undefined): string {
-  if (type === "check_in") return "Check-in";
-  if (type === "check_out") return "Check-out";
-  return "Ménage";
+/**
+ * Libellé UI d'un type de prestation (Ménage / Check-in / Check-out).
+ * Passer le `t` de `useI18n()` pour suivre la langue de l'app (français sinon).
+ */
+export function prestationTypeLabel(type: PrestationType | null | undefined, t: TFn = tFr): string {
+  if (type === "check_in") return t("prestation.type.checkIn");
+  if (type === "check_out") return t("prestation.type.checkOut");
+  return t("prestation.type.menage");
 }
 
 /**

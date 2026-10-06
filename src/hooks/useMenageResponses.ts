@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 
 export type MenageResponseStatus = "present" | "absent";
@@ -26,6 +26,22 @@ export function useMenageResponses(menageId: string | undefined) {
       ),
     enabled: !!menageId,
     staleTime: 30_000,
+  });
+}
+
+/**
+ * Relance (push « indique ta disponibilité ») les prestataires membres du
+ * logement qui n'ont pas encore répondu. Admin. `sent` = nombre de destinataires
+ * (0 = tout le monde a déjà répondu). 400 si la prestation est affectée/clôturée.
+ */
+export function useRelanceMenage() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (menageId: string) =>
+      apiFetch<{ sent: number }>(`/menages/${menageId}/relance`, { method: "POST", body: {} }),
+    onSuccess: (_data, menageId) => {
+      qc.invalidateQueries({ queryKey: ["menage-eligible-prestataires", menageId] });
+    },
   });
 }
 

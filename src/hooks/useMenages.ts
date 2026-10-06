@@ -7,6 +7,8 @@ import type { PrestationType } from "@/lib/prestation";
 
 export type MenageStatus = CalendarMenage["status"];
 export type MenageFilter = MenageStatus | "all" | "to_validate" | "unassigned" | "past";
+/** Filtre « Qui est dispo ? » : au moins un présent / que des absents / aucune réponse. */
+export type AvailabilityFilter = "available" | "unavailable" | "no_response";
 
 interface ApiResponse {
   data: CalendarMenage[];
@@ -19,6 +21,8 @@ interface Params {
   type?: PrestationType;
   validated?: boolean;
   unassigned?: boolean;
+  /** Disponibilité des prestataires (votes présent/absent) sur la prestation. */
+  availability?: AvailabilityFilter;
   closed?: boolean;
   logement_id?: string;
   prestataire_user_id?: string;
@@ -41,6 +45,7 @@ export function useMenages(params: Params = {}, options?: { enabled?: boolean })
   if (params.type) qs.set("type", params.type);
   if (params.validated !== undefined) qs.set("validated", String(params.validated));
   if (params.unassigned !== undefined) qs.set("unassigned", String(params.unassigned));
+  if (params.availability) qs.set("availability", params.availability);
   if (params.closed !== undefined) qs.set("closed", String(params.closed));
   if (params.logement_id) qs.set("logement_id", params.logement_id);
   if (params.prestataire_user_id) qs.set("prestataire_user_id", params.prestataire_user_id);

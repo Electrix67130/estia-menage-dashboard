@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
+import { tFr, type TFn } from "@/i18n/translations";
 import type { PrestationType } from "@/lib/prestation";
 
 export interface CalendarMenage {
@@ -35,26 +36,40 @@ export interface CalendarMenage {
   needs_attention?: boolean;
   /** Horodatage du pointage de départ (rapport rendu). */
   departed_at?: string | null;
+  /** Votes « Présent » des prestataires (menage_response) sur cette prestation. */
+  present_count: number;
+  /** Votes « Absent ». */
+  absent_count: number;
+  /** Membres `prestataire` du logement = ceux qui peuvent répondre. */
+  member_prestataire_count: number;
 }
 
-export function logementLabel(m: {
-  logement_name: string | null;
-  logement_address: string | null;
-  logement_city: string | null;
-}): string {
+/** Nom affichable d'un logement (repli traduit si rien n'est renseigné). `t` = celui de `useI18n()`. */
+export function logementLabel(
+  m: {
+    logement_name: string | null;
+    logement_address: string | null;
+    logement_city: string | null;
+  },
+  t: TFn = tFr,
+): string {
   return (
     m.logement_name ||
     [m.logement_address, m.logement_city].filter(Boolean).join(" ") ||
-    "Logement inconnu"
+    t("prestation.logementUnknown")
   );
 }
 
-export function prestataireLabel(m: {
-  prestataire_user_id: string | null;
-  prestataire_first_name: string | null;
-  prestataire_last_name: string | null;
-}): string {
-  if (!m.prestataire_user_id) return "Non assigné";
+/** Nom du prestataire affecté, ou « Non assigné » traduit. `t` = celui de `useI18n()`. */
+export function prestataireLabel(
+  m: {
+    prestataire_user_id: string | null;
+    prestataire_first_name: string | null;
+    prestataire_last_name: string | null;
+  },
+  t: TFn = tFr,
+): string {
+  if (!m.prestataire_user_id) return t("prestation.unassigned");
   return [m.prestataire_first_name, m.prestataire_last_name].filter(Boolean).join(" ") || "—";
 }
 

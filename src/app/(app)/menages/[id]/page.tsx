@@ -17,6 +17,7 @@ import TimePicker from "@/components/ui/TimePicker";
 import DurationPicker from "@/components/ui/DurationPicker";
 import Modal from "@/components/ui/Modal";
 import PhotoLightbox from "@/components/PhotoLightbox";
+import PrestatairePicker from "@/components/PrestatairePicker";
 import { useI18n } from "@/contexts/I18nContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDialog } from "@/contexts/DialogContext";
@@ -36,10 +37,9 @@ import {
   useToggleMenageEquipement,
   type MenageEquipement,
 } from "@/hooks/useMenageEquipements";
-import { formatDateFr } from "@/lib/date-fr";
+import { formatCurrencyFr, formatDateFr, intlLocale } from "@/lib/date-fr";
 import {
   useMenageDetail,
-  useEligiblePrestataires,
   useAssignPrestataire,
   useUpdateMenage,
   useUpdateDeclaration,
@@ -61,7 +61,6 @@ import { useMenageResponses } from "@/hooks/useMenageResponses";
 import { useUnreadCounts, useMarkTabViewed, type MenageTab } from "@/hooks/useMenageViews";
 import {
   useMenagePrestataires,
-  useSetMenagePrestataires,
   useSetMenageReferent,
 } from "@/hooks/useMenagePrestataires";
 import { ApiError } from "@/lib/api";
@@ -69,12 +68,12 @@ import { cn } from "@/lib/utils";
 import { haversineMeters, formatDistance, POINTAGE_DISTANCE_WARN_M } from "@/lib/geo-distance";
 import { prestationTypeLabel, prestationTypePill } from "@/lib/prestation";
 
-const STATUS_LABEL: Record<MenageDetail["status"], string> = {
-  a_venir: "À venir",
-  en_cours: "En cours",
-  termine: "Terminé",
-  valide: "Validé",
-  annule: "Annulé",
+const STATUS_KEY: Record<MenageDetail["status"], string> = {
+  a_venir: "menages.statusUpcoming",
+  en_cours: "menages.statusInProgress",
+  termine: "menages.statusCompleted",
+  valide: "menages.statusValidated",
+  annule: "menages.statusCancelled",
 };
 
 const STATUS_PILL: Record<MenageDetail["status"], string> = {
@@ -86,10 +85,7 @@ const STATUS_PILL: Record<MenageDetail["status"], string> = {
 };
 
 function formatMoney(value: string | number | null | undefined, currency: string): string {
-  if (value === null || value === undefined) return "—";
-  const num = typeof value === "string" ? parseFloat(value) : value;
-  if (Number.isNaN(num)) return "—";
-  return new Intl.NumberFormat("fr-FR", { style: "currency", currency }).format(num);
+  return formatCurrencyFr(value, currency);
 }
 
 function formatTimestamp(ts: string | null): string {
@@ -103,6 +99,7 @@ export default function MenageDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
+  const { t } = useI18n();
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
   const detail = useMenageDetail(id);
@@ -116,10 +113,10 @@ export default function MenageDetailPage({
       <BackLink fallback="/menages" />
 
       {detail.isLoading ? (
-        <p className="text-sm text-zinc-500">Chargement…</p>
+        <p className="text-sm text-zinc-500">{t("common.loading")}</p>
       ) : detail.error ? (
         <Card className="border-rose-200 bg-rose-50 p-4 text-sm text-rose-800 dark:border-rose-900 dark:bg-rose-900/20 dark:text-rose-300">
-          {detail.error instanceof Error ? detail.error.message : "Erreur inconnue"}
+          {detail.error instanceof Error ? detail.error.message : t("common.unknownError")}
         </Card>
       ) : menage ? (
         <>
@@ -166,11 +163,12 @@ function Header({
   onEdit: () => void;
 }) {
   const router = useRouter();
+  const { t } = useI18n();
   const { confirm } = useDialog();
   const logementLabel =
     menage.logement_name ||
     [menage.logement_address, menage.logement_city].filter(Boolean).join(" ") ||
-    "Logement";
+    t("menageDetail.logementFallback");
   const validate = useValidateMenage(menage.id);
   const createComment = useCreateComment(menage.id);
   const remove = useDeleteMenage(menage.id);
@@ -190,34 +188,33 @@ function Header({
     const ok = await confirm(
       isAuto
         ? {
-            title: "Retirer cette prestation ?",
-            description:
-              "Créée automatiquement (calendrier). Elle sera retirée de la liste et n'y réapparaîtra plus, même après synchronisation. Tu pourras la remettre depuis l'Historique.",
-            confirmLabel: "Retirer",
+            title: t("menageDetail.removeAutoTitle"),
+            description: t("menageDetail.removeAutoDesc"),
+            confirmLabel: t("menageDetail.remove"),
           }
         : {
-            title: "Supprimer ce ménage ?",
-            description: "Cette action est irréversible (photos, checklist, commentaires perdus).",
+            title: t("menageDetail.deleteTitle"),
+            description: t("menageDetail.deleteDesc"),
             tone: "danger",
-            confirmLabel: "Supprimer",
+            confirmLabel: t("common.delete"),
           },
     );
     if (!ok) return;
     try {
       await remove.mutateAsync();
-      toast.success(isAuto ? "Prestation retirée" : "Ménage supprimé");
+      toast.success(isAuto ? t("menageDetail.removedToast") : t("menageDetail.deletedToast"));
       router.push("/menages");
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Erreur");
+      toast.error(err instanceof ApiError ? err.message : t("common.error"));
     }
   };
 
   const handleRestore = async () => {
     try {
       await restore.mutateAsync();
-      toast.success("Prestation remise");
+      toast.success(t("menageDetail.restoredToast"));
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Erreur");
+      toast.error(err instanceof ApiError ? err.message : t("common.error"));
     }
   };
 
@@ -225,7 +222,7 @@ function Header({
     e.preventDefault();
     const price = validatePrice.trim() ? parseFloat(validatePrice.replace(",", ".")) : undefined;
     if (validatePrice.trim() && (price === undefined || Number.isNaN(price) || price < 0)) {
-      toast.error("Prix invalide");
+      toast.error(t("menageDetail.invalidPrice"));
       return;
     }
     try {
@@ -238,12 +235,12 @@ function Header({
           /* le ménage est validé : on n'échoue pas si le commentaire échoue */
         }
       }
-      toast.success("Ménage validé");
+      toast.success(t("menageDetail.validatedToast"));
       setValidateOpen(false);
       setValidatePrice("");
       setValidateComment("");
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Erreur");
+      toast.error(err instanceof ApiError ? err.message : t("common.error"));
     }
   };
 
@@ -270,24 +267,24 @@ function Header({
           <span
             className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wider ${prestationTypePill(menage.prestation_type)}`}
           >
-            {prestationTypeLabel(menage.prestation_type)}
+            {prestationTypeLabel(menage.prestation_type, t)}
           </span>
           <span
             className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wider ${STATUS_PILL[menage.status]}`}
           >
-            {STATUS_LABEL[menage.status]}
+            {t(STATUS_KEY[menage.status])}
           </span>
           {menage.needs_attention ? (
             <span
               className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider text-rose-700 dark:bg-rose-900/50 dark:text-rose-300"
-              title="Jour passé sans pointage"
+              title={t("menageDetail.notClockedTitle")}
             >
               <AlertTriangle size={12} />
-              Non pointé
+              {t("prestations.notClocked")}
             </span>
           ) : null}
           <span className="inline-flex items-center rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
-            {menageSourceLabel(menage.external_source)}
+            {menageSourceLabel(menage.external_source, t)}
           </span>
         </div>
       </div>
@@ -301,22 +298,22 @@ function Header({
           {canValidate && !isValidated ? (
             <Button size="sm" onClick={() => setValidateOpen(true)}>
               <CheckCircle2 size={14} />
-              Valider le rapport
+              {t("menageDetail.validateReport")}
             </Button>
           ) : null}
           <Button size="sm" variant="secondary" onClick={onEdit}>
             <Pencil size={14} />
-            Modifier
+            {t("common.edit")}
           </Button>
           {isIgnored ? (
             <Button size="sm" variant="secondary" onClick={handleRestore} disabled={restore.isPending}>
               <RotateCcw size={14} />
-              Remettre
+              {t("menageDetail.restore")}
             </Button>
           ) : (
             <Button size="sm" variant="danger" onClick={handleDelete} disabled={remove.isPending}>
               <Trash2 size={14} />
-              {isAuto ? "Retirer" : "Supprimer"}
+              {isAuto ? t("menageDetail.remove") : t("common.delete")}
             </Button>
           )}
         </div>
@@ -326,12 +323,12 @@ function Header({
         <Modal
           open
           onClose={() => setValidateOpen(false)}
-          title="Valider le rapport"
-          subtitle="Tu peux ajuster le prix final si besoin."
+          title={t("menageDetail.validateReport")}
+          subtitle={t("menageDetail.validate.subtitle")}
           footer={
             <>
               <Button type="button" variant="ghost" onClick={() => setValidateOpen(false)}>
-                Annuler
+                {t("common.cancel")}
               </Button>
               <Button
                 type="submit"
@@ -339,7 +336,7 @@ function Header({
                 loading={validate.isPending}
                 disabled={validate.isPending}
               >
-                Valider
+                {t("common.validate")}
               </Button>
             </>
           }
@@ -353,7 +350,7 @@ function Header({
               return (
                 <div className="flex flex-col gap-3 rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900/40">
                   <div className="flex items-center justify-between">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Récapitulatif du rapport</p>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">{t("menageDetail.validate.recapTitle")}</p>
                     {isAdmin && menage.status !== "valide" ? (
                       <button
                         type="button"
@@ -361,14 +358,14 @@ function Header({
                         className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline dark:text-blue-400"
                       >
                         <Pencil size={12} />
-                        Modifier
+                        {t("common.edit")}
                       </button>
                     ) : null}
                   </div>
 
                   {/* Note voyageurs */}
                   <div className="flex items-center gap-2 text-sm">
-                    <span className="text-zinc-500">Note voyageurs :</span>
+                    <span className="text-zinc-500">{t("menageDetail.validate.travelerRating")}</span>
                     {menage.traveler_rating != null ? (
                       <span className="text-amber-500">
                         {"★".repeat(menage.traveler_rating)}
@@ -376,7 +373,7 @@ function Header({
                         <span className="ml-1 text-zinc-500">{menage.traveler_rating}/5</span>
                       </span>
                     ) : (
-                      <span className="text-zinc-400">non renseignée</span>
+                      <span className="text-zinc-400">{t("menageDetail.validate.ratingMissing")}</span>
                     )}
                   </div>
 
@@ -396,7 +393,7 @@ function Header({
                       }
                     >
                       <AlertTriangle size={13} />
-                      Dégradations {menage.has_degradation ? `· ${degPhotos.length}` : ""}
+                      {t("menageDetail.validate.degradations")} {menage.has_degradation ? `· ${degPhotos.length}` : ""}
                     </p>
                     {menage.has_degradation ? (
                       <>
@@ -418,18 +415,18 @@ function Header({
                             ))}
                           </div>
                         ) : (
-                          <p className="mt-1 text-xs text-rose-700/70 dark:text-rose-300/70">Aucune photo jointe.</p>
+                          <p className="mt-1 text-xs text-rose-700/70 dark:text-rose-300/70">{t("menageDetail.validate.noPhotoAttached")}</p>
                         )}
                       </>
                     ) : (
-                      <p className="mt-1 text-sm text-emerald-600 dark:text-emerald-400">Aucune dégradation signalée.</p>
+                      <p className="mt-1 text-sm text-emerald-600 dark:text-emerald-400">{t("menageDetail.validate.noDegradation")}</p>
                     )}
                   </div>
 
                   {/* Compartiment 2 : Photos du ménage */}
                   <div className="rounded-lg border border-zinc-200 bg-white p-2.5 dark:border-zinc-800 dark:bg-zinc-900">
                     <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
-                      Photos du ménage · {menagePhotos.length}
+                      {t("menageDetail.validate.cleaningPhotos")} · {menagePhotos.length}
                     </p>
                     {menagePhotos.length > 0 ? (
                       <div className="mt-2 grid grid-cols-5 gap-1.5">
@@ -446,7 +443,7 @@ function Header({
                         ))}
                       </div>
                     ) : (
-                      <p className="mt-1 text-xs text-zinc-400">Aucune photo.</p>
+                      <p className="mt-1 text-xs text-zinc-400">{t("menageDetail.validate.noPhoto")}</p>
                     )}
                   </div>
                 </div>
@@ -454,22 +451,20 @@ function Header({
             })()}
 
             <Input
-              label="Prix final (€) — optionnel"
+              label={t("menageDetail.validate.finalPrice")}
               type="number"
               min={0}
               step="0.01"
-              placeholder="Laisser vide pour garder le prix prévu"
+              placeholder={t("menageDetail.validate.finalPricePlaceholder")}
               value={validatePrice}
               onChange={(e) => setValidatePrice(e.target.value)}
             />
-            <p className="text-xs text-zinc-500">
-              Si vide, le prix prestataire prévu sera utilisé.
-            </p>
+            <p className="text-xs text-zinc-500">{t("menageDetail.validate.finalPriceHint")}</p>
 
             <Textarea
-              label="Commentaire (optionnel)"
+              label={t("menageDetail.validate.comment")}
               rows={3}
-              placeholder="Sera posté directement dans la discussion du ménage…"
+              placeholder={t("menageDetail.validate.commentPlaceholder")}
               value={validateComment}
               onChange={(e) => setValidateComment(e.target.value)}
             />
@@ -482,7 +477,7 @@ function Header({
         open={!!recapLightbox}
         onClose={() => setRecapLightbox(null)}
         photoUrl={recapLightbox?.url ?? null}
-        title={recapLightbox?.is_degradation ? "Dégradation" : "Photo du ménage"}
+        title={recapLightbox?.is_degradation ? t("menageDetail.lightbox.degradation") : t("menageDetail.lightbox.cleaningPhoto")}
         subtitle={recapLightbox ? formatTimestamp(recapLightbox.taken_at) : undefined}
       />
 
@@ -495,6 +490,7 @@ function Header({
 
 /** Modale admin : éditer note voyageurs + dégradation a posteriori. */
 function EditDeclarationModal({ menage, onClose }: { menage: MenageDetail; onClose: () => void }) {
+  const { t, tp } = useI18n();
   const update = useUpdateDeclaration(menage.id);
   const [rating, setRating] = useState(menage.traveler_rating ?? 0);
   const [hasDeg, setHasDeg] = useState(!!menage.has_degradation);
@@ -507,10 +503,10 @@ function EditDeclarationModal({ menage, onClose }: { menage: MenageDetail; onClo
         has_degradation: hasDeg,
         degradation_note: hasDeg ? note.trim() : "",
       });
-      toast.success("Déclaration mise à jour");
+      toast.success(t("menageDetail.declaration.updated"));
       onClose();
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Erreur");
+      toast.error(err instanceof ApiError ? err.message : t("common.error"));
     }
   };
 
@@ -518,21 +514,21 @@ function EditDeclarationModal({ menage, onClose }: { menage: MenageDetail; onClo
     <Modal
       open
       onClose={onClose}
-      title="Déclaration voyageurs"
+      title={t("menageDetail.declaration.title")}
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>
-            Annuler
+            {t("common.cancel")}
           </Button>
           <Button onClick={submit} disabled={update.isPending}>
-            {update.isPending ? "Enregistrement…" : "Enregistrer"}
+            {update.isPending ? t("common.saving") : t("common.save")}
           </Button>
         </>
       }
     >
       <div className="flex flex-col gap-4">
         <div>
-          <p className="mb-1.5 text-sm font-medium text-zinc-700 dark:text-zinc-300">Note voyageurs</p>
+          <p className="mb-1.5 text-sm font-medium text-zinc-700 dark:text-zinc-300">{t("menageDetail.declaration.rating")}</p>
           <div className="flex gap-1">
             {[1, 2, 3, 4, 5].map((n) => (
               <button
@@ -540,7 +536,7 @@ function EditDeclarationModal({ menage, onClose }: { menage: MenageDetail; onClo
                 type="button"
                 onClick={() => setRating(n)}
                 className="text-2xl leading-none"
-                aria-label={`${n} étoile${n > 1 ? "s" : ""}`}
+                aria-label={tp("menageDetail.declaration.stars", n)}
               >
                 <span className={n <= rating ? "text-amber-500" : "text-zinc-300 dark:text-zinc-600"}>★</span>
               </button>
@@ -550,27 +546,26 @@ function EditDeclarationModal({ menage, onClose }: { menage: MenageDetail; onClo
 
         <label className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
           <input type="checkbox" checked={hasDeg} onChange={(e) => setHasDeg(e.target.checked)} />
-          Dégradation constatée
+          {t("menageDetail.declaration.hasDegradation")}
         </label>
 
         {hasDeg ? (
           <Textarea
-            label="Description de la dégradation"
+            label={t("menageDetail.declaration.degradationDesc")}
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            placeholder="Ex : tache sur le canapé, vaisselle cassée…"
+            placeholder={t("menageDetail.declaration.degradationPlaceholder")}
             rows={3}
           />
         ) : null}
-        <p className="text-xs text-zinc-400">
-          Les photos de dégradation s&apos;ajoutent depuis l&apos;app mobile.
-        </p>
+        <p className="text-xs text-zinc-400">{t("menageDetail.declaration.photosFromMobile")}</p>
       </div>
     </Modal>
   );
 }
 
 function PrestataireSection({ menage, isAdmin }: { menage: MenageDetail; isAdmin: boolean }) {
+  const { t } = useI18n();
   const prestataires = useMenagePrestataires(menage.id);
   const list = prestataires.data ?? [];
   const canEdit = isAdmin && menage.status !== "termine" && menage.status !== "valide";
@@ -579,9 +574,9 @@ function PrestataireSection({ menage, isAdmin }: { menage: MenageDetail; isAdmin
   const handleSetReferent = async (userId: string) => {
     try {
       await setReferent.mutateAsync(userId);
-      toast.success("Référent mis à jour");
+      toast.success(t("menageDetail.prestataires.referentUpdated"));
     } catch (err) {
-      const message = err instanceof ApiError ? err.message : err instanceof Error ? err.message : "Erreur";
+      const message = err instanceof ApiError ? err.message : err instanceof Error ? err.message : t("common.error");
       toast.error(message);
     }
   };
@@ -590,16 +585,16 @@ function PrestataireSection({ menage, isAdmin }: { menage: MenageDetail; isAdmin
     <Card className="p-6">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">
-          Prestataires affectés
+          {t("menageDetail.prestataires.title")}
         </h2>
-        {canEdit ? <PrestatairePicker menage={menage} current={list} /> : null}
+        {canEdit ? <PrestatairePicker menageId={menage.id} current={list} /> : null}
       </div>
       {prestataires.isLoading ? (
-        <p className="text-sm text-zinc-500">Chargement…</p>
+        <p className="text-sm text-zinc-500">{t("common.loading")}</p>
       ) : list.length === 0 ? (
         <div className="flex items-center gap-3 text-zinc-500">
           <UserIcon size={20} />
-          <span className="text-sm">Aucun prestataire affecté</span>
+          <span className="text-sm">{t("menageDetail.prestataires.empty")}</span>
         </div>
       ) : (
         <ul className="flex flex-col gap-2">
@@ -624,7 +619,7 @@ function PrestataireSection({ menage, isAdmin }: { menage: MenageDetail; isAdmin
               </div>
               {p.is_primary ? (
                 <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
-                  Référent
+                  {t("picker.primary")}
                 </span>
               ) : canEdit && list.length > 1 ? (
                 <button
@@ -633,7 +628,7 @@ function PrestataireSection({ menage, isAdmin }: { menage: MenageDetail; isAdmin
                   disabled={setReferent.isPending}
                   className="rounded-full border border-zinc-300 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-600 hover:border-blue-400 hover:text-blue-600 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-400"
                 >
-                  Définir référent
+                  {t("menageDetail.prestataires.setReferent")}
                 </button>
               ) : null}
             </li>
@@ -644,123 +639,8 @@ function PrestataireSection({ menage, isAdmin }: { menage: MenageDetail; isAdmin
   );
 }
 
-function PrestatairePicker({
-  menage,
-  current,
-}: {
-  menage: MenageDetail;
-  current: { user_id: string }[];
-}) {
-  const [open, setOpen] = useState(false);
-  const eligible = useEligiblePrestataires(open ? menage.id : undefined);
-  const setPrestas = useSetMenagePrestataires(menage.id);
-  const [selectedIds, setSelectedIds] = useState<string[]>(current.map((c) => c.user_id));
-
-  // Re-sync state à l'ouverture pour repartir des affectations actuelles.
-  const handleOpen = () => {
-    setSelectedIds(current.map((c) => c.user_id));
-    setOpen(true);
-  };
-
-  const toggleId = (id: string) => {
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    );
-  };
-
-  const handleSave = async () => {
-    try {
-      await setPrestas.mutateAsync(selectedIds);
-      toast.success(
-        selectedIds.length === 0
-          ? "Prestataires retirés"
-          : selectedIds.length === 1
-            ? "Prestataire affecté"
-            : `${selectedIds.length} prestataires affectés`,
-      );
-      setOpen(false);
-    } catch (err) {
-      const message =
-        err instanceof ApiError ? err.message : err instanceof Error ? err.message : "Erreur";
-      toast.error(message);
-    }
-  };
-
-  if (!open) {
-    return (
-      <Button variant="secondary" size="sm" onClick={handleOpen}>
-        {current.length > 0 ? "Modifier" : "Affecter"}
-      </Button>
-    );
-  }
-
-  return (
-    <Modal open onClose={() => setOpen(false)} title="Affecter des prestataires">
-      <div className="flex flex-col gap-3">
-        {eligible.isLoading ? (
-          <p className="text-sm text-zinc-500">Chargement…</p>
-        ) : (eligible.data ?? []).length === 0 ? (
-          <p className="text-sm text-blue-600">
-            Aucun prestataire dans ce logement. Ajoute d&apos;abord un membre avec le rôle prestataire.
-          </p>
-        ) : (
-          <ul className="flex flex-col gap-1">
-            {(eligible.data ?? []).map((p, idx) => {
-              const checked = selectedIds.includes(p.id);
-              const isPrimary = checked && selectedIds[0] === p.id;
-              return (
-                <li key={p.id}>
-                  <label
-                    className="flex cursor-pointer items-center gap-3 rounded-lg border border-zinc-200 px-3 py-2 hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900/40"
-                    htmlFor={`presta-${idx}`}
-                  >
-                    <input
-                      id={`presta-${idx}`}
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => toggleId(p.id)}
-                      className="h-4 w-4 rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-zinc-900 dark:text-white">
-                        {p.first_name} {p.last_name}
-                      </p>
-                      <p className="text-xs text-zinc-500">{p.email}</p>
-                    </div>
-                    {!p.is_member ? (
-                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
-                        Ponctuel
-                      </span>
-                    ) : null}
-                    {isPrimary ? (
-                      <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
-                        Référent
-                      </span>
-                    ) : null}
-                  </label>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-        <p className="text-xs text-zinc-500">
-          Le premier coché est le <strong>référent</strong>. Les prestataires « Ponctuel » ne sont pas
-          membres du logement : ils ne reçoivent que ce ménage (remplacement).
-        </p>
-        <div className="flex justify-end gap-2">
-          <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>
-            Annuler
-          </Button>
-          <Button size="sm" onClick={handleSave} loading={setPrestas.isPending}>
-            Enregistrer
-          </Button>
-        </div>
-      </div>
-    </Modal>
-  );
-}
-
 function ResponsesSection({ menage, isAdmin }: { menage: MenageDetail; isAdmin: boolean }) {
+  const { t } = useI18n();
   const responses = useMenageResponses(menage.id);
   const assign = useAssignPrestataire(menage.id);
   // Plus d'affectation possible une fois le ménage terminé / validé.
@@ -770,9 +650,9 @@ function ResponsesSection({ menage, isAdmin }: { menage: MenageDetail; isAdmin: 
     return (
       <Card className="p-6">
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-zinc-500">
-          Réponses prestataires
+          {t("menageDetail.responses.title")}
         </h2>
-        <p className="text-sm text-zinc-500">Chargement…</p>
+        <p className="text-sm text-zinc-500">{t("common.loading")}</p>
       </Card>
     );
   }
@@ -785,9 +665,9 @@ function ResponsesSection({ menage, isAdmin }: { menage: MenageDetail; isAdmin: 
     return (
       <Card className="p-6">
         <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-zinc-500">
-          Réponses prestataires
+          {t("menageDetail.responses.title")}
         </h2>
-        <p className="text-sm text-zinc-500">Aucune réponse pour l&apos;instant.</p>
+        <p className="text-sm text-zinc-500">{t("menageDetail.responses.empty")}</p>
       </Card>
     );
   }
@@ -795,12 +675,12 @@ function ResponsesSection({ menage, isAdmin }: { menage: MenageDetail; isAdmin: 
   return (
     <Card className="p-6">
       <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-zinc-500">
-        Réponses prestataires
+        {t("menageDetail.responses.title")}
       </h2>
       {present.length > 0 ? (
         <div className="mb-4">
           <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-blue-600">
-            Disponibles ({present.length})
+            {t("picker.groupPresent")} ({present.length})
           </p>
           <ul className="flex flex-col gap-2">
             {present.map((r) => {
@@ -824,7 +704,7 @@ function ResponsesSection({ menage, isAdmin }: { menage: MenageDetail; isAdmin: 
                   </div>
                   {isAdmin && isAssigned ? (
                     <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">
-                      Affecté
+                      {t("menageDetail.responses.assigned")}
                     </span>
                   ) : canAssign && !isAssigned ? (
                     <Button
@@ -833,7 +713,7 @@ function ResponsesSection({ menage, isAdmin }: { menage: MenageDetail; isAdmin: 
                       onClick={() => assign.mutate(r.user_id)}
                       loading={assign.isPending}
                     >
-                      Affecter
+                      {t("common.assign")}
                     </Button>
                   ) : null}
                 </li>
@@ -846,7 +726,7 @@ function ResponsesSection({ menage, isAdmin }: { menage: MenageDetail; isAdmin: 
       {absent.length > 0 ? (
         <div>
           <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-rose-600">
-            Indisponibles ({absent.length})
+            {t("picker.groupAbsent")} ({absent.length})
           </p>
           <ul className="flex flex-wrap gap-2">
             {absent.map((r) => {
@@ -877,6 +757,7 @@ interface ProofView {
 }
 
 function PointageProofSection({ menage }: { menage: MenageDetail }) {
+  const { t, locale } = useI18n();
   const [lightbox, setLightbox] = useState<ProofView | null>(null);
   const photos = useMenagePhotos(menage.id);
   const degradationPhotos = (photos.data?.data ?? []).filter((p) => p.is_degradation);
@@ -935,22 +816,22 @@ function PointageProofSection({ menage }: { menage: MenageDetail }) {
             )}
           >
             {tooFar ? "⚠ " : "✓ "}
-            {formatDistance(proof.distance)} du logement
+            {t("menageDetail.proof.fromLogement", { distance: formatDistance(proof.distance) })}
           </span>
         ) : (
-          <span className="mt-2 inline-block text-xs text-zinc-400">Distance indisponible</span>
+          <span className="mt-2 inline-block text-xs text-zinc-400">{t("menageDetail.proof.distanceUnavailable")}</span>
         )}
       </div>
     );
   };
 
-  const arrival = buildProof("Arrivée", menage.arrival_photo_url, menage.arrival_lat, menage.arrival_lng, menage.arrived_at);
-  const departure = buildProof("Départ", menage.departure_photo_url, menage.departure_lat, menage.departure_lng, menage.departed_at);
+  const arrival = buildProof(t("menageDetail.proof.arrival"), menage.arrival_photo_url, menage.arrival_lat, menage.arrival_lng, menage.arrived_at);
+  const departure = buildProof(t("menageDetail.proof.departure"), menage.departure_photo_url, menage.departure_lat, menage.departure_lng, menage.departed_at);
 
   return (
     <Card className="p-6">
       <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-zinc-500">
-        Preuve de présence
+        {t("menageDetail.proof.title")}
       </h2>
       <div className="flex flex-col gap-4 sm:flex-row">
         {renderProof(arrival)}
@@ -962,7 +843,7 @@ function PointageProofSection({ menage }: { menage: MenageDetail }) {
         <div className="mt-4 flex flex-col gap-3 border-t border-zinc-200 pt-4 dark:border-zinc-800">
           {menage.traveler_rating != null ? (
             <div className="flex items-center gap-2 text-sm">
-              <span className="text-zinc-500">Note des voyageurs :</span>
+              <span className="text-zinc-500">{t("menageDetail.proof.travelerRating")}</span>
               <span className="text-amber-500">
                 {"★".repeat(menage.traveler_rating)}
                 <span className="text-zinc-300 dark:text-zinc-600">{"★".repeat(5 - menage.traveler_rating)}</span>
@@ -974,7 +855,7 @@ function PointageProofSection({ menage }: { menage: MenageDetail }) {
             <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 dark:border-rose-900/50 dark:bg-rose-900/20">
               <p className="flex items-center gap-1.5 text-sm font-semibold text-rose-700 dark:text-rose-300">
                 <AlertTriangle size={14} />
-                Dégradation déclarée à l&apos;arrivée
+                {t("menageDetail.proof.degradationDeclared")}
               </p>
               {menage.degradation_note ? (
                 <p className="mt-1 text-sm text-rose-700/90 dark:text-rose-200/90">{menage.degradation_note}</p>
@@ -986,7 +867,7 @@ function PointageProofSection({ menage }: { menage: MenageDetail }) {
                       key={p.id}
                       type="button"
                       onClick={() =>
-                        setLightbox({ label: "Dégradation", photoUrl: p.url, at: p.taken_at, lat: null, lng: null, distance: null })
+                        setLightbox({ label: t("menageDetail.lightbox.degradation"), photoUrl: p.url, at: p.taken_at, lat: null, lng: null, distance: null })
                       }
                       className="relative aspect-square overflow-hidden rounded border border-rose-200 dark:border-rose-900/50"
                     >
@@ -1005,10 +886,10 @@ function PointageProofSection({ menage }: { menage: MenageDetail }) {
         open={!!lightbox}
         onClose={() => setLightbox(null)}
         photoUrl={lightbox?.photoUrl ?? null}
-        title={lightbox ? `Pointage — ${lightbox.label}` : undefined}
+        title={lightbox ? t("menageDetail.proof.lightboxTitle", { label: lightbox.label }) : undefined}
         subtitle={
           lightbox?.at
-            ? new Date(lightbox.at).toLocaleString("fr-FR", {
+            ? new Date(lightbox.at).toLocaleString(intlLocale(locale), {
                 day: "2-digit",
                 month: "short",
                 hour: "2-digit",
@@ -1021,7 +902,7 @@ function PointageProofSection({ menage }: { menage: MenageDetail }) {
             <div className="flex items-center justify-between gap-3 rounded-lg bg-white/10 px-3 py-2 text-sm text-white">
               <span>
                 📍 {lightbox.lat.toFixed(5)}, {lightbox.lng.toFixed(5)}
-                {lightbox.distance != null ? ` · ${formatDistance(lightbox.distance)} du logement` : ""}
+                {lightbox.distance != null ? ` · ${t("menageDetail.proof.fromLogement", { distance: formatDistance(lightbox.distance) })}` : ""}
               </span>
               <a
                 href={`https://www.google.com/maps/search/?api=1&query=${lightbox.lat},${lightbox.lng}`}
@@ -1029,11 +910,11 @@ function PointageProofSection({ menage }: { menage: MenageDetail }) {
                 rel="noopener noreferrer"
                 className="font-semibold text-blue-300 hover:underline"
               >
-                Ouvrir dans Google Maps →
+                {t("menageDetail.proof.openMaps")}
               </a>
             </div>
           ) : lightbox ? (
-            <p className="text-sm text-white/60">Coordonnées GPS indisponibles pour cette photo.</p>
+            <p className="text-sm text-white/60">{t("menageDetail.proof.noGps")}</p>
           ) : null
         }
       />
@@ -1042,37 +923,38 @@ function PointageProofSection({ menage }: { menage: MenageDetail }) {
 }
 
 function ScheduleSection({ menage }: { menage: MenageDetail; isAdmin: boolean }) {
+  const { t } = useI18n();
   return (
     <Card className="p-6">
       <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-zinc-500">
-        Planification
+        {t("menage.edit.sectionPlanning")}
       </h2>
       <dl className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
-        <Row icon={<Clock size={16} />} label="Date prévue">
+        <Row icon={<Clock size={16} />} label={t("menage.fields.datePrevue")}>
           <span className="inline-flex items-center gap-1.5">
             {formatDateFr(menage.date_prevue.slice(0, 10), "long")}
-            {menage.horaire_prevu ? ` à ${menage.horaire_prevu.slice(0, 5)}` : ""}
+            {menage.horaire_prevu ? ` ${t("menageDetail.schedule.atTime", { time: menage.horaire_prevu.slice(0, 5) })}` : ""}
             {menage.date_locked ? (
               <span
                 className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
-                title="Date verrouillée — la sync iCal ne l'écrasera pas (modifiable via « Modifier »)"
+                title={t("menageDetail.schedule.lockedTitle")}
               >
-                <Lock size={12} /> Verrouillée
+                <Lock size={12} /> {t("menageDetail.schedule.locked")}
               </span>
             ) : null}
           </span>
         </Row>
-        <Row icon={<Timer size={16} />} label="Durée estimée">
-          {menage.duree_estimee_min ? `${menage.duree_estimee_min} min` : "—"}
+        <Row icon={<Timer size={16} />} label={t("menage.fields.dureeEstimee")}>
+          {menage.duree_estimee_min ? t("menageDetail.schedule.minutes", { count: menage.duree_estimee_min }) : "—"}
         </Row>
-        <Row icon={<Clock size={16} />} label="Arrivée prestataire">
+        <Row icon={<Clock size={16} />} label={t("menageDetail.schedule.arrivedAt")}>
           {formatTimestamp(menage.arrived_at)}
         </Row>
-        <Row icon={<Clock size={16} />} label="Départ prestataire">
+        <Row icon={<Clock size={16} />} label={t("menageDetail.schedule.departedAt")}>
           {formatTimestamp(menage.departed_at)}
         </Row>
         {menage.validated_at ? (
-          <Row icon={<Clock size={16} />} label="Validé">
+          <Row icon={<Clock size={16} />} label={t("menages.statusValidated")}>
             {formatTimestamp(menage.validated_at)}
           </Row>
         ) : null}
@@ -1219,11 +1101,11 @@ function MenageEditForm({ menage, onClose }: { menage: MenageDetail; onClose: ()
         </div>
         <DurationPicker label={t("menage.fields.dureeEstimee")} value={dureeEstimee} onChange={setDureeEstimee} />
         <Select label={t("menage.edit.sectionStatus")} value={status} onChange={(e) => setStatus(e.target.value as MenageDetail["status"])}>
-          <option value="a_venir">À venir</option>
-          <option value="en_cours">En cours</option>
-          <option value="termine">Terminé</option>
-          <option value="annule">Annulé</option>
-          {menage.status === "valide" ? <option value="valide">Validé</option> : null}
+          <option value="a_venir">{t("menages.statusUpcoming")}</option>
+          <option value="en_cours">{t("menages.statusInProgress")}</option>
+          <option value="termine">{t("menages.statusCompleted")}</option>
+          <option value="annule">{t("menages.statusCancelled")}</option>
+          {menage.status === "valide" ? <option value="valide">{t("menages.statusValidated")}</option> : null}
         </Select>
         <label className="inline-flex items-center gap-2 text-sm font-medium">
           <input
@@ -1232,17 +1114,17 @@ function MenageEditForm({ menage, onClose }: { menage: MenageDetail; onClose: ()
             onChange={(e) => setDateLocked(e.target.checked)}
             className="h-4 w-4 rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
           />
-          Date verrouillée (la sync iCal ne l&apos;écrasera pas)
+          {t("menageDetail.edit.dateLocked")}
         </label>
       </Card>
 
       <Card className="flex flex-col gap-4 p-6">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">Pointages</h2>
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">{t("menageDetail.edit.sectionPointages")}</h2>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Input label="Arrivée prestataire" type="datetime-local" value={arrivedAt} onChange={(e) => setArrivedAt(e.target.value)} />
-          <Input label="Départ prestataire" type="datetime-local" value={departedAt} onChange={(e) => setDepartedAt(e.target.value)} />
+          <Input label={t("menageDetail.schedule.arrivedAt")} type="datetime-local" value={arrivedAt} onChange={(e) => setArrivedAt(e.target.value)} />
+          <Input label={t("menageDetail.schedule.departedAt")} type="datetime-local" value={departedAt} onChange={(e) => setDepartedAt(e.target.value)} />
         </div>
-        <p className="text-xs text-zinc-500">Laisser un champ vide remet l&apos;heure correspondante à zéro.</p>
+        <p className="text-xs text-zinc-500">{t("menageDetail.edit.pointagesHint")}</p>
       </Card>
 
       <Card className="flex flex-col gap-4 p-6">
@@ -1287,11 +1169,11 @@ function MenageEditForm({ menage, onClose }: { menage: MenageDetail; onClose: ()
               onClick={applySuggestion}
               className="rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 dark:border-blue-900/50 dark:bg-blue-900/20 dark:text-blue-300"
             >
-              Suggérer les lits
+              {t("menageDetail.edit.suggestBeds")}
             </button>
           ) : null}
         </div>
-        <Input label="Voyageurs" type="number" min={0} value={nTravelers} onChange={(e) => setNTravelers(e.target.value)} />
+        <Input label={t("menageDetail.edit.travelers")} type="number" min={0} value={nTravelers} onChange={(e) => setNTravelers(e.target.value)} />
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           <Input label={t("beds.simple")} type="number" min={0} value={nLitSimple} onChange={(e) => setNLitSimple(e.target.value)} />
           <Input label={t("beds.double")} type="number" min={0} value={nLitDouble} onChange={(e) => setNLitDouble(e.target.value)} />
@@ -1319,10 +1201,11 @@ function MenageEditForm({ menage, onClose }: { menage: MenageDetail; onClose: ()
 }
 
 function NotesSection({ notes }: { notes: string }) {
+  const { t } = useI18n();
   return (
     <Card className="p-6">
       <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-zinc-500">
-        Notes d&apos;intervention
+        {t("menage.fields.notesIntervention")}
       </h2>
       <p className="whitespace-pre-wrap text-sm text-zinc-700 dark:text-zinc-300">{notes}</p>
     </Card>
@@ -1348,12 +1231,12 @@ function BedsSection({ menage, isAdmin }: { menage: MenageDetail; isAdmin: boole
 
   return (
     <Card className="p-6">
-      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-zinc-500">Lits à faire</h2>
+      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-zinc-500">{t("menageDetail.beds.title")}</h2>
 
       {/* Voyageurs */}
       <div className="mb-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
         <div className="flex items-center gap-2">
-          <span className="text-zinc-500">Voyageurs :</span>
+          <span className="text-zinc-500">{t("menageDetail.beds.travelers")}</span>
           <span className="font-semibold tabular-nums text-zinc-900 dark:text-white">
             {menage.n_travelers ?? "—"}
           </span>
@@ -1373,6 +1256,7 @@ function BedsSection({ menage, isAdmin }: { menage: MenageDetail; isAdmin: boole
 }
 
 function FinancialsSection({ menage }: { menage: MenageDetail }) {
+  const { t } = useI18n();
   const hasClientFields = menage.client_price_ht !== undefined;
   const hasProviderField = menage.provider_price !== undefined;
   if (!hasClientFields && !hasProviderField) return null;
@@ -1380,13 +1264,13 @@ function FinancialsSection({ menage }: { menage: MenageDetail }) {
   return (
     <Card className="p-6">
       <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-zinc-500">
-        Tarifs
+        {t("menageDetail.financials.title")}
       </h2>
       <dl className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
         {hasClientFields ? (
           <>
-            <Row label="Prix client HT">{formatMoney(menage.client_price_ht, menage.currency)}</Row>
-            <Row label="TVA">
+            <Row label={t("menageDetail.financials.clientPriceHt")}>{formatMoney(menage.client_price_ht, menage.currency)}</Row>
+            <Row label={t("menageDetail.financials.vat")}>
               {menage.client_vat_rate !== null && menage.client_vat_rate !== undefined
                 ? `${menage.client_vat_rate}%`
                 : "—"}
@@ -1394,18 +1278,18 @@ function FinancialsSection({ menage }: { menage: MenageDetail }) {
           </>
         ) : null}
         {hasProviderField ? (
-          <Row label="Prix prestataire">{formatMoney(menage.provider_price, menage.currency)}</Row>
+          <Row label={t("menageDetail.financials.providerPrice")}>{formatMoney(menage.provider_price, menage.currency)}</Row>
         ) : null}
         {menage.laundry_included ? (
           <>
-            <Row label="Linge inclus">Oui</Row>
+            <Row label={t("menageDetail.financials.laundryIncluded")}>{t("menageDetail.financials.yes")}</Row>
             {hasClientFields ? (
-              <Row label="Linge — prix client HT">
+              <Row label={t("menageDetail.financials.laundryClientHt")}>
                 {formatMoney(menage.laundry_client_price_ht, menage.currency)}
               </Row>
             ) : null}
             {hasProviderField ? (
-              <Row label="Linge — prix prestataire">
+              <Row label={t("menageDetail.financials.laundryProvider")}>
                 {formatMoney(menage.laundry_provider_price, menage.currency)}
               </Row>
             ) : null}
@@ -1447,6 +1331,7 @@ const TAB_UNREAD: Record<TabKey, MenageTab> = {
 };
 
 function CheckinInfo({ menage }: { menage: MenageDetail }) {
+  const { t, tp } = useI18n();
   const checkin = menage.next_checkin_at ? menage.next_checkin_at.slice(0, 10) : null;
   const nights = menage.stay_nights ?? null;
   if (!checkin && !nights) return null;
@@ -1454,15 +1339,15 @@ function CheckinInfo({ menage }: { menage: MenageDetail }) {
 
   let checkinClass =
     "border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-300";
-  let checkinText = checkin ? `Prochain check-in : ${formatDateFr(checkin, "weekday")}` : "";
+  let checkinText = checkin ? t("planning.nextCheckin", { date: formatDateFr(checkin, "weekday") }) : "";
   if (checkin && d > checkin) {
     checkinClass =
       "border-rose-300 bg-rose-50 text-rose-700 dark:border-rose-800 dark:bg-rose-950/30 dark:text-rose-300";
-    checkinText = `Planifié après le prochain check-in (${formatDateFr(checkin, "weekday")})`;
+    checkinText = t("menageDetail.checkin.afterNext", { date: formatDateFr(checkin, "weekday") });
   } else if (checkin && d === checkin) {
     checkinClass =
       "border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300";
-    checkinText = `Rotation le jour même · check-in ${formatDateFr(checkin, "weekday")}`;
+    checkinText = t("menageDetail.checkin.sameDay", { date: formatDateFr(checkin, "weekday") });
   }
 
   return (
@@ -1476,7 +1361,7 @@ function CheckinInfo({ menage }: { menage: MenageDetail }) {
       {nights ? (
         <span className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 px-2.5 py-1 text-zinc-600 dark:border-zinc-800 dark:text-zinc-300">
           <Moon size={14} />
-          Séjour : {nights} nuit{nights > 1 ? "s" : ""}
+          {tp("menageDetail.stayNights", nights)}
         </span>
       ) : null}
     </div>
@@ -1484,15 +1369,16 @@ function CheckinInfo({ menage }: { menage: MenageDetail }) {
 }
 
 function TabsSection({ menage }: { menage: MenageDetail }) {
+  const { t } = useI18n();
   const [tab, setTab] = useState<TabKey>("check");
   const counts = useUnreadCounts(menage.id);
   const markViewed = useMarkTabViewed();
   // check-in / check-out : pas de galerie photos (décision produit).
   const showPhotos = menage.prestation_type === "menage";
   const tabs: { key: TabKey; label: string; icon: typeof ListChecks }[] = [
-    { key: "check", label: "Checklist", icon: ListChecks },
-    ...(showPhotos ? [{ key: "photos" as const, label: "Photos", icon: Camera }] : []),
-    { key: "comments", label: "Commentaires", icon: MessageSquare },
+    { key: "check", label: t("menageDetail.tabs.checklist"), icon: ListChecks },
+    ...(showPhotos ? [{ key: "photos" as const, label: t("menage.tabPhotos"), icon: Camera }] : []),
+    { key: "comments", label: t("menageDetail.tabs.comments"), icon: MessageSquare },
   ];
 
   // Marque l'onglet ouvert comme lu → vide la pastille correspondante (et le
@@ -1513,15 +1399,15 @@ function TabsSection({ menage }: { menage: MenageDetail }) {
   return (
     <Card className="p-0">
       <div className="flex overflow-x-auto border-b border-zinc-200 dark:border-zinc-800">
-        {tabs.map((t) => {
-          const Icon = t.icon;
-          const active = tab === t.key;
-          const unread = unreadFor(t.key);
+        {tabs.map((tb) => {
+          const Icon = tb.icon;
+          const active = tab === tb.key;
+          const unread = unreadFor(tb.key);
           return (
             <button
-              key={t.key}
+              key={tb.key}
               type="button"
-              onClick={() => setTab(t.key)}
+              onClick={() => setTab(tb.key)}
               className={cn(
                 "flex flex-1 shrink-0 items-center justify-center gap-2 whitespace-nowrap px-4 py-3 text-sm font-medium transition-colors",
                 active
@@ -1530,7 +1416,7 @@ function TabsSection({ menage }: { menage: MenageDetail }) {
               )}
             >
               <Icon size={16} />
-              {t.label}
+              {tb.label}
               {unread > 0 && !active ? (
                 <span className="inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold leading-none text-white">
                   {unread > 99 ? "99+" : unread}
@@ -1551,18 +1437,19 @@ function TabsSection({ menage }: { menage: MenageDetail }) {
 }
 
 function ChecklistTab({ menageId }: { menageId: string }) {
+  const { t } = useI18n();
   const check = useMenageCheck(menageId);
 
-  if (check.isLoading) return <p className="text-sm text-zinc-500">Chargement…</p>;
+  if (check.isLoading) return <p className="text-sm text-zinc-500">{t("common.loading")}</p>;
   if (check.error)
     return (
       <p className="text-sm text-rose-600">
-        {check.error instanceof Error ? check.error.message : "Erreur"}
+        {check.error instanceof Error ? check.error.message : t("common.error")}
       </p>
     );
   const sections = check.data ?? [];
   if (sections.length === 0) {
-    return <p className="text-sm text-zinc-500">Aucune checklist pour ce ménage.</p>;
+    return <p className="text-sm text-zinc-500">{t("menageDetail.checklist.empty")}</p>;
   }
 
   return (
@@ -1614,21 +1501,22 @@ function ChecklistTab({ menageId }: { menageId: string }) {
 }
 
 function PhotosTab({ menageId }: { menageId: string }) {
+  const { t } = useI18n();
   const photos = useMenagePhotos(menageId);
   const check = useMenageCheck(menageId);
   const [lightbox, setLightbox] = useState<MenagePhoto | null>(null);
 
-  if (photos.isLoading) return <p className="text-sm text-zinc-500">Chargement…</p>;
+  if (photos.isLoading) return <p className="text-sm text-zinc-500">{t("common.loading")}</p>;
   if (photos.error)
     return (
       <p className="text-sm text-rose-600">
-        {photos.error instanceof Error ? photos.error.message : "Erreur"}
+        {photos.error instanceof Error ? photos.error.message : t("common.error")}
       </p>
     );
 
   const items = photos.data?.data ?? [];
   if (items.length === 0) {
-    return <p className="text-sm text-zinc-500">Aucune photo pour ce ménage.</p>;
+    return <p className="text-sm text-zinc-500">{t("menageDetail.photos.empty")}</p>;
   }
 
   // Regroupe les photos par pièce (section de checklist), dans l'ordre des
@@ -1643,7 +1531,7 @@ function PhotosTab({ menageId }: { menageId: string }) {
   }
   const unclassified = items.filter((p) => !p.section_id);
   if (unclassified.length > 0) {
-    groups.push({ id: "__none__", label: "Non classées", photos: unclassified });
+    groups.push({ id: "__none__", label: t("menageDetail.photos.unclassified"), photos: unclassified });
   }
 
   const renderGrid = (list: typeof items) => (
@@ -1689,7 +1577,7 @@ function PhotosTab({ menageId }: { menageId: string }) {
         title={lightbox ? formatTimestamp(lightbox.taken_at) : undefined}
         subtitle={
           lightbox && (lightbox.first_name || lightbox.last_name)
-            ? `Par ${lightbox.first_name ?? ""} ${lightbox.last_name ?? ""}`.trim()
+            ? t("menageDetail.photos.by", { name: `${lightbox.first_name ?? ""} ${lightbox.last_name ?? ""}`.trim() })
             : undefined
         }
       />
@@ -1698,6 +1586,7 @@ function PhotosTab({ menageId }: { menageId: string }) {
 }
 
 function CommentsTab({ menageId }: { menageId: string }) {
+  const { t } = useI18n();
   const { user } = useAuth();
   const comments = useMenageComments(menageId);
   const create = useCreateComment(menageId);
@@ -1709,15 +1598,15 @@ function CommentsTab({ menageId }: { menageId: string }) {
       await create.mutateAsync({ content: draft.trim() });
       setDraft("");
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Erreur");
+      toast.error(err instanceof ApiError ? err.message : t("common.error"));
     }
   };
 
-  if (comments.isLoading) return <p className="text-sm text-zinc-500">Chargement…</p>;
+  if (comments.isLoading) return <p className="text-sm text-zinc-500">{t("common.loading")}</p>;
   if (comments.error)
     return (
       <p className="text-sm text-rose-600">
-        {comments.error instanceof Error ? comments.error.message : "Erreur"}
+        {comments.error instanceof Error ? comments.error.message : t("common.error")}
       </p>
     );
 
@@ -1726,7 +1615,7 @@ function CommentsTab({ menageId }: { menageId: string }) {
   return (
     <div className="flex flex-col gap-4">
       {items.length === 0 ? (
-        <p className="text-sm text-zinc-500">Aucun commentaire.</p>
+        <p className="text-sm text-zinc-500">{t("menageDetail.comments.empty")}</p>
       ) : (
         <ul className="flex flex-col gap-3">
           {items.map((c) => {
@@ -1771,7 +1660,7 @@ function CommentsTab({ menageId }: { menageId: string }) {
       >
         <div className="flex-1">
           <Input
-            placeholder="Écrire un commentaire…"
+            placeholder={t("menageDetail.comments.placeholder")}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
           />
@@ -1796,6 +1685,7 @@ function AccessCodes({
   logementId: string;
   fallback?: string | null;
 }) {
+  const { t } = useI18n();
   const codes = useLogementCodes(logementId);
   const list = codes.data ?? [];
 
@@ -1805,7 +1695,7 @@ function AccessCodes({
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <span className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1 font-medium text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-200">
           <Key size={14} />
-          Boîte à clés : <span className="font-mono tracking-wider">{fallback}</span>
+          {t("menageDetail.codes.entry", { label: t("menageDetail.codes.keySafe") })} <span className="font-mono tracking-wider">{fallback}</span>
         </span>
       </div>
     );
@@ -1820,7 +1710,7 @@ function AccessCodes({
           className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1 font-medium text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-200"
         >
           <Key size={14} />
-          {c.label} : <span className="font-mono tracking-wider">{c.code}</span>
+          {t("menageDetail.codes.entry", { label: c.label })} <span className="font-mono tracking-wider">{c.code}</span>
         </span>
       ))}
     </div>
@@ -1839,6 +1729,7 @@ function EquipementsToPrepareSection({
   menage: MenageDetail;
   isAdmin: boolean;
 }) {
+  const { t } = useI18n();
   const list = useMenageEquipements(menage.id);
   const toggle = useToggleMenageEquipement(menage.id);
   const [picking, setPicking] = useState(false);
@@ -1853,7 +1744,7 @@ function EquipementsToPrepareSection({
     <Card className="p-6">
       <div className="mb-3 flex items-center justify-between gap-3">
         <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">
-          À préparer
+          {t("menageDetail.prepare.title")}
           {items.length > 0 ? (
             <span className="ml-2 font-mono text-xs text-zinc-400">
               {doneCount}/{items.length}
@@ -1863,16 +1754,13 @@ function EquipementsToPrepareSection({
         {isAdmin ? (
           <Button size="sm" variant="secondary" onClick={() => setPicking(true)}>
             <Pencil size={14} />
-            Modifier
+            {t("common.edit")}
           </Button>
         ) : null}
       </div>
 
       {items.length === 0 ? (
-        <p className="text-sm text-zinc-500">
-          Aucun équipement à préparer. « Modifier » pour en demander depuis l&apos;inventaire du
-          logement.
-        </p>
+        <p className="text-sm text-zinc-500">{t("menageDetail.prepare.empty")}</p>
       ) : (
         <ul className="flex flex-col gap-2">
           {items.map((i) => (
@@ -1889,7 +1777,7 @@ function EquipementsToPrepareSection({
                         done: e.target.checked,
                       })
                       .catch((err) =>
-                        toast.error(err instanceof ApiError ? err.message : "Erreur"),
+                        toast.error(err instanceof ApiError ? err.message : t("common.error")),
                       )
                   }
                   className="h-4 w-4 rounded border-zinc-300 accent-blue-600"
@@ -1910,7 +1798,7 @@ function EquipementsToPrepareSection({
               {i.room_name ? <span className="text-xs text-zinc-500">{i.room_name}</span> : null}
               {i.done_at && i.done_by_first_name ? (
                 <span className="ml-auto text-xs text-zinc-400">
-                  par {i.done_by_first_name}
+                  {t("menageDetail.prepare.doneBy", { name: i.done_by_first_name })}
                 </span>
               ) : null}
             </li>
@@ -1919,7 +1807,7 @@ function EquipementsToPrepareSection({
       )}
 
       {picking ? (
-        <Modal open onClose={() => setPicking(false)} title="Équipements à préparer">
+        <Modal open onClose={() => setPicking(false)} title={t("menageDetail.prepare.modalTitle")}>
           <EquipementsToPreparePicker
             menageId={menage.id}
             logementId={menage.logement_id}
@@ -1944,6 +1832,7 @@ function EquipementsToPreparePicker({
   selected: MenageEquipement[];
   onDone: () => void;
 }) {
+  const { t } = useI18n();
   const inventory = useLogementEquipements(logementId);
   const save = useSetMenageEquipements(menageId);
   const [checked, setChecked] = useState<Set<string>>(
@@ -1963,10 +1852,10 @@ function EquipementsToPreparePicker({
     setSaving(true);
     try {
       await save.mutateAsync([...checked].map((id) => ({ logement_equipement_id: id })));
-      toast.success("Liste enregistrée");
+      toast.success(t("menageDetail.prepare.saved"));
       onDone();
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Erreur");
+      toast.error(err instanceof ApiError ? err.message : t("common.error"));
     } finally {
       setSaving(false);
     }
@@ -1974,21 +1863,16 @@ function EquipementsToPreparePicker({
 
   const items = inventory.data ?? [];
 
-  if (inventory.isLoading) return <p className="text-sm text-zinc-500">Chargement…</p>;
+  if (inventory.isLoading) return <p className="text-sm text-zinc-500">{t("common.loading")}</p>;
   if (items.length === 0) {
     return (
-      <p className="text-sm text-zinc-500">
-        L&apos;inventaire de ce logement est vide. Ajoute d&apos;abord des équipements sur la fiche
-        logement.
-      </p>
+      <p className="text-sm text-zinc-500">{t("menageDetail.prepare.inventoryEmpty")}</p>
     );
   }
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-sm text-zinc-500">
-        Coche ce que le prestataire doit préparer pour cette prestation.
-      </p>
+      <p className="text-sm text-zinc-500">{t("menageDetail.prepare.pickHint")}</p>
       <ul className="flex max-h-[50vh] flex-col gap-2 overflow-y-auto">
         {items.map((e) => (
           <li key={e.id}>
@@ -2007,7 +1891,7 @@ function EquipementsToPreparePicker({
       </ul>
       <div className="flex justify-end">
         <Button size="sm" onClick={handleSave} loading={saving}>
-          Enregistrer{checked.size > 0 ? ` (${checked.size})` : ""}
+          {t("common.save")}{checked.size > 0 ? ` (${checked.size})` : ""}
         </Button>
       </div>
     </div>
@@ -2026,6 +1910,7 @@ function MenageOptionsSection({
   menage: MenageDetail;
   isAdmin: boolean;
 }) {
+  const { t } = useI18n();
   const list = useMenageOptions(menage.id);
   const [picking, setPicking] = useState(false);
 
@@ -2037,21 +1922,18 @@ function MenageOptionsSection({
       <div className="mb-3 flex items-center justify-between gap-3">
         <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-zinc-500">
           <Gift size={14} />
-          Options choisies
+          {t("menageDetail.options.title")}
         </h2>
         {isAdmin ? (
           <Button size="sm" variant="secondary" onClick={() => setPicking(true)}>
             <Pencil size={14} />
-            Modifier
+            {t("common.edit")}
           </Button>
         ) : null}
       </div>
 
       {items.length === 0 ? (
-        <p className="text-sm text-zinc-500">
-          Aucune option pour cette prestation. « Modifier » pour cocher un pack proposé sur le
-          logement.
-        </p>
+        <p className="text-sm text-zinc-500">{t("menageDetail.options.empty")}</p>
       ) : (
         <ul className="flex flex-col gap-3">
           {items.map((o) => (
@@ -2076,7 +1958,7 @@ function MenageOptionsSection({
       )}
 
       {picking ? (
-        <Modal open onClose={() => setPicking(false)} title="Options choisies par le client">
+        <Modal open onClose={() => setPicking(false)} title={t("menageDetail.options.modalTitle")}>
           <MenageOptionsPicker
             menageId={menage.id}
             logementId={menage.logement_id}
@@ -2100,6 +1982,7 @@ function MenageOptionsPicker({
   selected: MenageOption[];
   onDone: () => void;
 }) {
+  const { t } = useI18n();
   const options = useLogementOptions(logementId);
   const save = useSetMenageOptions(menageId);
   const [checked, setChecked] = useState<Set<string>>(
@@ -2119,29 +2002,26 @@ function MenageOptionsPicker({
     setSaving(true);
     try {
       await save.mutateAsync([...checked].map((id) => ({ logement_option_id: id })));
-      toast.success("Options enregistrées");
+      toast.success(t("menageDetail.options.saved"));
       onDone();
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Erreur");
+      toast.error(err instanceof ApiError ? err.message : t("common.error"));
     } finally {
       setSaving(false);
     }
   };
 
   const items = options.data ?? [];
-  if (options.isLoading) return <p className="text-sm text-zinc-500">Chargement…</p>;
+  if (options.isLoading) return <p className="text-sm text-zinc-500">{t("common.loading")}</p>;
   if (items.length === 0) {
     return (
-      <p className="text-sm text-zinc-500">
-        Aucune option configurée sur ce logement. Ajoute-les d&apos;abord dans la fiche logement,
-        section « Options ».
-      </p>
+      <p className="text-sm text-zinc-500">{t("menageDetail.options.noneConfigured")}</p>
     );
   }
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-sm text-zinc-500">Coche les options retenues par le client.</p>
+      <p className="text-sm text-zinc-500">{t("menageDetail.options.pickHint")}</p>
       <ul className="flex max-h-[50vh] flex-col gap-2 overflow-y-auto">
         {items.map((o) => (
           <li key={o.id}>
@@ -2164,7 +2044,7 @@ function MenageOptionsPicker({
       </ul>
       <div className="flex justify-end">
         <Button size="sm" onClick={handleSave} loading={saving}>
-          Enregistrer{checked.size > 0 ? ` (${checked.size})` : ""}
+          {t("common.save")}{checked.size > 0 ? ` (${checked.size})` : ""}
         </Button>
       </div>
     </div>
@@ -2180,6 +2060,7 @@ function MenageOptionsPicker({
  * mobile de la même façon (parité).
  */
 function LogementReferencePhotosSection({ logementId }: { logementId: string }) {
+  const { t } = useI18n();
   const photos = useLogementPhotos(logementId);
   const rooms = useLogementRooms(logementId);
   const [lightbox, setLightbox] = useState<{ url: string; label: string } | null>(null);
@@ -2200,18 +2081,15 @@ function LogementReferencePhotosSection({ logementId }: { logementId: string }) 
     if (list?.length) groups.push({ id: r.id, label: r.name, photos: list });
   }
   const orphans = byRoom.get("__none__");
-  if (orphans?.length) groups.push({ id: "__none__", label: "Logement", photos: orphans });
+  if (orphans?.length) groups.push({ id: "__none__", label: t("menageDetail.refPhotos.groupLogement"), photos: orphans });
   if (groups.length === 0) return null;
 
   return (
     <Card className="p-6">
       <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">
-        Photos du logement
+        {t("menageDetail.refPhotos.title")}
       </h2>
-      <p className="mb-4 text-sm text-zinc-500 dark:text-zinc-400">
-        À quoi le logement doit ressembler une fois le ménage terminé. Elles s&apos;ajoutent depuis
-        la fiche logement.
-      </p>
+      <p className="mb-4 text-sm text-zinc-500 dark:text-zinc-400">{t("menageDetail.refPhotos.hint")}</p>
 
       <div className="flex flex-col gap-4">
         {groups.map((g) => (
@@ -2245,7 +2123,7 @@ function LogementReferencePhotosSection({ logementId }: { logementId: string }) 
         onClose={() => setLightbox(null)}
         photoUrl={lightbox?.url ?? null}
         title={lightbox?.label}
-        subtitle="Photo de référence du logement"
+        subtitle={t("menageDetail.refPhotos.lightboxSubtitle")}
       />
     </Card>
   );

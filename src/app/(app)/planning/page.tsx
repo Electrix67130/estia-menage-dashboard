@@ -17,7 +17,10 @@ import {
 import { toast } from "sonner";
 import Card from "@/components/ui/Card";
 import Avatar from "@/components/ui/Avatar";
+import DispoBadge from "@/components/DispoBadge";
 import { useAuth } from "@/contexts/AuthContext";
+import { useI18n } from "@/contexts/I18nContext";
+import { intlLocale } from "@/lib/date-fr";
 import {
   useCalendarMenages,
   useAssignMenagePrestataire,
@@ -28,8 +31,13 @@ import { useOrgPrestataires } from "@/hooks/useLogementMembers";
 import { ApiError } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
-const WEEKDAYS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
 const UNASSIGNED = "__unassigned__";
+
+/** « Lun », « Mon », « Mo »… : nom court du jour dans la langue courante, sans point final. */
+function weekdayShort(d: Date, intl: string): string {
+  const raw = d.toLocaleDateString(intl, { weekday: "short" }).replace(/\.$/, "");
+  return raw.charAt(0).toUpperCase() + raw.slice(1);
+}
 
 function ymd(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -79,6 +87,7 @@ function frShort(d: string): string {
 }
 
 function ChipInner({ m, conflict }: { m: CalendarMenage; conflict: boolean }) {
+  const { t } = useI18n();
   const checkin = m.next_checkin_at ? m.next_checkin_at.slice(0, 10) : null;
   const sameDay = checkin !== null && checkin === m.date_prevue.slice(0, 10);
   return (
@@ -93,20 +102,23 @@ function ChipInner({ m, conflict }: { m: CalendarMenage; conflict: boolean }) {
           style={{ backgroundColor: m.logement_color ?? "#3b82f6" }}
         />
         <span className="truncate">
-          {logementLabel(m)}
-          {m.stay_nights ? ` · ${m.stay_nights}n` : ""}
+          {logementLabel(m, t)}
+          {m.stay_nights ? ` · ${t("planning.nightsShort", { n: m.stay_nights })}` : ""}
         </span>
       </span>
+      {/* Ligne « Non assigné » : qui a dit présent ? (badge seul, sans action :
+          l'affectation se fait au glisser-déposer ou depuis la fiche). */}
+      {!m.prestataire_user_id ? <DispoBadge menage={m} compact className="mt-0.5" /> : null}
       {checkin ? (
         <span
           className={cn(
             "flex items-center gap-1 text-[10px]",
             sameDay ? "font-semibold text-amber-600 dark:text-amber-400" : "text-zinc-400",
           )}
-          title={`Prochain check-in : ${frShort(checkin)}`}
+          title={t("planning.nextCheckin", { date: frShort(checkin) })}
         >
           <Key size={9} />
-          {sameDay ? "check-in le jour même" : `avant le ${frShort(checkin)}`}
+          {sameDay ? t("planning.checkinSameDay") : t("planning.checkinBefore", { date: frShort(checkin) })}
         </span>
       ) : null}
     </>
@@ -122,6 +134,7 @@ function DraggableChip({
   conflict: boolean;
   onOpen: (id: string) => void;
 }) {
+  const { t } = useI18n();
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: m.id,
     data: { menage: m },
@@ -139,7 +152,7 @@ function DraggableChip({
         conflict ? "border-rose-400 ring-1 ring-rose-300 dark:border-rose-700" : "border-transparent",
         isDragging && "opacity-40",
       )}
-      title={conflict ? "Chevauchement horaire — glisser pour réaffecter" : "Glisser pour réaffecter"}
+      title={conflict ? t("planning.conflictDrag") : t("planning.drag")}
     >
       <ChipInner m={m} conflict={conflict} />
     </button>
@@ -169,6 +182,7 @@ function PrestaRow({
   onOpen: (id: string) => void;
   disabled?: boolean;
 }) {
+  const { t } = useI18n();
   const { setNodeRef, isOver } = useDroppable({ id: row.key, disabled });
   return (
     <div
@@ -178,7 +192,7 @@ function PrestaRow({
         isOver && !disabled && "bg-blue-50/70 ring-1 ring-inset ring-blue-300 dark:bg-blue-950/30",
         disabled && "opacity-40 grayscale",
       )}
-      title={disabled ? "Pas membre du logement de ce ménage" : undefined}
+      title={disabled ? t("planning.notMember") : undefined}
     >
       <div className="flex items-center gap-2 p-3">
         {row.key === UNASSIGNED ? (
@@ -209,6 +223,8 @@ function PrestaRow({
 }
 
 export default function PlanningPage() {
+  const { t, tp, locale } = useI18n();
+  const intl = intlLocale(locale);
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
   const router = useRouter();
@@ -225,14 +241,14 @@ export default function PlanningPage() {
       d.setDate(monday.getDate() + i);
       return d;
     });
-    const f = (d: Date) => d.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+    const f = (d: Date) => d.toLocaleDateString(intl, { day: "numeric", month: "short" });
     return {
       days,
       from: ymd(days[0]),
       to: ymd(days[6]),
       label: `${f(days[0])} – ${f(days[6])} ${days[6].getFullYear()}`,
     };
-  }, [offset]);
+  }, [offset, intl]);
 
   const menages = useCalendarMenages({ from: week.from, to: week.to });
   const prestataires = useOrgPrestataires();
@@ -275,8 +291,8 @@ export default function PlanningPage() {
       }));
     // Toujours afficher « Non assigné » (même vide) : sert de zone de dépôt pour
     // désassigner un ménage.
-    return [{ key: UNASSIGNED, label: "Non assigné", first_name: "", last_name: "" }, ...presta];
-  }, [prestataires.data]);
+    return [{ key: UNASSIGNED, label: t("prestation.unassigned"), first_name: "", last_name: "" }, ...presta];
+  }, [prestataires.data, t]);
 
   const onDragStart = (e: DragStartEvent) => {
     setActiveMenage((e.active.data.current?.menage as CalendarMenage) ?? null);
@@ -293,9 +309,9 @@ export default function PlanningPage() {
     assign.mutate(
       { menageId: m.id, prestataire_user_id: target },
       {
-        onSuccess: () => toast.success(target ? "Ménage réaffecté" : "Ménage désassigné"),
+        onSuccess: () => toast.success(target ? t("planning.reassigned") : t("planning.unassignedDone")),
         onError: (err) =>
-          toast.error(err instanceof ApiError ? err.message : "Échec de l'affectation"),
+          toast.error(err instanceof ApiError ? err.message : t("planning.assignFailed")),
       },
     );
   };
@@ -304,7 +320,7 @@ export default function PlanningPage() {
     return (
       <div className="p-6">
         <Card>
-          <p className="text-sm text-zinc-600 dark:text-zinc-300">Accès réservé aux administrateurs.</p>
+          <p className="text-sm text-zinc-600 dark:text-zinc-300">{t("common.adminOnly")}</p>
         </Card>
       </div>
     );
@@ -318,11 +334,9 @@ export default function PlanningPage() {
         <div className="flex items-center gap-3">
           <CalendarRange size={24} className="text-zinc-500" />
           <div>
-            <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">Planning</h1>
+            <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">{t("nav.planning")}</h1>
             <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              {totalConflicts > 0
-                ? `${totalConflicts} ménage${totalConflicts > 1 ? "s" : ""} en chevauchement · glisse un ménage pour réaffecter`
-                : "Glisse un ménage sur un prestataire pour l'affecter"}
+              {totalConflicts > 0 ? tp("planning.conflictsSubtitle", totalConflicts) : t("planning.subtitle")}
             </p>
           </div>
         </div>
@@ -330,7 +344,7 @@ export default function PlanningPage() {
           <button
             type="button"
             onClick={() => setOffset((o) => o - 1)}
-            aria-label="Semaine précédente"
+            aria-label={t("period.previousWeek")}
             className="rounded-full p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-white"
           >
             <ChevronLeft size={16} />
@@ -341,7 +355,7 @@ export default function PlanningPage() {
           <button
             type="button"
             onClick={() => setOffset((o) => o + 1)}
-            aria-label="Semaine suivante"
+            aria-label={t("period.nextWeek")}
             className="rounded-full p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-white"
           >
             <ChevronRight size={16} />
@@ -357,7 +371,7 @@ export default function PlanningPage() {
               offset === 0 && "invisible",
             )}
           >
-            Cette semaine
+            {t("period.thisWeek")}
           </button>
         </div>
       </div>
@@ -366,7 +380,7 @@ export default function PlanningPage() {
         <Card className="overflow-x-auto p-0">
           <div className="min-w-[900px]">
             <div className="grid grid-cols-[160px_repeat(7,1fr)] border-b border-zinc-200 dark:border-zinc-800">
-              <div className="p-3 text-xs font-semibold uppercase tracking-wider text-zinc-400">Prestataire</div>
+              <div className="p-3 text-xs font-semibold uppercase tracking-wider text-zinc-400">{t("menage.fields.prestataire")}</div>
               {week.days.map((d, i) => {
                 const isToday = ymd(d) === todayYmd;
                 return (
@@ -377,7 +391,7 @@ export default function PlanningPage() {
                       isToday && "bg-blue-50/60 dark:bg-blue-950/20",
                     )}
                   >
-                    <p className="text-xs font-semibold text-zinc-700 dark:text-zinc-200">{WEEKDAYS[i]}</p>
+                    <p className="text-xs font-semibold text-zinc-700 dark:text-zinc-200">{weekdayShort(d, intl)}</p>
                     <p className={cn("text-xs", isToday ? "font-bold text-blue-600 dark:text-blue-400" : "text-zinc-400")}>
                       {d.getDate()}
                     </p>
@@ -387,9 +401,9 @@ export default function PlanningPage() {
             </div>
 
             {menages.isLoading ? (
-              <p className="p-6 text-sm text-zinc-500">Chargement…</p>
+              <p className="p-6 text-sm text-zinc-500">{t("common.loading")}</p>
             ) : rows.length === 0 ? (
-              <p className="p-6 text-sm text-zinc-500">Aucun prestataire.</p>
+              <p className="p-6 text-sm text-zinc-500">{t("planning.noPrestataire")}</p>
             ) : (
               rows.map((row) => (
                 <PrestaRow

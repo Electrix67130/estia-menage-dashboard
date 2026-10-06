@@ -3,10 +3,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import type { PrestationType } from "@/lib/prestation";
+import { tFr, type TFn } from "@/i18n/translations";
 
-/** Libellé d'origine d'un ménage (Manuel / Airbnb / Booking…) pour badge. */
-export function menageSourceLabel(externalSource?: string | null): string {
-  if (!externalSource) return "Manuel";
+/**
+ * Origine d'une prestation (Manuel / Airbnb / Booking / … / Externe).
+ * Passer le `t` de `useI18n()` pour suivre la langue de l'app (français sinon).
+ */
+export function menageSourceLabel(externalSource?: string | null, t: TFn = tFr): string {
+  if (!externalSource) return t("prestations.creatorManual");
   const provider = externalSource.replace(/^cal_/, "");
   const map: Record<string, string> = {
     airbnb: "Airbnb",
@@ -14,7 +18,7 @@ export function menageSourceLabel(externalSource?: string | null): string {
     vrbo: "Vrbo",
     ical: "iCal",
   };
-  return map[provider] ?? "Externe";
+  return map[provider] ?? t("prestations.creatorExternal");
 }
 
 export interface MenageDetail {
@@ -90,6 +94,9 @@ export interface EligiblePrestataire {
   avatar_url: string | null;
   /** true = membre prestataire du logement ; false = affectation ponctuelle possible. */
   is_member: boolean;
+  /** Vote du prestataire sur CE ménage : présent, absent, ou null = pas encore répondu. */
+  response_status: "present" | "absent" | null;
+  responded_at: string | null;
 }
 
 const KEY = ["menage-detail"] as const;
