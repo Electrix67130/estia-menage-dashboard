@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useMemo } from "react";
 import { Clock } from "lucide-react";
+import { useI18n } from "@/contexts/I18nContext";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -17,6 +18,7 @@ interface Props {
 
 /** Sélecteur d'heure custom (liste de créneaux) — cohérent avec le thème de l'app. */
 export default function TimePicker({ label, value, onChange, step = 15, id, className }: Props) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -57,7 +59,7 @@ export default function TimePicker({ label, value, onChange, step = 15, id, clas
           onClick={() => setOpen((o) => !o)}
           className="flex h-10 w-full items-center justify-between rounded-lg border border-zinc-300 bg-white px-3 text-sm text-zinc-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
         >
-          <span className={value ? "" : "text-zinc-400"}>{value || "Choisir une heure"}</span>
+          <span className={value ? "" : "text-zinc-400"}>{value || t("ui.timePicker.placeholder")}</span>
           <Clock size={16} className="text-zinc-400" />
         </button>
 
@@ -74,7 +76,7 @@ export default function TimePicker({ label, value, onChange, step = 15, id, clas
               }}
               className="flex w-full items-center rounded-lg px-3 py-1.5 text-sm text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
             >
-              — Aucune
+              {t("ui.timePicker.none")}
             </button>
             {slots.map((s) => {
               const active = s === value;

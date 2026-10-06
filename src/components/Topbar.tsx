@@ -68,7 +68,7 @@ export default function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
       <div className="flex min-w-0 items-center gap-2">
         <button
           onClick={onMenuClick}
-          aria-label="Ouvrir le menu"
+          aria-label={t("shell.openMenu")}
           className="-ml-1 rounded-lg p-2 text-zinc-600 hover:bg-zinc-100 md:hidden dark:text-zinc-300 dark:hover:bg-zinc-800"
         >
           <Menu size={22} />
@@ -107,7 +107,7 @@ export default function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
                           <p className="truncate text-sm font-medium text-zinc-900 dark:text-white">
                             {m.organization_name}
                           </p>
-                          <p className="text-xs text-zinc-500">{m.role}</p>
+                          <p className="text-xs text-zinc-500">{t(`role.${m.role}`)}</p>
                         </div>
                         {active ? <Check size={14} className="text-blue-600" /> : null}
                       </button>

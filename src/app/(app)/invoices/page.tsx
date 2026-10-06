@@ -15,6 +15,7 @@ import Textarea from "@/components/ui/Textarea";
 import EmptyState from "@/components/ui/EmptyState";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDialog } from "@/contexts/DialogContext";
+import { useI18n } from "@/contexts/I18nContext";
 import { ApiError } from "@/lib/api";
 import { formatDateFr, formatCurrencyFr } from "@/lib/date-fr";
 import { useClients } from "@/hooks/useClients";
@@ -41,13 +42,14 @@ const STATUS_VARIANT: Record<InvoiceStatus, "default" | "success" | "warning" | 
   refused: "danger",
 };
 
-const STATUS_LABEL: Record<InvoiceStatus, string> = {
-  draft: "Brouillon",
-  sent: "Envoyée",
-  paid: "Payée",
-  cancelled: "Annulée",
-  accepted: "Acceptée",
-  refused: "Refusée",
+/** Clé i18n du libellé de chaque statut (`invoices.status.*`). */
+const STATUS_KEY: Record<InvoiceStatus, string> = {
+  draft: "invoices.status.draft",
+  sent: "invoices.status.sent",
+  paid: "invoices.status.paid",
+  cancelled: "invoices.status.cancelled",
+  accepted: "invoices.status.accepted",
+  refused: "invoices.status.refused",
 };
 
 function ymd(d: Date) {
@@ -65,6 +67,7 @@ function currentMonthRange(): { start: string; end: string } {
 export default function InvoicesPage() {
   const { user } = useAuth();
   const { confirm } = useDialog();
+  const { t, tp } = useI18n();
   const isAdmin = user?.role === "admin";
   const [type, setType] = usePersistedState<InvoiceType>("invoices.type", "invoice");
   const [showCreate, setShowCreate] = useState(false);
@@ -105,7 +108,7 @@ export default function InvoicesPage() {
     return (
       <div className="p-6">
         <Card>
-          <p className="text-sm text-zinc-600 dark:text-zinc-300">Accès réservé aux administrateurs.</p>
+          <p className="text-sm text-zinc-600 dark:text-zinc-300">{t("common.adminOnly")}</p>
         </Card>
       </div>
     );
@@ -116,7 +119,7 @@ export default function InvoicesPage() {
 
   const clientName = (id: string) => {
     const c = clientsById.get(id);
-    return c ? clientDisplayName(c) : "Client";
+    return c ? clientDisplayName(c, t) : t("clients.client");
   };
 
   const handleDownloadPdf = async (inv: Invoice) => {
@@ -124,7 +127,7 @@ export default function InvoicesPage() {
     try {
       await downloadInvoiceFile(`/invoices/${inv.id}/pdf`, `${isQuote ? "devis" : "facture"}-${name}.pdf`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Téléchargement impossible");
+      toast.error(err instanceof Error ? err.message : t("invoices.downloadFailed"));
     }
   };
 
@@ -132,22 +135,22 @@ export default function InvoicesPage() {
     update.mutate(
       { id: inv.id, input: { status } },
       {
-        onSuccess: () => toast.success("Statut mis à jour"),
-        onError: (err) => toast.error(err instanceof ApiError ? err.message : "Erreur"),
+        onSuccess: () => toast.success(t("invoices.statusUpdated")),
+        onError: (err) => toast.error(err instanceof ApiError ? err.message : t("common.error")),
       },
     );
   };
 
   const handleDelete = async (inv: Invoice) => {
     const ok = await confirm({
-      title: "Supprimer ce brouillon ?",
+      title: t("invoices.deleteDraftTitle"),
       tone: "danger",
-      confirmLabel: "Supprimer",
+      confirmLabel: t("common.delete"),
     });
     if (!ok) return;
     del.mutate(inv.id, {
-      onSuccess: () => toast.success("Brouillon supprimé"),
-      onError: (err) => toast.error(err instanceof ApiError ? err.message : "Suppression impossible"),
+      onSuccess: () => toast.success(t("invoices.draftDeleted")),
+      onError: (err) => toast.error(err instanceof ApiError ? err.message : t("invoices.deleteFailed")),
     });
   };
 
@@ -159,7 +162,7 @@ export default function InvoicesPage() {
         `factures-${start}_${end}.csv`,
       );
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Export impossible");
+      toast.error(err instanceof Error ? err.message : t("invoices.exportFailed"));
     }
   };
 
@@ -169,9 +172,9 @@ export default function InvoicesPage() {
         <div className="flex items-center gap-3">
           <Receipt size={24} className="text-zinc-500" />
           <div>
-            <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">Facturation</h1>
+            <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">{t("invoices.title")}</h1>
             <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              {invoices.length} {isQuote ? "devis" : `facture${invoices.length > 1 ? "s" : ""}`}
+              {tp(isQuote ? "invoices.countQuote" : "invoices.countInvoice", invoices.length)}
             </p>
           </div>
         </div>
@@ -181,25 +184,25 @@ export default function InvoicesPage() {
             size="sm"
             onClick={() => void list.refetch()}
             disabled={list.isFetching}
-            aria-label="Rafraîchir"
+            aria-label={t("invoices.refresh")}
           >
             <RefreshCw size={14} className={list.isFetching ? "animate-spin" : undefined} />
           </Button>
           <Button variant="secondary" onClick={handleExportCsv}>
             <FileDown size={16} />
-            Export CSV
+            {t("invoices.exportCsv")}
           </Button>
           <Button onClick={() => setShowCreate(true)}>
             <Plus size={16} />
-            {isQuote ? "Nouveau devis" : "Nouvelle facture"}
+            {isQuote ? t("invoices.newQuote") : t("invoices.newInvoice")}
           </Button>
         </div>
       </div>
 
       <div className="inline-flex w-fit rounded-full bg-zinc-100 p-1 dark:bg-zinc-800">
         {([
-          { key: "invoice" as InvoiceType, label: "Factures" },
-          { key: "quote" as InvoiceType, label: "Devis" },
+          { key: "invoice" as InvoiceType, label: t("nav.invoices") },
+          { key: "quote" as InvoiceType, label: t("invoices.quotes") },
         ]).map((tt) => {
           const active = type === tt.key;
           return (
@@ -220,13 +223,13 @@ export default function InvoicesPage() {
 
       <Card className="p-0">
         {list.isLoading ? (
-          <p className="p-6 text-sm text-zinc-500">Chargement…</p>
+          <p className="p-6 text-sm text-zinc-500">{t("common.loading")}</p>
         ) : invoices.length === 0 ? (
           <div className="p-6">
             <EmptyState
               icon={<Receipt size={28} />}
-              title={isQuote ? "Aucun devis" : "Aucune facture"}
-              description={`Crée ${isQuote ? "un devis" : "une facture"} à partir d'un client et d'une période.`}
+              title={isQuote ? t("invoices.emptyQuotes") : t("invoices.emptyInvoices")}
+              description={isQuote ? t("invoices.emptyQuotesDesc") : t("invoices.emptyInvoicesDesc")}
             />
           </div>
         ) : (
@@ -238,7 +241,7 @@ export default function InvoicesPage() {
                     href={`/invoices/${inv.id}`}
                     className="truncate font-medium text-zinc-900 hover:underline dark:text-white"
                   >
-                    {inv.number ?? "Brouillon"}
+                    {inv.number ?? t("invoices.status.draft")}
                   </Link>
                   <p className="truncate text-xs text-zinc-500">
                     {clientName(inv.client_id)} · {formatDateFr(inv.issue_date)}
@@ -247,13 +250,13 @@ export default function InvoicesPage() {
                 <span className="tabular-nums text-sm font-semibold text-zinc-900 dark:text-white">
                   {formatCurrencyFr(inv.total_ttc, inv.currency)}
                 </span>
-                <Badge variant={STATUS_VARIANT[inv.status]}>{STATUS_LABEL[inv.status]}</Badge>
+                <Badge variant={STATUS_VARIANT[inv.status]}>{t(STATUS_KEY[inv.status])}</Badge>
                 <div className="flex items-center gap-1">
                   <button
                     onClick={() => handleDownloadPdf(inv)}
                     className="rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
-                    aria-label="Télécharger le PDF"
-                    title="Télécharger le PDF"
+                    aria-label={t("invoices.downloadPdf")}
+                    title={t("invoices.downloadPdf")}
                   >
                     <Download size={16} />
                   </button>
@@ -262,8 +265,8 @@ export default function InvoicesPage() {
                       onClick={() => handleStatus(inv, "sent")}
                       disabled={update.isPending}
                       className="rounded-lg p-2 text-zinc-400 hover:bg-blue-50 hover:text-blue-600 disabled:opacity-50 dark:hover:bg-blue-900/20"
-                      aria-label="Marquer comme envoyée"
-                      title="Marquer comme envoyée"
+                      aria-label={t("invoices.markSent")}
+                      title={t("invoices.markSent")}
                     >
                       <Send size={16} />
                     </button>
@@ -273,8 +276,8 @@ export default function InvoicesPage() {
                       onClick={() => handleStatus(inv, "paid")}
                       disabled={update.isPending}
                       className="rounded-lg p-2 text-zinc-400 hover:bg-teal-50 hover:text-teal-600 disabled:opacity-50 dark:hover:bg-teal-900/20"
-                      aria-label="Marquer comme payée"
-                      title="Marquer comme payée"
+                      aria-label={t("invoices.markPaid")}
+                      title={t("invoices.markPaid")}
                     >
                       <CheckCircle2 size={16} />
                     </button>
@@ -284,8 +287,8 @@ export default function InvoicesPage() {
                       onClick={() => handleDelete(inv)}
                       disabled={del.isPending}
                       className="rounded-lg p-2 text-zinc-400 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50 dark:hover:bg-rose-900/20"
-                      aria-label="Supprimer"
-                      title="Supprimer"
+                      aria-label={t("common.delete")}
+                      title={t("common.delete")}
                     >
                       <Trash2 size={16} />
                     </button>
@@ -317,6 +320,7 @@ export default function InvoicesPage() {
 }
 
 function ProviderRecapSection() {
+  const { t, tp } = useI18n();
   const recap = useProviderRecap();
   const rows = recap.data?.data ?? [];
 
@@ -324,13 +328,13 @@ function ProviderRecapSection() {
     <div>
       <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-zinc-900 dark:text-white">
         <Users size={16} className="text-zinc-400" />
-        À payer aux prestataires
+        {t("invoices.providerRecap")}
       </h2>
       <Card className="p-0">
         {recap.isLoading ? (
-          <p className="p-6 text-sm text-zinc-500">Chargement…</p>
+          <p className="p-6 text-sm text-zinc-500">{t("common.loading")}</p>
         ) : rows.length === 0 ? (
-          <p className="p-6 text-sm text-zinc-500">Rien à payer pour le moment.</p>
+          <p className="p-6 text-sm text-zinc-500">{t("invoices.nothingToPay")}</p>
         ) : (
           <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
             {rows.map((r) => (
@@ -340,7 +344,10 @@ function ProviderRecapSection() {
                     {r.first_name} {r.last_name}
                   </p>
                   <p className="text-xs text-zinc-500">
-                    {r.n_menages} ménage{r.n_menages > 1 ? "s" : ""}
+                    {t("prestations.total", {
+                      count: r.n_menages,
+                      noun: tp("prestations.noun.menage", r.n_menages),
+                    })}
                   </p>
                 </div>
                 {/* TODO: bouton « Marquer payé » désactivé en v1 :
@@ -373,6 +380,7 @@ function CreateInvoiceModal({
   initialStart?: string;
   initialEnd?: string;
 }) {
+  const { t } = useI18n();
   const create = useCreateInvoice();
   const month = currentMonthRange();
   const [clientId, setClientId] = useState(initialClientId ?? "");
@@ -384,7 +392,7 @@ function CreateInvoiceModal({
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!clientId) {
-      toast.error("Sélectionne un client");
+      toast.error(t("invoices.selectClient"));
       return;
     }
     try {
@@ -395,39 +403,39 @@ function CreateInvoiceModal({
         period_end: periodEnd,
         notes: notes.trim() || undefined,
       });
-      toast.success(isQuote ? "Devis créé" : "Facture créée");
+      toast.success(isQuote ? t("invoices.quoteCreated") : t("invoices.created"));
       onClose();
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Erreur");
+      toast.error(err instanceof ApiError ? err.message : t("common.error"));
     }
   };
 
   return (
-    <Modal open onClose={onClose} title={isQuote ? "Nouveau devis" : "Nouvelle facture"}>
+    <Modal open onClose={onClose} title={isQuote ? t("invoices.newQuote") : t("invoices.newInvoice")}>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <Select
-          label="Client"
+          label={t("clients.client")}
           value={clientId}
           onChange={(e) => setClientId(e.target.value)}
           required
         >
-          <option value="">Sélectionner un client…</option>
+          <option value="">{t("invoices.selectClientPlaceholder")}</option>
           {clients.map((c) => (
             <option key={c.id} value={c.id}>
-              {clientDisplayName(c)}
+              {clientDisplayName(c, t)}
             </option>
           ))}
         </Select>
         <div className="grid grid-cols-2 gap-3">
           <Input
-            label="Début de période"
+            label={t("invoices.periodStart")}
             type="date"
             value={periodStart}
             onChange={(e) => setPeriodStart(e.target.value)}
             required
           />
           <Input
-            label="Fin de période"
+            label={t("invoices.periodEnd")}
             type="date"
             value={periodEnd}
             onChange={(e) => setPeriodEnd(e.target.value)}
@@ -435,16 +443,16 @@ function CreateInvoiceModal({
           />
         </div>
         <Textarea
-          label="Notes (optionnel)"
+          label={t("invoices.notesOptional")}
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
         />
         <div className="flex justify-end gap-2">
           <Button type="button" variant="ghost" onClick={onClose}>
-            Annuler
+            {t("common.cancel")}
           </Button>
           <Button type="submit" loading={create.isPending}>
-            {isQuote ? "Créer le devis" : "Créer la facture"}
+            {isQuote ? t("invoices.createQuote") : t("invoices.createInvoice")}
           </Button>
         </div>
       </form>

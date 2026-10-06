@@ -30,13 +30,21 @@ import { useI18n } from "@/contexts/I18nContext";
 import { useConfirm } from "@/contexts/DialogContext";
 import { useMenages } from "@/hooks/useMenages";
 import { useRescheduleRequests, useDecideReschedule } from "@/hooks/useRescheduleRequests";
-import type { User, UserRole } from "@/types/api";
+import type { MenageStatus, User, UserRole } from "@/types/api";
 
 const ROLES: UserRole[] = ["admin", "prestataire"];
 
 const ROLE_LABEL_KEYS: Record<UserRole, string> = {
   admin: "role.admin",
   prestataire: "role.prestataire",
+};
+
+const STATUS_LABEL_KEYS: Record<MenageStatus, string> = {
+  a_venir: "menages.statusUpcoming",
+  en_cours: "menages.statusInProgress",
+  termine: "menages.statusCompleted",
+  valide: "menages.statusValidated",
+  annule: "menages.statusCancelled",
 };
 
 export default function TeamDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -187,21 +195,21 @@ export default function TeamDetailPage({ params }: { params: Promise<{ id: strin
                 <>
                   <Detail
                     icon={<Building2 size={14} />}
-                    label="SIRET"
+                    label={t("settings.legal.siret")}
                     value={user.provider_siret || ""}
-                    copyLabel="SIRET"
+                    copyLabel={t("settings.legal.siret")}
                   />
                   <Detail
                     icon={<Building2 size={14} />}
-                    label="N° TVA"
+                    label={t("team.vatNumber")}
                     value={user.provider_vat_number || ""}
-                    copyLabel="N° TVA"
+                    copyLabel={t("team.vatNumber")}
                   />
                   <Detail
                     icon={<Building2 size={14} />}
-                    label="Adresse entreprise"
+                    label={t("team.companyAddress")}
                     value={user.provider_address || ""}
-                    copyLabel="Adresse entreprise"
+                    copyLabel={t("team.companyAddress")}
                   />
                 </>
               ) : null}
@@ -348,6 +356,7 @@ interface EarningsResponse {
 }
 
 function PrestataireActivity({ userId }: { userId: string }) {
+  const { t, tp } = useI18n();
   const earnings = useQuery({
     queryKey: ["user-earnings", userId],
     queryFn: () => apiFetch<EarningsResponse>(`/users/${userId}/earnings`),
@@ -367,13 +376,13 @@ function PrestataireActivity({ userId }: { userId: string }) {
       <Card>
         <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-zinc-900 dark:text-white">
           <Wallet size={14} className="text-blue-600" />
-          Gains du prestataire
+          {t("team.providerEarnings")}
         </h2>
         {earnings.isLoading ? (
-          <p className="text-sm text-zinc-500">Chargement…</p>
+          <p className="text-sm text-zinc-500">{t("common.loading")}</p>
         ) : earnings.error ? (
           <p className="text-sm text-rose-600">
-            {earnings.error instanceof Error ? earnings.error.message : "Erreur"}
+            {earnings.error instanceof Error ? earnings.error.message : t("common.error")}
           </p>
         ) : earnings.data ? (
           <>
@@ -382,7 +391,7 @@ function PrestataireActivity({ userId }: { userId: string }) {
                 {formatCurrencyFr(earnings.data.total, earnings.data.currency)}
               </p>
               <p className="text-sm text-zinc-500">
-                sur {earnings.data.count} ménage{earnings.data.count > 1 ? "s" : ""} terminé{earnings.data.count > 1 ? "s" : ""}
+                {tp("team.earningsOver", earnings.data.count)}
               </p>
             </div>
             {earnings.data.items.length > 0 ? (
@@ -396,7 +405,7 @@ function PrestataireActivity({ userId }: { userId: string }) {
                       </span>
                       {it.validated_at ? (
                         <span className="rounded bg-sky-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-sky-700 dark:bg-sky-900/40 dark:text-sky-300">
-                          Validé
+                          {t("menages.statusValidated")}
                         </span>
                       ) : null}
                     </Link>
@@ -409,7 +418,7 @@ function PrestataireActivity({ userId }: { userId: string }) {
             ) : null}
             {earnings.data.items.length > 8 ? (
               <p className="mt-2 text-xs text-zinc-500">
-                + {earnings.data.items.length - 8} autres ménages
+                {tp("team.moreMenages", earnings.data.items.length - 8)}
               </p>
             ) : null}
           </>
@@ -419,12 +428,12 @@ function PrestataireActivity({ userId }: { userId: string }) {
       <Card>
         <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-zinc-900 dark:text-white">
           <CalendarClock size={14} className="text-blue-600" />
-          Calendrier — Ménages à venir
+          {t("team.upcomingMenages")}
         </h2>
         {menages.isLoading ? (
-          <p className="text-sm text-zinc-500">Chargement…</p>
+          <p className="text-sm text-zinc-500">{t("common.loading")}</p>
         ) : upcoming.length === 0 ? (
-          <p className="text-sm text-zinc-500">Aucun ménage à venir.</p>
+          <p className="text-sm text-zinc-500">{t("team.noUpcoming")}</p>
         ) : (
           <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
             {upcoming.slice(0, 10).map((m) => (
@@ -454,12 +463,12 @@ function PrestataireActivity({ userId }: { userId: string }) {
       <Card>
         <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-zinc-900 dark:text-white">
           <Building2 size={14} className="text-blue-600" />
-          Historique des ménages
+          {t("team.menageHistory")}
         </h2>
         {menages.isLoading ? (
-          <p className="text-sm text-zinc-500">Chargement…</p>
+          <p className="text-sm text-zinc-500">{t("common.loading")}</p>
         ) : past.length === 0 ? (
-          <p className="text-sm text-zinc-500">Aucun ménage terminé.</p>
+          <p className="text-sm text-zinc-500">{t("team.noPast")}</p>
         ) : (
           <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
             {past.slice(0, 10).map((m) => (
@@ -469,7 +478,9 @@ function PrestataireActivity({ userId }: { userId: string }) {
                     <Clock size={12} className="text-zinc-400" />
                     <span className="capitalize">{formatDateFr(m.date_prevue.slice(0, 10), "long")}</span>
                   </div>
-                  <span className="text-xs uppercase tracking-wider text-zinc-500">{m.status}</span>
+                  <span className="text-xs uppercase tracking-wider text-zinc-500">
+                    {t(STATUS_LABEL_KEYS[m.status])}
+                  </span>
                 </Link>
               </li>
             ))}
@@ -486,13 +497,14 @@ const RESCHEDULE_STATUS_PILL: Record<string, string> = {
   rejected: "bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300",
 };
 
-const RESCHEDULE_STATUS_LABEL: Record<string, string> = {
-  pending: "En attente",
-  approved: "Approuvée",
-  rejected: "Refusée",
+const RESCHEDULE_STATUS_KEY: Record<string, string> = {
+  pending: "team.rescheduleStatusPending",
+  approved: "team.rescheduleStatusApproved",
+  rejected: "team.rescheduleStatusRejected",
 };
 
 function RescheduleSection({ userId }: { userId: string }) {
+  const { t, tp } = useI18n();
   const list = useRescheduleRequests({ requested_by: userId });
   const decide = useDecideReschedule();
 
@@ -507,9 +519,9 @@ function RescheduleSection({ userId }: { userId: string }) {
         decision,
         apply_to_menage: applyToMenage,
       });
-      toast.success(decision === "approved" ? "Demande approuvée" : "Demande refusée");
+      toast.success(decision === "approved" ? t("team.requestApproved") : t("team.requestRejected"));
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Erreur");
+      toast.error(err instanceof ApiError ? err.message : t("common.error"));
     }
   };
 
@@ -521,18 +533,18 @@ function RescheduleSection({ userId }: { userId: string }) {
     <Card>
       <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-zinc-900 dark:text-white">
         <CalendarClock size={14} className="text-blue-600" />
-        Demandes de changement de date
+        {t("team.rescheduleTitle")}
         {pending.length > 0 ? (
           <span className="ml-1 inline-flex items-center justify-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
-            {pending.length} en attente
+            {tp("team.pendingCount", pending.length)}
           </span>
         ) : null}
       </h2>
 
       {list.isLoading ? (
-        <p className="text-sm text-zinc-500">Chargement…</p>
+        <p className="text-sm text-zinc-500">{t("common.loading")}</p>
       ) : items.length === 0 ? (
-        <p className="text-sm text-zinc-500">Aucune demande.</p>
+        <p className="text-sm text-zinc-500">{t("team.noRequests")}</p>
       ) : (
         <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
           {[...pending, ...others].slice(0, 10).map((r) => (
@@ -541,14 +553,18 @@ function RescheduleSection({ userId }: { userId: string }) {
                 <div className="min-w-0 flex-1">
                   <p className="font-medium text-zinc-900 dark:text-white">
                     <Link href={`/menages/${r.menage_id}`} className="hover:text-blue-600">
-                      Ménage du {formatDateFr(r.original_date.slice(0, 10), "long")}
+                      {t("team.menageOf", { date: formatDateFr(r.original_date.slice(0, 10), "long") })}
                     </Link>
                   </p>
                   <p className="mt-0.5 text-xs text-zinc-500">
-                    → demande de déplacement au{" "}
+                    {t("team.rescheduleTo")}{" "}
                     <span className="font-medium text-zinc-700 dark:text-zinc-300">
-                      {formatDateFr(r.proposed_date.slice(0, 10), "long")}
-                      {r.proposed_time ? ` à ${r.proposed_time.slice(0, 5)}` : ""}
+                      {r.proposed_time
+                        ? t("prestations.proposedAt", {
+                            date: formatDateFr(r.proposed_date.slice(0, 10), "long"),
+                            time: r.proposed_time.slice(0, 5),
+                          })
+                        : formatDateFr(r.proposed_date.slice(0, 10), "long")}
                     </span>
                   </p>
                   {r.reason ? (
@@ -563,7 +579,7 @@ function RescheduleSection({ userId }: { userId: string }) {
                     (RESCHEDULE_STATUS_PILL[r.status] ?? "bg-zinc-200 text-zinc-700")
                   }
                 >
-                  {RESCHEDULE_STATUS_LABEL[r.status] ?? r.status}
+                  {RESCHEDULE_STATUS_KEY[r.status] ? t(RESCHEDULE_STATUS_KEY[r.status]) : r.status}
                 </span>
               </div>
               {r.status === "pending" ? (
@@ -574,7 +590,7 @@ function RescheduleSection({ userId }: { userId: string }) {
                     disabled={decide.isPending}
                   >
                     <CheckCircle2 size={12} />
-                    Approuver
+                    {t("team.approve")}
                   </Button>
                   <Button
                     size="sm"
@@ -582,7 +598,7 @@ function RescheduleSection({ userId }: { userId: string }) {
                     onClick={() => handleDecide(r.id, "approved", false)}
                     disabled={decide.isPending}
                   >
-                    Approuver sans appliquer
+                    {t("team.approveWithoutApply")}
                   </Button>
                   <Button
                     size="sm"
@@ -590,7 +606,7 @@ function RescheduleSection({ userId }: { userId: string }) {
                     onClick={() => handleDecide(r.id, "rejected", false)}
                     disabled={decide.isPending}
                   >
-                    Refuser
+                    {t("common.refuse")}
                   </Button>
                 </div>
               ) : null}

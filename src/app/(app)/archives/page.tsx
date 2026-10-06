@@ -11,12 +11,14 @@ import Select from "@/components/ui/Select";
 import EmptyState from "@/components/ui/EmptyState";
 import Avatar from "@/components/ui/Avatar";
 import { useAuth } from "@/contexts/AuthContext";
+import { useI18n } from "@/contexts/I18nContext";
+import type { Locale } from "@/i18n/translations";
 import { apiFetch } from "@/lib/api";
 import { useMenages } from "@/hooks/useMenages";
 import { useLogementsList } from "@/hooks/useLogementsList";
 import { logementLabel, prestataireLabel } from "@/hooks/useCalendarMenages";
 import type { User, PaginatedResponse } from "@/types/api";
-import { formatDateFr } from "@/lib/date-fr";
+import { formatDateFr, intlLocale } from "@/lib/date-fr";
 import { cn } from "@/lib/utils";
 import { PAST_WINDOW_DAYS, ymdLocal, addDays } from "@/lib/prestation";
 import type { CalendarMenage } from "@/hooks/useCalendarMenages";
@@ -30,11 +32,11 @@ const STATUS_PILL: Record<"valide" | "annule" | "untreated", string> = {
 type StatusFilter = "all" | "valide" | "annule" | "untreated";
 type Granularity = "week" | "month" | "year" | "all";
 
-const STATUSES: { key: StatusFilter; label: string }[] = [
-  { key: "all", label: "Tous" },
-  { key: "valide", label: "Validés" },
-  { key: "annule", label: "Annulés" },
-  { key: "untreated", label: "Non traitées" },
+const STATUSES: { key: StatusFilter; labelKey: string }[] = [
+  { key: "all", labelKey: "common.all" },
+  { key: "valide", labelKey: "archives.statusValidated" },
+  { key: "annule", labelKey: "archives.statusCancelled" },
+  { key: "untreated", labelKey: "archives.statusUntreated" },
 ];
 
 /** Non clôturée (jamais validée / jamais pointée) : « oubliée », rangée ici passé
@@ -43,19 +45,20 @@ function isUntreated(m: CalendarMenage): boolean {
   return m.status !== "valide" && m.status !== "annule";
 }
 
-const GRANULARITIES: { key: Granularity; label: string }[] = [
-  { key: "week", label: "Semaine" },
-  { key: "month", label: "Mois" },
-  { key: "year", label: "Année" },
-  { key: "all", label: "Tout" },
+const GRANULARITIES: { key: Granularity; labelKey: string }[] = [
+  { key: "week", labelKey: "period.week" },
+  { key: "month", labelKey: "period.month" },
+  { key: "year", labelKey: "period.year" },
+  { key: "all", labelKey: "period.all" },
 ];
 
 function ymd(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-function computeRange(g: Granularity, offset: number): { min?: string; max?: string; label: string } {
+function computeRange(g: Granularity, offset: number, locale: Locale): { min?: string; max?: string; label: string } {
   if (g === "all") return { label: "" };
+  const intl = intlLocale(locale);
   const now = new Date();
   if (g === "week") {
     const dow = (now.getDay() + 6) % 7;
@@ -63,19 +66,20 @@ function computeRange(g: Granularity, offset: number): { min?: string; max?: str
     monday.setDate(now.getDate() - dow + offset * 7);
     const sunday = new Date(monday);
     sunday.setDate(monday.getDate() + 6);
-    const f = (d: Date) => d.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+    const f = (d: Date) => d.toLocaleDateString(intl, { day: "numeric", month: "short" });
     return { min: ymd(monday), max: ymd(sunday), label: `${f(monday)} – ${f(sunday)} ${sunday.getFullYear()}` };
   }
   if (g === "month") {
     const first = new Date(now.getFullYear(), now.getMonth() + offset, 1);
     const last = new Date(now.getFullYear(), now.getMonth() + offset + 1, 0);
-    return { min: ymd(first), max: ymd(last), label: first.toLocaleDateString("fr-FR", { month: "long", year: "numeric" }) };
+    return { min: ymd(first), max: ymd(last), label: first.toLocaleDateString(intl, { month: "long", year: "numeric" }) };
   }
   const y = now.getFullYear() + offset;
   return { min: `${y}-01-01`, max: `${y}-12-31`, label: String(y) };
 }
 
 export default function ArchivesPage() {
+  const { t, tp, locale } = useI18n();
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
   const logements = useLogementsList();
@@ -97,7 +101,7 @@ export default function ArchivesPage() {
   // elle apparaît ici (étiquette « Non traitée ») au lieu de disparaître.
   const staleBefore = useMemo(() => ymdLocal(addDays(new Date(), -PAST_WINDOW_DAYS)), []);
   const [offset, setOffset] = useState(0);
-  const range = useMemo(() => computeRange(granularity, offset), [granularity, offset]);
+  const range = useMemo(() => computeRange(granularity, offset, locale), [granularity, offset, locale]);
 
   // Filtrage server-side : ménages clôturés (closed=true) + logement/prestataire/
   // période. Le statut (validé/annulé) et la recherche texte restent côté client.
@@ -142,11 +146,9 @@ export default function ArchivesPage() {
       <div className="flex items-center gap-3">
         <Archive size={24} className="text-zinc-500" />
         <div>
-          <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">Archives</h1>
+          <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">{t("archives.title")}</h1>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            {list.isLoading
-              ? "Chargement…"
-              : `${archived.length} ménage${archived.length > 1 ? "s" : ""} clôturé${archived.length > 1 ? "s" : ""}`}
+            {list.isLoading ? t("common.loading") : tp("archives.closedCount", archived.length)}
           </p>
         </div>
       </div>
@@ -156,7 +158,7 @@ export default function ArchivesPage() {
         <div className="relative w-full lg:w-72 lg:flex-none">
           <Search size={16} className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-zinc-400" />
           <Input
-            placeholder="Logement, ville, prestataire…"
+            placeholder={t("prestations.searchPlaceholder")}
             className="pl-9"
             wrapperClassName="w-full"
             value={search}
@@ -178,17 +180,17 @@ export default function ArchivesPage() {
                   : "rounded-full px-3 py-1 text-xs font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white"
               }
             >
-              {p.label}
+              {t(p.labelKey)}
             </button>
           ))}
         </div>
         {granularity !== "all" ? (
           <div className="inline-flex items-center gap-1 rounded-full border border-zinc-200 bg-white px-1 py-0.5 dark:border-zinc-800 dark:bg-zinc-900">
-            <button type="button" onClick={() => setOffset((o) => o - 1)} aria-label="Période précédente" className="rounded-full p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-white">
+            <button type="button" onClick={() => setOffset((o) => o - 1)} aria-label={t("period.previous")} className="rounded-full p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-white">
               <ChevronLeft size={16} />
             </button>
             <span className="min-w-[9rem] text-center text-xs font-medium capitalize text-zinc-700 dark:text-zinc-300">{range.label}</span>
-            <button type="button" onClick={() => setOffset((o) => o + 1)} aria-label="Période suivante" className="rounded-full p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-white">
+            <button type="button" onClick={() => setOffset((o) => o + 1)} aria-label={t("period.next")} className="rounded-full p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-white">
               <ChevronRight size={16} />
             </button>
           </div>
@@ -206,7 +208,7 @@ export default function ArchivesPage() {
                   : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100",
               )}
             >
-              {s.label}
+              {t(s.labelKey)}
             </button>
           ))}
         </div>
@@ -214,15 +216,15 @@ export default function ArchivesPage() {
 
       {/* Filtres avancés : logement + prestataire (admin) */}
       <div className="flex flex-col gap-3 sm:flex-row">
-        <Select aria-label="Filtrer par logement" value={logementFilter} onChange={(e) => setLogementFilter(e.target.value)} className="sm:max-w-xs">
-          <option value="">Tous les logements</option>
+        <Select aria-label={t("prestations.filterByLogement")} value={logementFilter} onChange={(e) => setLogementFilter(e.target.value)} className="sm:max-w-xs">
+          <option value="">{t("prestations.allLogements")}</option>
           {(logements.data?.data ?? []).filter((l) => !l.archived_at).map((l) => (
             <option key={l.id} value={l.id}>{l.name}</option>
           ))}
         </Select>
         {isAdmin ? (
-          <Select aria-label="Filtrer par prestataire" value={prestaFilter} onChange={(e) => setPrestaFilter(e.target.value)} className="sm:max-w-xs">
-            <option value="">Tous les prestataires</option>
+          <Select aria-label={t("prestations.filterByPresta")} value={prestaFilter} onChange={(e) => setPrestaFilter(e.target.value)} className="sm:max-w-xs">
+            <option value="">{t("prestations.allPrestas")}</option>
             {prestaOptions.map((u) => (
               <option key={u.id} value={u.id}>
                 {[u.first_name, u.last_name].filter(Boolean).join(" ") || u.email}
@@ -234,19 +236,19 @@ export default function ArchivesPage() {
 
       {list.error ? (
         <Card className="border-rose-200 bg-rose-50 p-4 text-sm text-rose-800 dark:border-rose-900 dark:bg-rose-900/20 dark:text-rose-300">
-          {list.error instanceof Error ? list.error.message : "Erreur de chargement"}
+          {list.error instanceof Error ? list.error.message : t("common.loadError")}
         </Card>
       ) : null}
 
       {list.isLoading ? (
         <Card>
-          <p className="text-sm text-zinc-500">Chargement…</p>
+          <p className="text-sm text-zinc-500">{t("common.loading")}</p>
         </Card>
       ) : archived.length === 0 ? (
         <EmptyState
           icon={<Archive size={32} />}
-          title="Aucun ménage archivé"
-          description={`Les ménages validés ou annulés apparaissent ici, ainsi que les prestations passées depuis plus de ${PAST_WINDOW_DAYS} jours jamais traitées.`}
+          title={t("archives.emptyTitle")}
+          description={t("archives.emptyDescStale", { days: PAST_WINDOW_DAYS })}
         />
       ) : (
         <Card className="p-0">
@@ -273,13 +275,13 @@ export default function ArchivesPage() {
                       </div>
                       <p className="mt-1 truncate text-xs text-zinc-600 dark:text-zinc-400">
                         <Building2 size={11} className="inline-block mr-1 -mt-0.5 text-zinc-400" />
-                        {logementLabel(m)}
+                        {logementLabel(m, t)}
                         {m.logement_city ? <span className="text-zinc-400"> · {m.logement_city}</span> : null}
                       </p>
                     </div>
                     <div className="flex flex-shrink-0 items-center gap-3">
                       {unassigned ? (
-                        <span className="text-xs text-zinc-400">Non assigné</span>
+                        <span className="text-xs text-zinc-400">{t("prestation.unassigned")}</span>
                       ) : (
                         <div className="hidden items-center gap-1.5 sm:inline-flex">
                           <Avatar
@@ -288,17 +290,17 @@ export default function ArchivesPage() {
                             src={m.prestataire_avatar_url ?? undefined}
                             size="sm"
                           />
-                          <span className="text-xs text-zinc-600 dark:text-zinc-400">{prestataireLabel(m)}</span>
+                          <span className="text-xs text-zinc-600 dark:text-zinc-400">{prestataireLabel(m, t)}</span>
                         </div>
                       )}
                       <span className={cn("inline-flex flex-shrink-0 items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider", pill)}>
                         {m.status === "valide"
-                          ? "Validé"
+                          ? t("menages.statusValidated")
                           : untreated
                             ? m.status === "termine"
-                              ? "Non traitée · à valider"
-                              : "Non traitée · jamais pointée"
-                            : "Annulé"}
+                              ? t("archives.untreatedToValidate")
+                              : t("archives.untreatedNeverClocked")
+                            : t("menages.statusCancelled")}
                       </span>
                     </div>
                   </Link>

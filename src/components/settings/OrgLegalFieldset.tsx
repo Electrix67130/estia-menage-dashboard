@@ -5,7 +5,14 @@ import { Sparkles } from "lucide-react";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import { useI18n } from "@/contexts/I18nContext";
-import { useSiretLookup } from "@/hooks/useSiretLookup";
+import { useSiretLookup, type SiretLookupError } from "@/hooks/useSiretLookup";
+
+/** Le hook de recherche SIRET ne connaît pas la langue : il rend un code, traduit ici. */
+const SIRET_ERROR_KEYS: Record<SiretLookupError, string> = {
+  invalid: "settings.siretInvalid",
+  not_found: "settings.siretNotFound",
+  network: "settings.siretNetworkError",
+};
 
 export interface OrgLegalFields {
   siret: string;
@@ -69,11 +76,12 @@ export default function OrgLegalFieldset({ form, setForm, onAutofilledName }: Pr
   const siretValid = /^\d{14}$/.test(siretClean);
 
   const onAutofill = async () => {
-    const result = await lookup.lookup(form.siret);
-    if (!result) {
-      if (lookup.error) toast.error(lookup.error);
+    const outcome = await lookup.lookup(form.siret);
+    if (!outcome.ok) {
+      toast.error(t(SIRET_ERROR_KEYS[outcome.error]));
       return;
     }
+    const { result } = outcome;
     setForm((prev) => ({
       ...prev,
       siret: result.siret,

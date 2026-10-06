@@ -6,18 +6,20 @@ import BackLink from "@/components/BackLink";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import { useAuth } from "@/contexts/AuthContext";
+import { useI18n } from "@/contexts/I18nContext";
 import { useClientReport, type ReportMenage } from "@/hooks/useClients";
-import { formatDateFr } from "@/lib/date-fr";
+import { formatDateFr, formatCurrencyFr } from "@/lib/date-fr";
+import type { TFn } from "@/i18n/translations";
 
 type PresetKey = "this-month" | "last-month" | "this-quarter" | "this-semester" | "this-year" | "custom";
 
-const PRESETS: { key: PresetKey; label: string }[] = [
-  { key: "this-month", label: "Ce mois" },
-  { key: "last-month", label: "Mois dernier" },
-  { key: "this-quarter", label: "Ce trimestre" },
-  { key: "this-semester", label: "Ce semestre" },
-  { key: "this-year", label: "Cette année" },
-  { key: "custom", label: "Personnalisé" },
+const PRESETS: { key: PresetKey; labelKey: string }[] = [
+  { key: "this-month", labelKey: "clients.report.thisMonth" },
+  { key: "last-month", labelKey: "clients.report.lastMonth" },
+  { key: "this-quarter", labelKey: "clients.report.thisQuarter" },
+  { key: "this-semester", labelKey: "clients.report.thisSemester" },
+  { key: "this-year", labelKey: "clients.report.thisYear" },
+  { key: "custom", labelKey: "clients.report.custom" },
 ];
 
 function ymd(d: Date): string {
@@ -109,16 +111,10 @@ function monthKey(dateStr: string): string {
   return dateStr.slice(0, 7); // YYYY-MM
 }
 
+/** « octobre 2026 » dans la langue de l'app (les formateurs suivent `I18nProvider`). */
 function monthLabel(monthKey: string): string {
   const [y, m] = monthKey.split("-");
-  return new Date(parseInt(y, 10), parseInt(m, 10) - 1, 1).toLocaleDateString("fr-FR", {
-    month: "long",
-    year: "numeric",
-  });
-}
-
-function money(value: number, currency: string): string {
-  return new Intl.NumberFormat("fr-FR", { style: "currency", currency }).format(value);
+  return formatDateFr(new Date(parseInt(y, 10), parseInt(m, 10) - 1, 1), "month");
 }
 
 function prestataireLabel(m: ReportMenage): string {
@@ -130,8 +126,11 @@ function prestataireLabel(m: ReportMenage): string {
     .join(", ");
 }
 
-function clientName(c: { first_name: string | null; last_name: string | null; company_name: string | null }): string {
-  return c.company_name || [c.first_name, c.last_name].filter(Boolean).join(" ") || "Client";
+function clientName(
+  c: { first_name: string | null; last_name: string | null; company_name: string | null },
+  t: TFn,
+): string {
+  return c.company_name || [c.first_name, c.last_name].filter(Boolean).join(" ") || t("clients.client");
 }
 
 function csvEscape(v: string | number): string {
@@ -143,6 +142,7 @@ function csvEscape(v: string | number): string {
 export default function ClientReportPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { user } = useAuth();
+  const { t, tp } = useI18n();
   const [preset, setPreset] = useState<PresetKey>("this-month");
   const initial = presetRange("this-month");
   const [from, setFrom] = useState(initial.from);
@@ -172,14 +172,15 @@ export default function ClientReportPage({ params }: { params: Promise<{ id: str
   }, [rows]);
 
   const currency = rows[0]?.m.currency ?? "EUR";
+  const money = (value: number) => formatCurrencyFr(value, currency);
   const c = report.data?.client;
-  const titleName = c ? clientName(c) : "Client";
+  const titleName = c ? clientName(c, t) : t("clients.client");
 
   if (user && user.role !== "admin") {
     return (
       <div className="p-8">
         <Card>
-          <p className="text-zinc-600 dark:text-zinc-300">Accès réservé aux administrateurs.</p>
+          <p className="text-zinc-600 dark:text-zinc-300">{t("common.adminOnly")}</p>
         </Card>
       </div>
     );
@@ -187,21 +188,21 @@ export default function ClientReportPage({ params }: { params: Promise<{ id: str
 
   const handleCsv = () => {
     const headers = [
-      "Date",
-      "Logement",
-      "Adresse",
-      "Prestataire",
-      "Linge inclus",
-      "Prix HT (ménage)",
-      "Prix HT (linge)",
-      "Total HT",
-      "TVA (%)",
-      "TVA",
-      "TTC",
-      "Coût prestataire",
-      "Marge",
-      "Statut",
-      "Source",
+      t("clients.report.colDate"),
+      t("clients.report.colLogement"),
+      t("clients.report.csv.address"),
+      t("menage.fields.prestataire"),
+      t("clients.report.csv.laundryIncluded"),
+      t("clients.report.csv.priceHtMenage"),
+      t("clients.report.csv.priceHtLaundry"),
+      t("invoices.totalHt"),
+      t("clients.report.csv.vatRate"),
+      t("invoices.vat"),
+      t("clients.report.kpiTtc"),
+      t("clients.report.csv.providerCost"),
+      t("clients.report.kpiMargin"),
+      t("clients.report.csv.status"),
+      t("clients.report.csv.source"),
     ];
     const lines = [headers.join(";")];
     for (const r of rows) {
@@ -211,7 +212,7 @@ export default function ClientReportPage({ params }: { params: Promise<{ id: str
           r.m.logement_name ?? "",
           [r.m.logement_address, r.m.logement_city].filter(Boolean).join(" "),
           prestataireLabel(r.m),
-          r.m.laundry_included ? "oui" : "non",
+          r.m.laundry_included ? t("clients.report.csv.yes") : t("clients.report.csv.no"),
           r.clientHt.toFixed(2),
           r.laundryHt.toFixed(2),
           r.totalHt.toFixed(2),
@@ -221,7 +222,7 @@ export default function ClientReportPage({ params }: { params: Promise<{ id: str
           r.providerCost.toFixed(2),
           r.margin.toFixed(2),
           r.m.status,
-          r.m.external_source ?? "manuel",
+          r.m.external_source ?? t("prestations.creatorManual"),
         ]
           .map(csvEscape)
           .join(";"),
@@ -229,7 +230,7 @@ export default function ClientReportPage({ params }: { params: Promise<{ id: str
     }
     lines.push(
       [
-        "TOTAL",
+        t("clients.report.csv.total"),
         "",
         "",
         "",
@@ -257,26 +258,26 @@ export default function ClientReportPage({ params }: { params: Promise<{ id: str
     URL.revokeObjectURL(url);
   };
 
+  const title = t("clients.report.title", { name: titleName });
+
   return (
     <div className="space-y-4 p-6">
       <div className="flex flex-wrap items-center justify-between gap-3 no-print">
         <div>
           <BackLink
             fallback={`/clients/${id}`}
-            label="Retour à la fiche"
+            label={t("clients.report.backToClient")}
             size={14}
             className="inline-flex items-center gap-1 text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white"
           />
-          <h1 className="mt-1 text-2xl font-bold text-zinc-900 dark:text-white">
-            Rapport compta — {titleName}
-          </h1>
+          <h1 className="mt-1 text-2xl font-bold text-zinc-900 dark:text-white">{title}</h1>
         </div>
         <div className="flex gap-2">
           <Button variant="ghost" size="sm" onClick={handleCsv} disabled={rows.length === 0}>
             <Download size={14} /> CSV
           </Button>
           <Button variant="ghost" size="sm" onClick={() => window.print()} disabled={rows.length === 0}>
-            <Printer size={14} /> Imprimer / PDF
+            <Printer size={14} /> {t("clients.report.print")}
           </Button>
         </div>
       </div>
@@ -294,13 +295,13 @@ export default function ClientReportPage({ params }: { params: Promise<{ id: str
                     : "rounded-full border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
                 }
               >
-                {p.label}
+                {t(p.labelKey)}
               </button>
             ))}
           </div>
           <div className="flex flex-wrap items-center gap-3 text-sm">
             <label className="flex items-center gap-2">
-              <span className="text-zinc-500">Du</span>
+              <span className="text-zinc-500">{t("clients.report.from")}</span>
               <input
                 type="date"
                 value={from}
@@ -312,7 +313,7 @@ export default function ClientReportPage({ params }: { params: Promise<{ id: str
               />
             </label>
             <label className="flex items-center gap-2">
-              <span className="text-zinc-500">au</span>
+              <span className="text-zinc-500">{t("clients.report.to")}</span>
               <input
                 type="date"
                 value={to}
@@ -328,40 +329,44 @@ export default function ClientReportPage({ params }: { params: Promise<{ id: str
       </Card>
 
       <div className="hidden print:block">
-        <h1 className="text-xl font-bold">Rapport compta — {titleName}</h1>
+        <h1 className="text-xl font-bold">{title}</h1>
         <p className="text-sm text-zinc-700">
-          Période : {formatDateFr(from)} au {formatDateFr(to)}
+          {t("clients.report.period", { from: formatDateFr(from), to: formatDateFr(to) })}
         </p>
       </div>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
-        <Kpi label="Ménages" value={String(totals.count)} />
-        <Kpi label="CA HT" value={money(totals.totalHt, currency)} />
-        <Kpi label="TVA" value={money(totals.vat, currency)} />
-        <Kpi label="TTC" value={money(totals.ttc, currency)} accent="blue" />
-        <Kpi label="Coût presta" value={money(totals.providerCost, currency)} />
-        <Kpi label="Marge" value={money(totals.margin, currency)} accent={totals.margin >= 0 ? "green" : "red"} />
+        <Kpi label={t("nav.menages")} value={String(totals.count)} />
+        <Kpi label={t("clients.report.kpiRevenueHt")} value={money(totals.totalHt)} />
+        <Kpi label={t("invoices.vat")} value={money(totals.vat)} />
+        <Kpi label={t("clients.report.kpiTtc")} value={money(totals.ttc)} accent="blue" />
+        <Kpi label={t("clients.report.kpiProviderCost")} value={money(totals.providerCost)} />
+        <Kpi
+          label={t("clients.report.kpiMargin")}
+          value={money(totals.margin)}
+          accent={totals.margin >= 0 ? "green" : "red"}
+        />
       </div>
 
       <Card>
         {report.isLoading ? (
-          <p className="p-4 text-sm text-zinc-500">Chargement…</p>
+          <p className="p-4 text-sm text-zinc-500">{t("common.loading")}</p>
         ) : rows.length === 0 ? (
-          <p className="p-4 text-sm text-zinc-500">Aucun ménage sur la période.</p>
+          <p className="p-4 text-sm text-zinc-500">{t("clients.report.empty")}</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="border-b border-zinc-200 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:border-zinc-800">
                 <tr>
-                  <th className="px-3 py-2">Date</th>
-                  <th className="px-3 py-2">Logement</th>
-                  <th className="px-3 py-2">Prestataire</th>
-                  <th className="px-3 py-2 text-center">Linge</th>
-                  <th className="px-3 py-2 text-right">HT</th>
-                  <th className="px-3 py-2 text-right">TVA</th>
-                  <th className="px-3 py-2 text-right">TTC</th>
-                  <th className="px-3 py-2 text-right">Presta</th>
-                  <th className="px-3 py-2 text-right">Marge</th>
+                  <th className="px-3 py-2">{t("clients.report.colDate")}</th>
+                  <th className="px-3 py-2">{t("clients.report.colLogement")}</th>
+                  <th className="px-3 py-2">{t("menage.fields.prestataire")}</th>
+                  <th className="px-3 py-2 text-center">{t("menage.edit.sectionLaundry")}</th>
+                  <th className="px-3 py-2 text-right">{t("clients.report.colHt")}</th>
+                  <th className="px-3 py-2 text-right">{t("invoices.vat")}</th>
+                  <th className="px-3 py-2 text-right">{t("clients.report.kpiTtc")}</th>
+                  <th className="px-3 py-2 text-right">{t("clients.report.colPresta")}</th>
+                  <th className="px-3 py-2 text-right">{t("clients.report.kpiMargin")}</th>
                 </tr>
               </thead>
               {byMonth.map(([mk, items]) => {
@@ -370,7 +375,7 @@ export default function ClientReportPage({ params }: { params: Promise<{ id: str
                   <tbody key={mk} className="border-b border-zinc-100 dark:border-zinc-900">
                     <tr className="bg-zinc-50/70 dark:bg-zinc-900/40">
                       <td colSpan={9} className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-zinc-600 dark:text-zinc-300">
-                        {monthLabel(mk)} · {items.length} ménage{items.length > 1 ? "s" : ""}
+                        {tp("clients.report.monthCount", items.length, { month: monthLabel(mk) })}
                       </td>
                     </tr>
                     {items.map((r) => (
@@ -390,25 +395,25 @@ export default function ClientReportPage({ params }: { params: Promise<{ id: str
                         <td className="px-3 py-2 text-center text-xs">
                           {r.m.laundry_included ? "✓" : "—"}
                         </td>
-                        <td className="px-3 py-2 text-right tabular-nums">{money(r.totalHt, currency)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">{money(r.vat, currency)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums font-semibold">{money(r.ttc, currency)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums text-zinc-600 dark:text-zinc-400">{money(r.providerCost, currency)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{money(r.totalHt)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{money(r.vat)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums font-semibold">{money(r.ttc)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-zinc-600 dark:text-zinc-400">{money(r.providerCost)}</td>
                         <td className={`px-3 py-2 text-right tabular-nums ${r.margin >= 0 ? "text-emerald-600" : "text-red-600"}`}>
-                          {money(r.margin, currency)}
+                          {money(r.margin)}
                         </td>
                       </tr>
                     ))}
                     <tr className="bg-zinc-50 font-semibold text-zinc-700 dark:bg-zinc-900/60 dark:text-zinc-200">
                       <td colSpan={4} className="px-3 py-2 text-right text-xs uppercase tracking-wide">
-                        Sous-total
+                        {t("clients.report.subtotal")}
                       </td>
-                      <td className="px-3 py-2 text-right tabular-nums">{money(sub.totalHt, currency)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{money(sub.vat, currency)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{money(sub.ttc, currency)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{money(sub.providerCost, currency)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{money(sub.totalHt)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{money(sub.vat)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{money(sub.ttc)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{money(sub.providerCost)}</td>
                       <td className={`px-3 py-2 text-right tabular-nums ${sub.margin >= 0 ? "text-emerald-600" : "text-red-600"}`}>
-                        {money(sub.margin, currency)}
+                        {money(sub.margin)}
                       </td>
                     </tr>
                   </tbody>
@@ -417,14 +422,14 @@ export default function ClientReportPage({ params }: { params: Promise<{ id: str
               <tfoot>
                 <tr className="border-t-2 border-zinc-300 bg-blue-50/50 font-bold text-zinc-900 dark:border-zinc-700 dark:bg-blue-950/30 dark:text-white">
                   <td colSpan={4} className="px-3 py-3 text-right uppercase tracking-wide">
-                    Total période
+                    {t("clients.report.totalPeriod")}
                   </td>
-                  <td className="px-3 py-3 text-right tabular-nums">{money(totals.totalHt, currency)}</td>
-                  <td className="px-3 py-3 text-right tabular-nums">{money(totals.vat, currency)}</td>
-                  <td className="px-3 py-3 text-right tabular-nums text-blue-700 dark:text-blue-300">{money(totals.ttc, currency)}</td>
-                  <td className="px-3 py-3 text-right tabular-nums">{money(totals.providerCost, currency)}</td>
+                  <td className="px-3 py-3 text-right tabular-nums">{money(totals.totalHt)}</td>
+                  <td className="px-3 py-3 text-right tabular-nums">{money(totals.vat)}</td>
+                  <td className="px-3 py-3 text-right tabular-nums text-blue-700 dark:text-blue-300">{money(totals.ttc)}</td>
+                  <td className="px-3 py-3 text-right tabular-nums">{money(totals.providerCost)}</td>
                   <td className={`px-3 py-3 text-right tabular-nums ${totals.margin >= 0 ? "text-emerald-600" : "text-red-600"}`}>
-                    {money(totals.margin, currency)}
+                    {money(totals.margin)}
                   </td>
                 </tr>
               </tfoot>

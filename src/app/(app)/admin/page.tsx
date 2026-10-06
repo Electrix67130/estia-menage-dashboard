@@ -6,8 +6,10 @@ import { Building2, Users, FolderArchive, Wallet } from "lucide-react";
 import Card from "@/components/ui/Card";
 import { adminApi } from "@/lib/admin-api";
 import { formatDate } from "@/lib/utils";
+import { useI18n } from "@/contexts/I18nContext";
 
 export default function AdminOverviewPage() {
+  const { t, tp } = useI18n();
   const { data, isLoading } = useQuery({
     queryKey: ["admin", "overview"],
     queryFn: () => adminApi.overview(),
@@ -17,30 +19,45 @@ export default function AdminOverviewPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">Vue d&apos;ensemble plateforme</h1>
-        <p className="text-sm text-zinc-500">Toutes les organisations confondues.</p>
+        <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">{t("admin.overviewTitle")}</h1>
+        <p className="text-sm text-zinc-500">{t("admin.overviewSubtitle")}</p>
       </div>
 
       {isLoading || !data ? (
-        <Card>Chargement…</Card>
+        <Card>{t("common.loading")}</Card>
       ) : (
         <>
           <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-            <Stat icon={<Building2 size={20} />} label="Organisations" value={data.orgs.total} sub={`${data.orgs.active} actives`} />
-            <Stat icon={<Users size={20} />} label="Utilisateurs" value={data.users.total} sub={`${data.users.active} actifs`} />
-            <Stat icon={<FolderArchive size={20} />} label="Menages" value={data.menages.active} sub={`${data.menages.archived} archivés`} />
+            <Stat
+              icon={<Building2 size={20} />}
+              label={t("admin.orgs")}
+              value={data.orgs.total}
+              sub={tp("admin.activeOrgCount", data.orgs.active)}
+            />
+            <Stat
+              icon={<Users size={20} />}
+              label={t("admin.users")}
+              value={data.users.total}
+              sub={tp("admin.activeUserCount", data.users.active)}
+            />
+            <Stat
+              icon={<FolderArchive size={20} />}
+              label={t("nav.menages")}
+              value={data.menages.active}
+              sub={tp("admin.archivedCount", data.menages.archived)}
+            />
             <Stat
               icon={<Wallet size={20} />}
-              label="Sièges facturables"
+              label={t("billing.billableSeats")}
               value={data.billing.billable_seats}
-              sub={`~ ${data.billing.estimated_monthly_eur}€ / mois`}
+              sub={t("admin.estimatedMonthly", { amount: data.billing.estimated_monthly_eur })}
             />
           </div>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <Card>
               <h2 className="mb-3 text-sm font-semibold text-zinc-900 dark:text-white">
-                Dernières organisations
+                {t("admin.recentOrgs")}
               </h2>
               <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
                 {data.recent_orgs.map((o) => (
@@ -58,7 +75,7 @@ export default function AdminOverviewPage() {
             </Card>
             <Card>
               <h2 className="mb-3 text-sm font-semibold text-zinc-900 dark:text-white">
-                Derniers utilisateurs
+                {t("admin.recentUsers")}
               </h2>
               <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
                 {data.recent_users.map((u) => (

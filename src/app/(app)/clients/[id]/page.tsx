@@ -18,6 +18,7 @@ import {
 } from "@/hooks/useClients";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDialog } from "@/contexts/DialogContext";
+import { useI18n } from "@/contexts/I18nContext";
 import { ApiError } from "@/lib/api";
 import { formatDateFr } from "@/lib/date-fr";
 import { clientDisplayName } from "../page";
@@ -45,6 +46,7 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
   const router = useRouter();
   const { user } = useAuth();
   const { confirm } = useDialog();
+  const { t } = useI18n();
   const isAdmin = user?.role === "admin";
   const client = useClient(id);
   const logements = useClientLogements(id);
@@ -52,8 +54,8 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
   const archive = useArchiveClient();
   const [form, setForm] = useState<UpdateClientInput | null>(null);
 
-  if (client.isLoading) return <p className="p-6 text-sm text-zinc-500">Chargement…</p>;
-  if (!client.data) return <p className="p-6 text-sm text-zinc-500">Client introuvable</p>;
+  if (client.isLoading) return <p className="p-6 text-sm text-zinc-500">{t("common.loading")}</p>;
+  if (!client.data) return <p className="p-6 text-sm text-zinc-500">{t("clients.notFound")}</p>;
 
   const c = client.data;
   const editing = form !== null;
@@ -64,27 +66,27 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
     if (!form) return;
     try {
       await update.mutateAsync({ id, input: form });
-      toast.success("Client mis à jour");
+      toast.success(t("clients.updated"));
       setForm(null);
     } catch (err) {
-      const msg = err instanceof ApiError ? err.message : "Erreur";
+      const msg = err instanceof ApiError ? err.message : t("common.error");
       toast.error(msg);
     }
   };
 
   const handleArchive = async () => {
     const ok = await confirm({
-      title: `Archiver "${clientDisplayName(c)}" ?`,
+      title: t("clients.archiveTitle", { name: clientDisplayName(c, t) }),
       tone: "danger",
-      confirmLabel: "Archiver",
+      confirmLabel: t("clients.archive"),
     });
     if (!ok) return;
     try {
       await archive.mutateAsync(id);
-      toast.success("Client archivé");
+      toast.success(t("clients.archived"));
       router.push("/clients");
     } catch (err) {
-      const msg = err instanceof ApiError ? err.message : "Erreur";
+      const msg = err instanceof ApiError ? err.message : t("common.error");
       toast.error(msg);
     }
   };
@@ -92,19 +94,19 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
-        <BackLink fallback="/clients" label="Retour aux clients" />
+        <BackLink fallback="/clients" label={t("clients.backToClients")} />
         {isAdmin && !editing ? (
           <div className="flex gap-2">
             <Link href={`/clients/${id}/report`}>
               <Button variant="ghost">
-                <FileBarChart size={14} /> Rapport compta
+                <FileBarChart size={14} /> {t("clients.report.link")}
               </Button>
             </Link>
             <Button variant="ghost" onClick={() => setForm(clientToFormInput(c))}>
-              Modifier
+              {t("common.edit")}
             </Button>
             <Button variant="danger" onClick={handleArchive}>
-              <Trash2 size={14} /> Archiver
+              <Trash2 size={14} /> {t("clients.archive")}
             </Button>
           </div>
         ) : null}
@@ -116,10 +118,10 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
         </div>
         <div>
           <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">
-            {clientDisplayName(c)}
+            {clientDisplayName(c, t)}
           </h1>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            Créé le {formatDateFr(c.created_at, "long")}
+            {t("clients.createdOn", { date: formatDateFr(c.created_at, "long") })}
           </p>
         </div>
       </div>
@@ -128,60 +130,60 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
         <Card className="p-6">
           <form onSubmit={handleSave} className="flex flex-col gap-4">
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Prénom">
+              <Field label={t("clients.firstName")}>
                 <Input
                   value={current.first_name ?? ""}
                   onChange={(e) => setForm({ ...form!, first_name: e.target.value })}
                 />
               </Field>
-              <Field label="Nom">
+              <Field label={t("clients.lastName")}>
                 <Input
                   value={current.last_name ?? ""}
                   onChange={(e) => setForm({ ...form!, last_name: e.target.value })}
                 />
               </Field>
             </div>
-            <Field label="Entreprise">
+            <Field label={t("clients.company")}>
               <Input
                 value={current.company_name ?? ""}
                 onChange={(e) => setForm({ ...form!, company_name: e.target.value })}
               />
             </Field>
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Email">
+              <Field label={t("common.email")}>
                 <Input
                   type="email"
                   value={current.email ?? ""}
                   onChange={(e) => setForm({ ...form!, email: e.target.value })}
                 />
               </Field>
-              <Field label="Téléphone">
+              <Field label={t("clients.phone")}>
                 <Input
                   value={current.phone ?? ""}
                   onChange={(e) => setForm({ ...form!, phone: e.target.value })}
                 />
               </Field>
             </div>
-            <Field label="Adresse">
+            <Field label={t("menages.form.address")}>
               <Input
                 value={current.billing_address ?? ""}
                 onChange={(e) => setForm({ ...form!, billing_address: e.target.value })}
               />
             </Field>
             <div className="grid grid-cols-3 gap-3">
-              <Field label="Code postal">
+              <Field label={t("menages.form.postalCode")}>
                 <Input
                   value={current.postal_code ?? ""}
                   onChange={(e) => setForm({ ...form!, postal_code: e.target.value })}
                 />
               </Field>
-              <Field label="Ville">
+              <Field label={t("menages.form.city")}>
                 <Input
                   value={current.city ?? ""}
                   onChange={(e) => setForm({ ...form!, city: e.target.value })}
                 />
               </Field>
-              <Field label="Pays">
+              <Field label={t("clients.country")}>
                 <Input
                   value={current.country ?? "FR"}
                   maxLength={2}
@@ -199,7 +201,7 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
                   onChange={(e) => setForm({ ...form!, siret: e.target.value })}
                 />
               </Field>
-              <Field label="N° TVA">
+              <Field label={t("clients.vatNumber")}>
                 <Input
                   value={current.vat_number ?? ""}
                   onChange={(e) => setForm({ ...form!, vat_number: e.target.value })}
@@ -208,10 +210,10 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
             </div>
             <div className="flex justify-end gap-2">
               <Button type="button" variant="ghost" onClick={() => setForm(null)}>
-                Annuler
+                {t("common.cancel")}
               </Button>
               <Button type="submit" disabled={update.isPending}>
-                {update.isPending ? "Sauvegarde…" : "Enregistrer"}
+                {update.isPending ? t("common.saving") : t("common.save")}
               </Button>
             </div>
           </form>
@@ -220,15 +222,15 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
         <div className="grid gap-4 md:grid-cols-2">
           <Card className="p-6">
             <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-zinc-500">
-              Contact
+              {t("clients.contact")}
             </h2>
-            <Row label="Email">
+            <Row label={t("common.email")}>
               <ContactLink kind="email" value={c.email} />
             </Row>
-            <Row label="Téléphone">
+            <Row label={t("clients.phone")}>
               <ContactLink kind="phone" value={c.phone} />
             </Row>
-            <Row label="Adresse">
+            <Row label={t("menages.form.address")}>
               {(() => {
                 const full = [
                   c.billing_address,
@@ -240,26 +242,26 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
                 return <ContactLink kind="address" value={full || null} />;
               })()}
             </Row>
-            <Row label="Pays">
+            <Row label={t("clients.country")}>
               <span className="text-sm text-zinc-900 dark:text-white">{c.country || "—"}</span>
             </Row>
           </Card>
           <Card className="p-6">
             <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-zinc-500">
-              Légal
+              {t("clients.legal")}
             </h2>
             <Row label="SIRET" value={c.siret} />
-            <Row label="N° TVA" value={c.vat_number} />
+            <Row label={t("clients.vatNumber")} value={c.vat_number} />
           </Card>
         </div>
       )}
 
       <Card className="p-6">
         <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-zinc-500">
-          Logements rattachés
+          {t("clients.linkedLogements")}
         </h2>
         {logements.isLoading ? (
-          <p className="text-sm text-zinc-500">Chargement…</p>
+          <p className="text-sm text-zinc-500">{t("common.loading")}</p>
         ) : Array.isArray(logements.data) && logements.data.length > 0 ? (
           <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
             {logements.data.map((l) => {
@@ -275,7 +277,7 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
             })}
           </ul>
         ) : (
-          <p className="text-sm text-zinc-500">Aucun logement rattaché.</p>
+          <p className="text-sm text-zinc-500">{t("clients.noLinkedLogement")}</p>
         )}
       </Card>
     </div>

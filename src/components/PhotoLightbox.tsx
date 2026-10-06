@@ -2,6 +2,7 @@
 
 import { ReactNode, useEffect } from "react";
 import { X } from "lucide-react";
+import { useI18n } from "@/contexts/I18nContext";
 
 /**
  * Lightbox photo standardisée pour le dashboard. Utilisée partout où une image
@@ -25,6 +26,7 @@ export default function PhotoLightbox({
   subtitle?: string;
   footer?: ReactNode;
 }) {
+  const { t } = useI18n();
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -59,7 +61,7 @@ export default function PhotoLightbox({
             onClose();
           }}
           className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white/15 text-white transition-colors hover:bg-white/25"
-          aria-label="Fermer"
+          aria-label={t("common.close")}
         >
           <X size={18} />
         </button>

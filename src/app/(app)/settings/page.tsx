@@ -18,7 +18,12 @@ import { useTheme, ThemeMode } from "@/contexts/ThemeContext";
 import { useI18n, LOCALES, Locale } from "@/contexts/I18nContext";
 import { useConfirm } from "@/contexts/DialogContext";
 import { cn } from "@/lib/utils";
-import type { Organization } from "@/types/api";
+import type { Organization, UserRole } from "@/types/api";
+
+const ROLE_KEYS: Record<UserRole, string> = {
+  admin: "role.admin",
+  prestataire: "role.prestataire",
+};
 
 const THEME_OPTIONS: { mode: ThemeMode; key: string; icon: typeof Sun }[] = [
   { mode: "light", key: "settings.themeLight", icon: Sun },
@@ -470,7 +475,9 @@ export default function SettingsPage() {
                     <p className="truncate font-medium text-zinc-900 dark:text-white">
                       {m.organization_name}
                     </p>
-                    <p className="text-xs text-zinc-500">{m.role}</p>
+                    <p className="text-xs text-zinc-500">
+                      {m.role in ROLE_KEYS ? t(ROLE_KEYS[m.role as UserRole]) : m.role}
+                    </p>
                   </div>
                   {active ? (
                     <span className="flex items-center gap-1 text-xs font-semibold text-blue-600 dark:text-blue-400">

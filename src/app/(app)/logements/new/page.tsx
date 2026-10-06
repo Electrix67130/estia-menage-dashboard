@@ -19,23 +19,27 @@ import ClientPickerModal from "@/components/ClientPickerModal";
 import { ChevronDown, User } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useI18n } from "@/contexts/I18nContext";
+import type { TFn } from "@/i18n/translations";
 import { useCreateLogement, type CreateLogementInput } from "@/hooks/useLogement";
 import { useClients } from "@/hooks/useClients";
 import { useChecklistTemplates } from "@/hooks/useChecklistTemplates";
 import { ApiError, apiFetch } from "@/lib/api";
 
-function clientDisplayName(c: {
-  company_name?: string | null;
-  first_name?: string | null;
-  last_name?: string | null;
-}) {
+function clientDisplayName(
+  c: {
+    company_name?: string | null;
+    first_name?: string | null;
+    last_name?: string | null;
+  },
+  t: TFn,
+) {
   if (c.company_name) return c.company_name;
-  return [c.first_name, c.last_name].filter(Boolean).join(" ") || "Client sans nom";
+  return [c.first_name, c.last_name].filter(Boolean).join(" ") || t("logements.form.clientNoName");
 }
 
 export default function NewLogementPage() {
   const router = useRouter();
-  const { t } = useI18n();
+  const { t, tp } = useI18n();
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
   const create = useCreateLogement();
@@ -87,7 +91,7 @@ export default function NewLogementPage() {
     return (
       <div className="p-6">
         <Card className="border-blue-200 bg-blue-50 p-4 text-sm text-blue-800 dark:border-blue-900 dark:bg-blue-900/20 dark:text-blue-300">
-          Seul un administrateur peut créer un logement.
+          {t("logements.form.adminOnly")}
         </Card>
       </div>
     );
@@ -101,30 +105,30 @@ export default function NewLogementPage() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
-      toast.error("Le nom est requis");
+      toast.error(t("logements.form.nameRequired"));
       return;
     }
     const surface = surfaceM2.trim() ? parseInt(surfaceM2.trim(), 10) : undefined;
     if (surfaceM2.trim() && (surface === undefined || Number.isNaN(surface) || surface < 0)) {
-      toast.error("Surface invalide");
+      toast.error(t("logements.form.surfaceInvalid"));
       return;
     }
     const parseMoneyOrUndef = (s: string): number | undefined => {
-      const t = s.trim();
-      if (!t) return undefined;
-      const n = parseFloat(t.replace(",", "."));
+      const v = s.trim();
+      if (!v) return undefined;
+      const n = parseFloat(v.replace(",", "."));
       return Number.isNaN(n) || n < 0 ? undefined : n;
     };
     const parseIntOrUndef = (s: string): number | undefined => {
-      const t = s.trim();
-      if (!t) return undefined;
-      const n = parseInt(t, 10);
+      const v = s.trim();
+      if (!v) return undefined;
+      const n = parseInt(v, 10);
       return Number.isNaN(n) || n < 0 ? undefined : n;
     };
     const normalizeTime = (s: string): string | undefined => {
-      const t = s.trim();
-      if (!t) return undefined;
-      return /^\d{2}:\d{2}(:\d{2})?$/.test(t) ? t : undefined;
+      const v = s.trim();
+      if (!v) return undefined;
+      return /^\d{2}:\d{2}(:\d{2})?$/.test(v) ? v : undefined;
     };
     const body: CreateLogementInput = {
       name: name.trim(),
@@ -178,28 +182,28 @@ export default function NewLogementPage() {
             body: { template_id: checklistTemplateId },
           });
         } catch {
-          toast.warning("Logement créé, mais le modèle de checklist n'a pas pu être appliqué.");
+          toast.warning(t("logements.form.templateApplyFailed"));
         }
       }
-      toast.success("Logement créé");
+      toast.success(t("logements.form.created"));
       router.push(`/logements/${logement.id}`);
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Erreur");
+      toast.error(err instanceof ApiError ? err.message : t("common.error"));
     }
   };
 
   return (
     <div className="flex flex-col gap-6 p-6">
-      <BackLink fallback="/logements" label="Retour aux logements" />
-      <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">Nouveau logement</h1>
+      <BackLink fallback="/logements" label={t("logements.form.backToList")} />
+      <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">{t("logements.new")}</h1>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
         <Card className="flex flex-col gap-4 p-6">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">
-            Informations
+            {t("team.info")}
           </h2>
           <Input
-            label="Nom"
+            label={t("logements.form.name")}
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Studio Paris 11e"
@@ -207,7 +211,7 @@ export default function NewLogementPage() {
           />
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-              Client (facturation)
+              {t("logements.form.client")}
             </label>
             <button
               type="button"
@@ -224,8 +228,9 @@ export default function NewLogementPage() {
                         first_name: null,
                         last_name: null,
                       },
+                      t,
                     )
-                  : "Aucun client — cliquer pour en choisir un"}
+                  : t("logements.form.noClient")}
               </span>
               <ChevronDown size={14} className="text-zinc-400" />
             </button>
@@ -251,16 +256,16 @@ export default function NewLogementPage() {
           />
 
           <Input
-            label="Surface (m²)"
+            label={t("logements.form.surface")}
             value={surfaceM2}
             onChange={(e) => setSurfaceM2(e.target.value)}
             type="number"
             min={0}
             inputMode="numeric"
-            placeholder="ex. 65"
+            placeholder={t("logements.form.exampleValue", { value: 65 })}
           />
 
-          <ColorPicker label="Couleur (calendrier)" value={color} onChange={setColor} />
+          <ColorPicker label={t("logements.form.color")} value={color} onChange={setColor} />
         </Card>
 
         <Card className="flex flex-col gap-4 p-6">
@@ -360,24 +365,24 @@ export default function NewLogementPage() {
         <Card className="flex flex-col gap-4 p-6">
           <div>
             <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">
-              Valeurs par défaut du ménage
+              {t("logements.form.defaultsSection")}
             </h2>
             <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-              Pré-remplies à la création d&apos;un ménage pour ce logement.
+              {t("logements.form.defaultsHint")}
             </p>
           </div>
 
-          <DurationPicker label="Durée par défaut" value={defDuration} onChange={setDefDuration} />
+          <DurationPicker label={t("logements.form.defaultDuration")} value={defDuration} onChange={setDefDuration} />
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Input
-              label="Tranche horaire — début"
+              label={t("logements.form.timeStart")}
               type="time"
               value={defHoraireDebut}
               onChange={(e) => setDefHoraireDebut(e.target.value)}
             />
             <Input
-              label="Tranche horaire — fin"
+              label={t("logements.form.timeEnd")}
               type="time"
               value={defHoraireFin}
               onChange={(e) => setDefHoraireFin(e.target.value)}
@@ -386,16 +391,16 @@ export default function NewLogementPage() {
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <Input
-              label="Prix client HT (€)"
+              label={t("menage.fields.clientPriceHt")}
               type="number"
               min={0}
               step="0.01"
               value={defClientPrice}
               onChange={(e) => setDefClientPrice(e.target.value)}
-              placeholder="ex. 80"
+              placeholder={t("logements.form.exampleValue", { value: 80 })}
             />
             <Input
-              label="TVA (%)"
+              label={t("menage.fields.clientVatRate")}
               type="number"
               min={0}
               max={100}
@@ -405,21 +410,21 @@ export default function NewLogementPage() {
               placeholder="20"
             />
             <Input
-              label="Prix prestataire (€)"
+              label={t("menage.fields.providerPrice")}
               type="number"
               min={0}
               step="0.01"
               value={defProviderPrice}
               onChange={(e) => setDefProviderPrice(e.target.value)}
-              placeholder="ex. 50"
+              placeholder={t("logements.form.exampleValue", { value: 50 })}
             />
           </div>
 
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-sm font-semibold text-zinc-900 dark:text-white">Linge inclus par défaut</p>
+              <p className="text-sm font-semibold text-zinc-900 dark:text-white">{t("logements.form.laundryDefault")}</p>
               <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                Activable individuellement à la création de chaque ménage.
+                {t("logements.form.laundryDefaultHint")}
               </p>
             </div>
             <label className="inline-flex items-center gap-2 text-sm font-medium">
@@ -429,28 +434,28 @@ export default function NewLogementPage() {
                 onChange={(e) => setDefLaundryIncluded(e.target.checked)}
                 className="h-4 w-4 rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
               />
-              Inclus
+              {t("menage.fields.laundryIncludedShort")}
             </label>
           </div>
           {defLaundryIncluded ? (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Input
-                label="Prix linge — client HT (€)"
+                label={t("logements.form.laundryClient")}
                 type="number"
                 min={0}
                 step="0.01"
                 value={defLaundryClient}
                 onChange={(e) => setDefLaundryClient(e.target.value)}
-                placeholder="ex. 15"
+                placeholder={t("logements.form.exampleValue", { value: 15 })}
               />
               <Input
-                label="Prix linge — prestataire (€)"
+                label={t("logements.form.laundryProvider")}
                 type="number"
                 min={0}
                 step="0.01"
                 value={defLaundryProvider}
                 onChange={(e) => setDefLaundryProvider(e.target.value)}
-                placeholder="ex. 10"
+                placeholder={t("logements.form.exampleValue", { value: 10 })}
               />
             </div>
           ) : null}
@@ -458,56 +463,56 @@ export default function NewLogementPage() {
 
         <Card className="flex flex-col gap-4 p-6">
           <div>
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">Checklist</h2>
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">{t("logements.form.checklistSection")}</h2>
             <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-              Applique un modèle de checklist (gérable dans Modèles). Tu pourras l&apos;ajuster ensuite.
+              {t("logements.form.checklistHint")}
             </p>
           </div>
           <Select
-            label="Modèle de checklist (optionnel)"
+            label={t("logements.form.checklistTemplate")}
             value={checklistTemplateId}
             onChange={(e) => setChecklistTemplateId(e.target.value)}
             disabled={checklistTemplates.isLoading}
           >
-            <option value="">— Aucun —</option>
-            {(checklistTemplates.data?.data ?? []).map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name} ({t.section_count} section{t.section_count > 1 ? "s" : ""})
+            <option value="">{t("logements.form.none")}</option>
+            {(checklistTemplates.data?.data ?? []).map((tpl) => (
+              <option key={tpl.id} value={tpl.id}>
+                {tpl.name} ({tp("logements.form.sectionCount", tpl.section_count)})
               </option>
             ))}
           </Select>
         </Card>
 
         <Card className="flex flex-col gap-4 p-6">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">Accès & notes</h2>
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">{t("logements.form.accessSection")}</h2>
           <Input
-            label="Code boîte à clés (optionnel)"
+            label={t("logements.form.keySafeCode")}
             type="password"
             name="key-safe-code"
             autoComplete="new-password"
             value={keySafeCode}
             onChange={(e) => setKeySafeCode(e.target.value)}
             maxLength={50}
-            placeholder="Ex. 1984"
+            placeholder={t("logements.form.exampleValue", { value: 1984 })}
           />
           <Textarea
-            label="Notes (optionnel)"
+            label={t("logements.form.notes")}
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={4}
             maxLength={5000}
-            placeholder="Code interphone, instructions particulières, accès…"
+            placeholder={t("logements.form.notesPlaceholder")}
           />
         </Card>
 
         <div className="flex items-center justify-end gap-2">
           <Link href="/logements">
             <Button type="button" variant="ghost">
-              Annuler
+              {t("common.cancel")}
             </Button>
           </Link>
           <Button type="submit" loading={create.isPending} disabled={create.isPending}>
-            Créer le logement
+            {t("logements.form.submit")}
           </Button>
         </div>
       </form>

@@ -11,10 +11,13 @@ import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import Avatar from "@/components/ui/Avatar";
+import StatusBadge from "@/components/StatusBadge";
 import { adminApi } from "@/lib/admin-api";
 import { formatDate } from "@/lib/utils";
 import { setTokens } from "@/lib/api";
 import { useConfirm } from "@/contexts/DialogContext";
+import { useI18n } from "@/contexts/I18nContext";
+import type { MenageStatus, UserRole } from "@/types/api";
 
 interface OrgDetail {
   id: string;
@@ -40,11 +43,21 @@ interface OrgDetail {
   }[];
 }
 
+const ROLE_KEYS: Record<UserRole, string> = {
+  admin: "role.admin",
+  prestataire: "role.prestataire",
+};
+
+const MENAGE_STATUSES: readonly MenageStatus[] = ["a_venir", "en_cours", "termine", "valide", "annule"];
+const isMenageStatus = (s: string): s is MenageStatus =>
+  (MENAGE_STATUSES as readonly string[]).includes(s);
+
 export default function AdminOrgDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
   const qc = useQueryClient();
   const confirm = useConfirm();
+  const { t, tp } = useI18n();
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["admin", "orgs", id],
@@ -56,14 +69,14 @@ export default function AdminOrgDetailPage({ params }: { params: Promise<{ id: s
   const enable = useMutation({
     mutationFn: () => adminApi.enableOrg(id),
     onSuccess: () => {
-      toast.success("Organisation réactivée");
+      toast.success(t("admin.orgReactivated"));
       invalidate();
     },
   });
   const disable = useMutation({
     mutationFn: () => adminApi.disableOrg(id),
     onSuccess: () => {
-      toast.success("Organisation désactivée");
+      toast.success(t("admin.orgDeactivated"));
       invalidate();
     },
   });
@@ -71,29 +84,33 @@ export default function AdminOrgDetailPage({ params }: { params: Promise<{ id: s
     mutationFn: () => adminApi.impersonate(id),
     onSuccess: (data) => {
       setTokens(data.access_token, "");
-      toast.success("Connecté en tant qu'admin de l'orga (30 min)");
+      toast.success(t("admin.impersonated"));
       router.replace("/dashboard");
     },
-    onError: () => toast.error("Aucun admin dans cette orga"),
+    onError: () => toast.error(t("admin.impersonateNoAdmin")),
   });
+
+  // Rôle connu → libellé traduit ; sinon on affiche le code tel quel (donnée API).
+  const roleLabel = (role: string) =>
+    role in ROLE_KEYS ? t(ROLE_KEYS[role as UserRole]) : role;
 
   return (
     <div className="flex flex-col gap-6">
       <div>
         <BackLink
           fallback="/admin/orgs"
-          label="Retour aux organisations"
+          label={t("admin.backToOrgs")}
           size={14}
           className="mb-3 inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-900 dark:hover:text-white"
         />
         {isLoading ? (
-          <h1 className="text-2xl font-bold text-zinc-400">Chargement…</h1>
+          <h1 className="text-2xl font-bold text-zinc-400">{t("common.loading")}</h1>
         ) : error || !data ? (
-          <h1 className="text-2xl font-bold text-rose-600">Organisation introuvable</h1>
+          <h1 className="text-2xl font-bold text-rose-600">{t("admin.orgNotFound")}</h1>
         ) : (
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">{data.name}</h1>
-            {!data.is_active ? <Badge variant="danger">Désactivée</Badge> : null}
+            {!data.is_active ? <Badge variant="danger">{t("admin.orgDisabled")}</Badge> : null}
           </div>
         )}
       </div>
@@ -103,53 +120,59 @@ export default function AdminOrgDetailPage({ params }: { params: Promise<{ id: s
           <div className="flex flex-wrap gap-2">
             <Button onClick={() => impersonate.mutate()} variant="secondary">
               <LogIn size={14} />
-              Se connecter en tant qu&apos;admin
+              {t("admin.impersonate")}
             </Button>
             {data.is_active ? (
               <Button
                 variant="danger"
                 onClick={async () => {
                   const ok = await confirm({
-                    title: `Désactiver ${data.name}`,
-                    description: `Désactiver "${data.name}" ?`,
-                    confirmLabel: "Désactiver",
+                    title: t("admin.disableOrgTitle", { name: data.name }),
+                    description: t("admin.disableOrgDescShort", { name: data.name }),
+                    confirmLabel: t("admin.disable"),
                     tone: "danger",
                   });
                   if (ok) disable.mutate();
                 }}
               >
                 <Ban size={14} />
-                Désactiver
+                {t("admin.disable")}
               </Button>
             ) : (
               <Button onClick={() => enable.mutate()}>
                 <CheckCircle size={14} />
-                Réactiver
+                {t("admin.enable")}
               </Button>
             )}
           </div>
 
           <Card>
-            <h2 className="mb-3 text-sm font-semibold text-zinc-900 dark:text-white">Détails</h2>
+            <h2 className="mb-3 text-sm font-semibold text-zinc-900 dark:text-white">{t("admin.details")}</h2>
             <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
               <div>
-                <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">Créée le</dt>
+                <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                  {t("admin.orgCreatedOnLabel")}
+                </dt>
                 <dd className="mt-0.5 text-zinc-900 dark:text-white">{formatDate(data.created_at)}</dd>
               </div>
               <div>
                 <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-                  Conservation archives
+                  {t("admin.archiveRetention")}
                 </dt>
                 <dd className="mt-0.5 text-zinc-900 dark:text-white">
-                  {data.archive_retention_years} an{data.archive_retention_years > 1 ? "s" : ""}
+                  {tp("admin.years", data.archive_retention_years)}
                 </dd>
               </div>
               <div>
-                <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">Membres</dt>
+                <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                  {t("dashboard.members")}
+                </dt>
                 <dd className="mt-0.5 text-zinc-900 dark:text-white">{data.members.length}</dd>
               </div>
               <div>
-                <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">Menages</dt>
+                <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                  {t("nav.menages")}
+                </dt>
                 <dd className="mt-0.5 text-zinc-900 dark:text-white">{data.menages.length}</dd>
               </div>
             </dl>
@@ -158,7 +181,7 @@ export default function AdminOrgDetailPage({ params }: { params: Promise<{ id: s
           <Card className="p-0">
             <div className="border-b border-zinc-200 px-6 py-3 dark:border-zinc-800">
               <h2 className="text-sm font-semibold text-zinc-900 dark:text-white">
-                Membres ({data.members.length})
+                {t("admin.membersWithCount", { count: data.members.length })}
               </h2>
             </div>
             <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
@@ -174,8 +197,8 @@ export default function AdminOrgDetailPage({ params }: { params: Promise<{ id: s
                     </Link>
                     <p className="truncate text-xs text-zinc-500">{m.email}</p>
                   </div>
-                  <Badge variant={m.role === "admin" ? "info" : "default"}>{m.role}</Badge>
-                  {!m.is_active ? <Badge variant="danger">Désactivé</Badge> : null}
+                  <Badge variant={m.role === "admin" ? "info" : "default"}>{roleLabel(m.role)}</Badge>
+                  {!m.is_active ? <Badge variant="danger">{t("admin.userDisabled")}</Badge> : null}
                 </li>
               ))}
             </ul>
@@ -185,7 +208,7 @@ export default function AdminOrgDetailPage({ params }: { params: Promise<{ id: s
             <Card className="p-0">
               <div className="border-b border-zinc-200 px-6 py-3 dark:border-zinc-800">
                 <h2 className="text-sm font-semibold text-zinc-900 dark:text-white">
-                  Menages ({data.menages.length})
+                  {t("admin.menagesWithCount", { count: data.menages.length })}
                 </h2>
               </div>
               <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
@@ -194,11 +217,17 @@ export default function AdminOrgDetailPage({ params }: { params: Promise<{ id: s
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-medium text-zinc-900 dark:text-white">{c.name}</p>
                       <p className="text-xs text-zinc-500">
-                        Créé le {formatDate(c.created_at)}
-                        {c.archived_at ? ` • Archivé le ${formatDate(c.archived_at)}` : ""}
+                        {t("admin.menageCreatedOn", { date: formatDate(c.created_at) })}
+                        {c.archived_at
+                          ? ` • ${t("admin.menageArchivedOn", { date: formatDate(c.archived_at) })}`
+                          : ""}
                       </p>
                     </div>
-                    <Badge variant={c.archived_at ? "default" : "info"}>{c.status}</Badge>
+                    {isMenageStatus(c.status) ? (
+                      <StatusBadge status={c.status} />
+                    ) : (
+                      <Badge variant={c.archived_at ? "default" : "info"}>{c.status}</Badge>
+                    )}
                   </li>
                 ))}
               </ul>

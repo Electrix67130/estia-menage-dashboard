@@ -14,6 +14,7 @@ import DurationPicker from "@/components/ui/DurationPicker";
 import ColorPicker from "@/components/ui/ColorPicker";
 import ClientPickerModal from "@/components/ClientPickerModal";
 import { useI18n } from "@/contexts/I18nContext";
+import type { TFn } from "@/i18n/translations";
 import { ChevronDown, User } from "lucide-react";
 import {
   useLogementPhotos,
@@ -112,25 +113,29 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useDialog } from "@/contexts/DialogContext";
 import { ApiError } from "@/lib/api";
 
-function clientDisplayName(c: { company_name?: string | null; first_name?: string | null; last_name?: string | null }) {
+function clientDisplayName(
+  c: { company_name?: string | null; first_name?: string | null; last_name?: string | null },
+  t: TFn,
+) {
   if (c.company_name) return c.company_name;
-  return [c.first_name, c.last_name].filter(Boolean).join(" ") || "Client sans nom";
+  return [c.first_name, c.last_name].filter(Boolean).join(" ") || t("logementDetail.clientNoName");
 }
 
-const ROOM_KINDS: { value: RoomKind; label: string }[] = [
-  { value: "chambre", label: "Chambre" },
-  { value: "salle_de_bain", label: "Salle de bain" },
-  { value: "wc", label: "WC" },
-  { value: "cuisine", label: "Cuisine" },
-  { value: "salon", label: "Salon" },
-  { value: "salle_a_manger", label: "Salle à manger" },
-  { value: "bureau", label: "Bureau" },
-  { value: "entree", label: "Entrée" },
-  { value: "couloir", label: "Couloir" },
-  { value: "exterieur", label: "Extérieur" },
-  { value: "cave", label: "Cave" },
-  { value: "buanderie", label: "Buanderie" },
-  { value: "autre", label: "Autre" },
+/** Types de pièces — libellés traduits via `t(key)`. */
+const ROOM_KINDS: { value: RoomKind; key: string }[] = [
+  { value: "chambre", key: "logementDetail.roomKind.chambre" },
+  { value: "salle_de_bain", key: "logementDetail.roomKind.salleDeBain" },
+  { value: "wc", key: "logementDetail.roomKind.wc" },
+  { value: "cuisine", key: "logementDetail.roomKind.cuisine" },
+  { value: "salon", key: "logementDetail.roomKind.salon" },
+  { value: "salle_a_manger", key: "logementDetail.roomKind.salleAManger" },
+  { value: "bureau", key: "logementDetail.roomKind.bureau" },
+  { value: "entree", key: "logementDetail.roomKind.entree" },
+  { value: "couloir", key: "logementDetail.roomKind.couloir" },
+  { value: "exterieur", key: "logementDetail.roomKind.exterieur" },
+  { value: "cave", key: "logementDetail.roomKind.cave" },
+  { value: "buanderie", key: "logementDetail.roomKind.buanderie" },
+  { value: "autre", key: "logementDetail.roomKind.autre" },
 ];
 
 export default function LogementSettingsPage({
@@ -141,11 +146,12 @@ export default function LogementSettingsPage({
   const { id } = use(params);
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
+  const { t } = useI18n();
 
   return (
     <div className="flex flex-col gap-6">
       <BackLink fallback="/logements" />
-      <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">Paramètres logement</h1>
+      <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">{t("logementDetail.title")}</h1>
 
       <InfoSection logementId={id} isAdmin={isAdmin} />
       <AccessCodesSection logementId={id} isAdmin={isAdmin} />
@@ -171,6 +177,7 @@ function InfoSection({ logementId, isAdmin }: { logementId: string; isAdmin: boo
   const updateCover = useUpdateLogement(logementId);
   const coverInputRef = useRef<HTMLInputElement>(null);
   const [coverUploading, setCoverUploading] = useState(false);
+  const { t, tp } = useI18n();
 
   const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -183,9 +190,9 @@ function InfoSection({ logementId, isAdmin }: { logementId: string; isAdmin: boo
         cover_photo_url: uploaded.url,
         cover_photo_thumbnail_url: uploaded.thumbnail_url ?? uploaded.url,
       });
-      toast.success("Photo de couverture mise à jour");
+      toast.success(t("logementDetail.coverUpdated"));
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Erreur");
+      toast.error(err instanceof ApiError ? err.message : t("common.error"));
     } finally {
       setCoverUploading(false);
     }
@@ -193,59 +200,49 @@ function InfoSection({ logementId, isAdmin }: { logementId: string; isAdmin: boo
 
   const handleDelete = async () => {
     const ok = await confirm({
-      title: "Archiver ce logement ?",
-      description:
-        "Le logement sera archivé et retiré des listes, ainsi que TOUTES les prestations qui le concernent (ménages, check-in, check-out) et ses consommables. Cette action est réversible depuis le filtre « Archivés ».",
+      title: t("logementDetail.archiveTitle"),
+      description: t("logementDetail.archiveDesc"),
       tone: "danger",
-      confirmLabel: "Archiver",
+      confirmLabel: t("logementDetail.archiveConfirm"),
     });
     if (!ok) return;
     try {
       const res = await del.mutateAsync(logementId);
       const n = res?.archived_menages ?? 0;
-      toast.success(
-        n > 0
-          ? `Logement archivé (${n} prestation${n > 1 ? "s" : ""} archivée${n > 1 ? "s" : ""})`
-          : "Logement archivé",
-      );
+      toast.success(n > 0 ? tp("logementDetail.archivedWithCount", n) : t("logementDetail.archived"));
       router.push("/logements");
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Erreur");
+      toast.error(err instanceof ApiError ? err.message : t("common.error"));
     }
   };
 
   const handleUnarchive = async () => {
     const ok = await confirm({
-      title: "Restaurer ce logement ?",
-      description:
-        "Le logement et les prestations/consommables archivés avec lui seront réactivés.",
-      confirmLabel: "Restaurer",
+      title: t("logementDetail.unarchiveTitle"),
+      description: t("logementDetail.unarchiveDesc"),
+      confirmLabel: t("logementDetail.restore"),
     });
     if (!ok) return;
     try {
       const res = await unarch.mutateAsync(logementId);
       const n = res?.unarchived_menages ?? 0;
-      toast.success(
-        n > 0
-          ? `Logement restauré (${n} prestation${n > 1 ? "s" : ""} restaurée${n > 1 ? "s" : ""})`
-          : "Logement restauré",
-      );
+      toast.success(n > 0 ? tp("logementDetail.restoredWithCount", n) : t("logementDetail.restored"));
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Erreur");
+      toast.error(err instanceof ApiError ? err.message : t("common.error"));
     }
   };
 
   if (logement.isLoading) {
     return (
       <Card className="p-6">
-        <p className="text-sm text-zinc-500">Chargement…</p>
+        <p className="text-sm text-zinc-500">{t("common.loading")}</p>
       </Card>
     );
   }
   if (logement.error || !logement.data) {
     return (
       <Card className="border-rose-200 bg-rose-50 p-4 text-sm text-rose-800 dark:border-rose-900 dark:bg-rose-900/20 dark:text-rose-300">
-        {logement.error instanceof Error ? logement.error.message : "Logement introuvable"}
+        {logement.error instanceof Error ? logement.error.message : t("logementDetail.notFound")}
       </Card>
     );
   }
@@ -261,7 +258,7 @@ function InfoSection({ logementId, isAdmin }: { logementId: string; isAdmin: boo
           <img src={l.cover_photo_url} alt={l.name} className="h-full w-full object-cover" />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-sm text-zinc-400">
-            Aucune photo de couverture
+            {t("logementDetail.noCover")}
           </div>
         )}
         {isAdmin ? (
@@ -280,7 +277,7 @@ function InfoSection({ logementId, isAdmin }: { logementId: string; isAdmin: boo
               className="absolute bottom-2 right-2 inline-flex items-center gap-1.5 rounded-md bg-black/60 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-black/75 disabled:opacity-60"
             >
               <Camera size={13} />
-              {coverUploading ? "Envoi…" : l.cover_photo_url ? "Changer la couverture" : "Ajouter une couverture"}
+              {coverUploading ? t("common.sending") : l.cover_photo_url ? t("logementDetail.changeCover") : t("logementDetail.addCover")}
             </button>
           </>
         ) : null}
@@ -300,12 +297,12 @@ function InfoSection({ logementId, isAdmin }: { logementId: string; isAdmin: boo
           l.archived_at ? (
             <Button size="sm" variant="ghost" onClick={handleUnarchive} disabled={unarch.isPending}>
               <RotateCcw size={14} />
-              Restaurer
+              {t("logementDetail.restore")}
             </Button>
           ) : (
             <Button size="sm" variant="ghost" onClick={handleDelete} disabled={del.isPending}>
               <Trash2 size={14} />
-              Supprimer
+              {t("common.delete")}
             </Button>
           )
         ) : null}
@@ -317,52 +314,52 @@ function InfoSection({ logementId, isAdmin }: { logementId: string; isAdmin: boo
         <>
           <dl className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
             <Stat
-              label="Client"
+              label={t("role.client")}
               value={
                 l.client_id ? (
                   <Link href={`/clients/${l.client_id}`} className="text-blue-600 hover:underline">
-                    {client.data ? clientDisplayName(client.data) : "…"}
+                    {client.data ? clientDisplayName(client.data, t) : "…"}
                   </Link>
                 ) : (
                   "—"
                 )
               }
             />
-            <Stat label="Chambres" value={l.n_bedrooms} />
-            <Stat label="Salles de bain" value={l.n_bathrooms} />
-            <Stat label="WC" value={l.n_wc} />
-            <Stat label="Cuisines" value={l.n_kitchens} />
-            <Stat label="Salons" value={l.n_living_rooms} />
-            <Stat label="Extérieurs" value={l.n_exterior_spaces} />
-            <Stat label="Surface" value={l.surface_m2 !== null ? `${l.surface_m2} m²` : "—"} />
+            <Stat label={t("logement.rooms.bedrooms")} value={l.n_bedrooms} />
+            <Stat label={t("logement.rooms.bathrooms")} value={l.n_bathrooms} />
+            <Stat label={t("logement.rooms.wc")} value={l.n_wc} />
+            <Stat label={t("logement.rooms.kitchens")} value={l.n_kitchens} />
+            <Stat label={t("logement.rooms.livingRooms")} value={l.n_living_rooms} />
+            <Stat label={t("logement.rooms.exteriorSpaces")} value={l.n_exterior_spaces} />
+            <Stat label={t("logementDetail.surface")} value={l.surface_m2 !== null ? `${l.surface_m2} m²` : "—"} />
             <Stat
-              label="Annexes"
+              label={t("logementDetail.annexes")}
               value={
                 [
-                  l.has_basement ? "Cave" : null,
-                  l.has_laundry ? "Buanderie" : null,
-                  l.has_pool ? "Piscine" : null,
-                  l.has_jacuzzi ? "Jacuzzi" : null,
+                  l.has_basement ? t("logement.rooms.basement") : null,
+                  l.has_laundry ? t("logement.rooms.laundry") : null,
+                  l.has_pool ? t("logement.rooms.pool") : null,
+                  l.has_jacuzzi ? t("logement.rooms.jacuzzi") : null,
                 ]
                   .filter(Boolean)
                   .join(", ") || "—"
               }
             />
             <Stat
-              label="Prestations"
+              label={t("logement.prestations.section")}
               value={
                 [
-                  l.enable_check_in ? "Check-in" : null,
-                  l.enable_check_out ? "Check-out" : null,
+                  l.enable_check_in ? t("prestation.type.checkIn") : null,
+                  l.enable_check_out ? t("prestation.type.checkOut") : null,
                 ]
                   .filter(Boolean)
-                  .join(", ") || "Ménage uniquement"
+                  .join(", ") || t("logementDetail.menageOnly")
               }
             />
           </dl>
           {l.notes ? (
             <div className="mt-4 border-t border-zinc-200 pt-4 dark:border-zinc-800">
-              <p className="text-xs uppercase tracking-wider text-zinc-500">Notes</p>
+              <p className="text-xs uppercase tracking-wider text-zinc-500">{t("logementDetail.notes")}</p>
               <p className="mt-1 whitespace-pre-wrap text-sm text-zinc-700 dark:text-zinc-300">
                 {l.notes}
               </p>
@@ -533,7 +530,7 @@ function LogementInfoForm({ logement }: { logement: Logement }) {
         onSuccess: () => setSaveState("saved"),
         onError: (err) => {
           setSaveState("error");
-          toast.error(err instanceof ApiError ? err.message : "Erreur");
+          toast.error(err instanceof ApiError ? err.message : t("common.error"));
         },
       });
     }, 700);
@@ -544,22 +541,22 @@ function LogementInfoForm({ logement }: { logement: Logement }) {
   return (
     <div className="mt-2">
       <div className="mb-3 flex items-center justify-between gap-2 border-t border-zinc-200 pt-4 dark:border-zinc-800">
-        <h3 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">Informations</h3>
+        <h3 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">{t("logementDetail.info")}</h3>
         <span className="text-xs text-zinc-400">
           {saveState === "saving"
-            ? "Enregistrement…"
+            ? t("common.saving")
             : saveState === "saved"
-              ? "✓ Enregistré"
+              ? t("logementDetail.saved")
               : saveState === "error"
-                ? "⚠ Erreur d'enregistrement"
-                : "Modifs enregistrées automatiquement"}
+                ? t("logementDetail.saveError")
+                : t("logementDetail.autoSave")}
         </span>
       </div>
       <div className="flex flex-col gap-4">
-        <Input label="Nom" value={name} onChange={(e) => setName(e.target.value)} required />
+        <Input label={t("logementDetail.name")} value={name} onChange={(e) => setName(e.target.value)} required />
         <div className="flex flex-col gap-1">
           <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-            Client (facturation)
+            {t("logementDetail.clientBilling")}
           </label>
           <button
             type="button"
@@ -576,8 +573,9 @@ function LogementInfoForm({ logement }: { logement: Logement }) {
                       first_name: null,
                       last_name: null,
                     },
+                    t,
                   )
-                : "Aucun client — cliquer pour en choisir un"}
+                : t("logementDetail.noClientPick")}
             </span>
             <ChevronDown size={14} className="text-zinc-400" />
           </button>
@@ -611,7 +609,7 @@ function LogementInfoForm({ logement }: { logement: Logement }) {
           }}
         />
         <Input
-          label="Surface (m²)"
+          label={t("logementDetail.surfaceM2")}
           value={surfaceM2}
           onChange={(e) => setSurfaceM2(e.target.value)}
           inputMode="numeric"
@@ -711,36 +709,36 @@ function LogementInfoForm({ logement }: { logement: Logement }) {
         </div>
 
         <Textarea
-          label="Notes"
+          label={t("logementDetail.notes")}
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           rows={4}
           maxLength={5000}
-          placeholder="Code interphone, instructions, accès…"
+          placeholder={t("logementDetail.notesPlaceholder")}
         />
 
-        <ColorPicker label="Couleur (calendrier)" value={color} onChange={setColor} />
+        <ColorPicker label={t("logementDetail.colorCalendar")} value={color} onChange={setColor} />
 
         <div className="mt-2 rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-800/50">
           <h3 className="text-sm font-semibold uppercase tracking-wider text-zinc-700 dark:text-zinc-300">
-            Valeurs par défaut du ménage
+            {t("logementDetail.defaults.title")}
           </h3>
           <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-            Pré-remplies à la création d&apos;un ménage pour ce logement.
+            {t("logementDetail.defaults.hint")}
           </p>
 
           <div className="mt-3">
-            <DurationPicker label="Durée par défaut" value={defDuration} onChange={setDefDuration} />
+            <DurationPicker label={t("logementDetail.defaults.duration")} value={defDuration} onChange={setDefDuration} />
           </div>
           <div className="mt-3 grid grid-cols-2 gap-2">
             <Input
-              label="Tranche horaire — début"
+              label={t("logementDetail.defaults.slotStart")}
               type="time"
               value={defHoraireDebut}
               onChange={(e) => setDefHoraireDebut(e.target.value)}
             />
             <Input
-              label="Tranche horaire — fin"
+              label={t("logementDetail.defaults.slotEnd")}
               type="time"
               value={defHoraireFin}
               onChange={(e) => setDefHoraireFin(e.target.value)}
@@ -749,16 +747,16 @@ function LogementInfoForm({ logement }: { logement: Logement }) {
 
           <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
             <Input
-              label="Prix client HT (€)"
+              label={t("menage.fields.clientPriceHt")}
               type="number"
               min={0}
               step="0.01"
               value={defClientPrice}
               onChange={(e) => setDefClientPrice(e.target.value)}
-              placeholder="ex. 80"
+              placeholder={t("logementDetail.example", { value: 80 })}
             />
             <Input
-              label="TVA (%)"
+              label={t("menage.fields.clientVatRate")}
               type="number"
               min={0}
               max={100}
@@ -768,21 +766,21 @@ function LogementInfoForm({ logement }: { logement: Logement }) {
               placeholder="20"
             />
             <Input
-              label="Prix prestataire (€)"
+              label={t("menage.fields.providerPrice")}
               type="number"
               min={0}
               step="0.01"
               value={defProviderPrice}
               onChange={(e) => setDefProviderPrice(e.target.value)}
-              placeholder="ex. 50"
+              placeholder={t("logementDetail.example", { value: 50 })}
             />
           </div>
 
           <div className="mt-4 flex items-start justify-between gap-3">
             <div>
-              <p className="text-sm font-semibold text-zinc-900 dark:text-white">Linge inclus par défaut</p>
+              <p className="text-sm font-semibold text-zinc-900 dark:text-white">{t("logementDetail.defaults.laundryTitle")}</p>
               <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                Activable individuellement à la création de chaque ménage.
+                {t("logementDetail.defaults.laundryHint")}
               </p>
             </div>
             <label className="inline-flex items-center gap-2 text-sm font-medium">
@@ -792,28 +790,28 @@ function LogementInfoForm({ logement }: { logement: Logement }) {
                 onChange={(e) => setDefLaundryIncluded(e.target.checked)}
                 className="h-4 w-4 rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
               />
-              Inclus
+              {t("menage.fields.laundryIncludedShort")}
             </label>
           </div>
           {defLaundryIncluded ? (
             <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Input
-                label="Prix linge — client HT (€)"
+                label={t("logementDetail.defaults.laundryClient")}
                 type="number"
                 min={0}
                 step="0.01"
                 value={defLaundryClient}
                 onChange={(e) => setDefLaundryClient(e.target.value)}
-                placeholder="ex. 15"
+                placeholder={t("logementDetail.example", { value: 15 })}
               />
               <Input
-                label="Prix linge — prestataire (€)"
+                label={t("logementDetail.defaults.laundryProvider")}
                 type="number"
                 min={0}
                 step="0.01"
                 value={defLaundryProvider}
                 onChange={(e) => setDefLaundryProvider(e.target.value)}
-                placeholder="ex. 10"
+                placeholder={t("logementDetail.example", { value: 10 })}
               />
             </div>
           ) : null}
@@ -833,6 +831,7 @@ function ConsommablesSection({ logementId, isAdmin }: { logementId: string; isAd
   const [showCreate, setShowCreate] = useState(false);
   const [editing, setEditing] = useState<ConsommableLine | null>(null);
   const [stockEditing, setStockEditing] = useState<ConsommableLine | null>(null);
+  const { t } = useI18n();
 
   const list = consommables.data ?? [];
   const alertCount = list.filter((c) => c.needs_restock).length;
@@ -842,29 +841,28 @@ function ConsommablesSection({ logementId, isAdmin }: { logementId: string; isAd
       <div className="mb-4 flex items-center justify-between gap-3">
         <div>
           <h2 className="flex items-center gap-2 text-lg font-semibold text-zinc-900 dark:text-white">
-            Consommables
+            {t("logementDetail.consumables.title")}
             {alertCount > 0 ? (
               <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-rose-700 dark:bg-rose-900/50 dark:text-rose-300">
                 <AlertTriangle size={10} />
-                {alertCount} à racheter
+                {t("logementDetail.consumables.toRestock", { count: alertCount })}
               </span>
             ) : null}
           </h2>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            Stock mis à jour par le prestataire à chaque pointage de fin, ou directement par
-            l&apos;admin (clic sur le stock). Alerte si le stock passe au niveau du seuil ou en dessous.
+            {t("logementDetail.consumables.hint")}
           </p>
         </div>
         {isAdmin ? (
           <Button size="sm" onClick={() => setShowCreate(true)}>
             <Plus size={14} />
-            Ajouter
+            {t("common.add")}
           </Button>
         ) : null}
       </div>
 
       {consommables.isLoading ? (
-        <p className="text-sm text-zinc-500">Chargement…</p>
+        <p className="text-sm text-zinc-500">{t("common.loading")}</p>
       ) : list.length > 0 ? (
         <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
           {list.map((c) => (
@@ -876,7 +874,7 @@ function ConsommablesSection({ logementId, isAdmin }: { logementId: string; isAd
               <div className="min-w-0 flex-1">
                 <p className="font-medium text-zinc-900 dark:text-white">{c.label}</p>
                 <p className="text-xs text-zinc-500">
-                  Seuil d&apos;alerte : {formatQtyUnit(c.seuil_alerte, c.unit)}
+                  {t("logementDetail.consumables.threshold", { value: formatQtyUnit(c.seuil_alerte, c.unit) })}
                 </p>
               </div>
               {/* Stock courant — cliquable par l'admin pour le fixer/initialiser */}
@@ -884,11 +882,11 @@ function ConsommablesSection({ logementId, isAdmin }: { logementId: string; isAd
                 const badge =
                   c.qty === null ? (
                     <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-zinc-500 dark:bg-zinc-800">
-                      jamais relevé
+                      {t("logementDetail.consumables.neverCounted")}
                     </span>
                   ) : c.needs_restock ? (
                     <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-rose-700 dark:bg-rose-900/50 dark:text-rose-300">
-                      {formatQtyUnit(c.qty, c.unit)} · à racheter
+                      {t("logementDetail.consumables.qtyToRestock", { qty: formatQtyUnit(c.qty, c.unit) })}
                     </span>
                   ) : (
                     <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
@@ -899,7 +897,7 @@ function ConsommablesSection({ logementId, isAdmin }: { logementId: string; isAd
                   <button
                     type="button"
                     onClick={() => setStockEditing(c)}
-                    title={c.qty === null ? "Initialiser le stock" : "Modifier le stock"}
+                    title={c.qty === null ? t("logementDetail.consumables.initStock") : t("logementDetail.consumables.editStock")}
                     className="cursor-pointer"
                   >
                     {badge}
@@ -913,27 +911,27 @@ function ConsommablesSection({ logementId, isAdmin }: { logementId: string; isAd
                   <button
                     onClick={() => setEditing(c)}
                     className="text-zinc-400 hover:text-blue-600"
-                    aria-label="Modifier"
+                    aria-label={t("common.edit")}
                   >
                     <Pencil size={14} />
                   </button>
                   <button
                     onClick={async () => {
                       const ok = await confirm({
-                        title: `Supprimer le consommable "${c.label}" ?`,
+                        title: t("logementDetail.consumables.deleteTitle", { label: c.label }),
                         tone: "danger",
-                        confirmLabel: "Supprimer",
+                        confirmLabel: t("common.delete"),
                       });
                       if (!ok) return;
                       try {
                         await remove.mutateAsync(c.logement_consommable_id);
-                        toast.success("Consommable supprimé");
+                        toast.success(t("logementDetail.consumables.deleted"));
                       } catch (err) {
-                        toast.error(err instanceof ApiError ? err.message : "Erreur");
+                        toast.error(err instanceof ApiError ? err.message : t("common.error"));
                       }
                     }}
                     className="text-zinc-400 hover:text-rose-600"
-                    aria-label="Supprimer"
+                    aria-label={t("common.delete")}
                   >
                     <Trash2 size={14} />
                   </button>
@@ -943,11 +941,11 @@ function ConsommablesSection({ logementId, isAdmin }: { logementId: string; isAd
           ))}
         </ul>
       ) : (
-        <p className="text-sm text-zinc-500">Aucun consommable défini.</p>
+        <p className="text-sm text-zinc-500">{t("logementDetail.consumables.empty")}</p>
       )}
 
       {showCreate ? (
-        <Modal open onClose={() => setShowCreate(false)} title="Ajouter un consommable">
+        <Modal open onClose={() => setShowCreate(false)} title={t("logementDetail.consumables.addTitle")}>
           <ConsommableForm
             onSubmit={(input) => create.mutateAsync({ logement_id: logementId, ...input })}
             onSuccess={() => setShowCreate(false)}
@@ -956,7 +954,7 @@ function ConsommablesSection({ logementId, isAdmin }: { logementId: string; isAd
       ) : null}
 
       {editing ? (
-        <Modal open onClose={() => setEditing(null)} title="Modifier le consommable">
+        <Modal open onClose={() => setEditing(null)} title={t("logementDetail.consumables.editTitle")}>
           <ConsommableForm
             initial={editing}
             onSubmit={(input) =>
@@ -971,7 +969,7 @@ function ConsommablesSection({ logementId, isAdmin }: { logementId: string; isAd
         <Modal
           open
           onClose={() => setStockEditing(null)}
-          title={stockEditing.qty === null ? "Initialiser le stock" : "Modifier le stock"}
+          title={stockEditing.qty === null ? t("logementDetail.consumables.initStock") : t("logementDetail.consumables.editStock")}
         >
           <StockForm
             line={stockEditing}
@@ -996,22 +994,23 @@ function StockForm({
   onSuccess: () => void;
 }) {
   const [qty, setQty] = useState(line.qty === null ? "" : String(line.qty));
+  const { t } = useI18n();
   const [saving, setSaving] = useState(false);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     const n = parseInt(qty, 10);
     if (Number.isNaN(n) || n < 0) {
-      toast.error("Quantité invalide");
+      toast.error(t("logementDetail.invalidQuantity"));
       return;
     }
     setSaving(true);
     try {
       await onSubmit(n);
-      toast.success("Stock mis à jour");
+      toast.success(t("logementDetail.consumables.stockUpdated"));
       onSuccess();
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Erreur");
+      toast.error(err instanceof ApiError ? err.message : t("common.error"));
     } finally {
       setSaving(false);
     }
@@ -1021,10 +1020,11 @@ function StockForm({
     <form onSubmit={handleSubmit} className="flex flex-col gap-3">
       <p className="text-sm text-zinc-500">
         {line.label}
-        {line.unit ? ` · en ${line.unit}` : ""} — seuil d&apos;alerte : {line.seuil_alerte}
+        {line.unit ? ` · ${t("logementDetail.consumables.inUnit", { unit: line.unit })}` : ""} —{" "}
+        {t("logementDetail.consumables.threshold", { value: line.seuil_alerte })}
       </p>
       <label className="flex flex-col gap-1 text-sm">
-        <span className="font-medium">Stock actuel</span>
+        <span className="font-medium">{t("logementDetail.consumables.currentStock")}</span>
         <Input
           type="number"
           min={0}
@@ -1036,7 +1036,7 @@ function StockForm({
       </label>
       <div className="flex justify-end gap-2">
         <Button type="submit" size="sm" loading={saving}>
-          Enregistrer
+          {t("common.save")}
         </Button>
       </div>
     </form>
@@ -1059,26 +1059,27 @@ function ConsommableForm({
   const [label, setLabel] = useState(initial?.label ?? "");
   const [unit, setUnit] = useState(initial?.unit ?? "");
   const [seuil, setSeuil] = useState(String(initial?.seuil_alerte ?? 1));
+  const { t } = useI18n();
   const [saving, setSaving] = useState(false);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!label.trim()) {
-      toast.error("Le nom est obligatoire");
+      toast.error(t("logementDetail.nameRequired"));
       return;
     }
     const seuilNum = parseInt(seuil, 10);
     if (Number.isNaN(seuilNum) || seuilNum < 0) {
-      toast.error("Seuil invalide");
+      toast.error(t("logementDetail.consumables.invalidThreshold"));
       return;
     }
     setSaving(true);
     try {
       await onSubmit({ label: label.trim(), unit: unit.trim() || null, seuil_alerte: seuilNum });
-      toast.success(initial ? "Consommable modifié" : "Consommable créé");
+      toast.success(initial ? t("logementDetail.consumables.updated") : t("logementDetail.consumables.created"));
       onSuccess();
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Erreur");
+      toast.error(err instanceof ApiError ? err.message : t("common.error"));
     } finally {
       setSaving(false);
     }
@@ -1087,22 +1088,22 @@ function ConsommableForm({
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-3">
       <label className="flex flex-col gap-1 text-sm">
-        <span className="font-medium">Nom</span>
-        <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Papier toilette" autoFocus />
+        <span className="font-medium">{t("logementDetail.name")}</span>
+        <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder={t("logementDetail.consumables.namePlaceholder")} autoFocus />
       </label>
       <div className="grid grid-cols-2 gap-3">
         <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium">Unité (optionnel)</span>
-          <Input value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="rouleaux" />
+          <span className="font-medium">{t("logementDetail.consumables.unitOptional")}</span>
+          <Input value={unit} onChange={(e) => setUnit(e.target.value)} placeholder={t("logementDetail.consumables.unitPlaceholder")} />
         </label>
         <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium">Seuil d&apos;alerte</span>
+          <span className="font-medium">{t("logementDetail.consumables.thresholdLabel")}</span>
           <Input type="number" min={0} value={seuil} onChange={(e) => setSeuil(e.target.value)} />
         </label>
       </div>
       <div className="flex justify-end gap-2">
         <Button type="submit" size="sm" loading={saving}>
-          {initial ? "Enregistrer" : "Ajouter"}
+          {initial ? t("common.save") : t("common.add")}
         </Button>
       </div>
     </form>
@@ -1114,27 +1115,28 @@ function RoomsSection({ logementId, isAdmin }: { logementId: string; isAdmin: bo
   const rooms = useLogementRooms(logementId);
   const create = useCreateLogementRoom();
   const remove = useDeleteLogementRoom();
+  const { t } = useI18n();
   const [showCreate, setShowCreate] = useState(false);
 
   return (
     <Card className="p-6">
       <div className="mb-4 flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-zinc-900 dark:text-white">Pièces</h2>
+          <h2 className="text-lg font-semibold text-zinc-900 dark:text-white">{t("logement.rooms.section")}</h2>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            Ajoute des photos et gère chaque pièce du logement au même endroit.
+            {t("logementDetail.rooms.hint")}
           </p>
         </div>
         {isAdmin ? (
           <Button size="sm" onClick={() => setShowCreate(true)}>
             <Plus size={14} />
-            Ajouter
+            {t("common.add")}
           </Button>
         ) : null}
       </div>
 
       {rooms.isLoading ? (
-        <p className="text-sm text-zinc-500">Chargement…</p>
+        <p className="text-sm text-zinc-500">{t("common.loading")}</p>
       ) : rooms.data && rooms.data.length > 0 ? (
         <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
           {rooms.data.map((r) => (
@@ -1145,27 +1147,27 @@ function RoomsSection({ logementId, isAdmin }: { logementId: string; isAdmin: bo
               isAdmin={isAdmin}
               onDelete={async () => {
                 const ok = await confirm({
-                  title: `Supprimer la pièce "${r.name}" ?`,
+                  title: t("logementDetail.rooms.deleteTitle", { name: r.name }),
                   tone: "danger",
-                  confirmLabel: "Supprimer",
+                  confirmLabel: t("common.delete"),
                 });
                 if (!ok) return;
                 try {
                   await remove.mutateAsync({ id: r.id, logement_id: logementId });
-                  toast.success("Pièce supprimée");
+                  toast.success(t("logementDetail.rooms.deleted"));
                 } catch (err) {
-                  toast.error(err instanceof ApiError ? err.message : "Erreur");
+                  toast.error(err instanceof ApiError ? err.message : t("common.error"));
                 }
               }}
             />
           ))}
         </ul>
       ) : (
-        <p className="text-sm text-zinc-500">Aucune pièce définie.</p>
+        <p className="text-sm text-zinc-500">{t("logementDetail.rooms.empty")}</p>
       )}
 
       {showCreate ? (
-        <Modal open onClose={() => setShowCreate(false)} title="Ajouter une pièce">
+        <Modal open onClose={() => setShowCreate(false)} title={t("logementDetail.rooms.addTitle")}>
           <CreateRoomForm
             logementId={logementId}
             onSuccess={() => setShowCreate(false)}
@@ -1187,17 +1189,18 @@ function CreateRoomForm({
   create: ReturnType<typeof useCreateLogementRoom>;
 }) {
   const [kind, setKind] = useState<RoomKind | "">("");
+  const { t } = useI18n();
   const [name, setName] = useState("");
   const [notes, setNotes] = useState("");
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!kind) {
-      toast.error("Le type est obligatoire");
+      toast.error(t("logementDetail.rooms.typeRequired"));
       return;
     }
     if (kind === "autre" && !name.trim()) {
-      toast.error("Le nom est obligatoire pour le type « Autre »");
+      toast.error(t("logementDetail.rooms.nameRequiredOther"));
       return;
     }
     try {
@@ -1208,17 +1211,17 @@ function CreateRoomForm({
         name: kind === "autre" ? name.trim() : undefined,
         notes: notes.trim() || undefined,
       });
-      toast.success("Pièce créée");
+      toast.success(t("logementDetail.rooms.created"));
       onSuccess();
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Erreur");
+      toast.error(err instanceof ApiError ? err.message : t("common.error"));
     }
   };
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-3">
       <label className="flex flex-col gap-1 text-sm">
-        <span className="font-medium">Type</span>
+        <span className="font-medium">{t("logementDetail.rooms.type")}</span>
         <select
           autoFocus
           className="h-10 appearance-none rounded-lg border border-zinc-200 bg-white bg-[length:1rem] bg-[right_0.75rem_center] bg-no-repeat pl-3 pr-9 text-sm dark:border-zinc-700 dark:bg-zinc-900"
@@ -1229,30 +1232,30 @@ function CreateRoomForm({
           value={kind}
           onChange={(e) => setKind(e.target.value as RoomKind | "")}
         >
-          <option value="">— Choisir un type —</option>
+          <option value="">{t("logementDetail.rooms.chooseType")}</option>
           {ROOM_KINDS.map((k) => (
             <option key={k.value} value={k.value}>
-              {k.label}
+              {t(k.key)}
             </option>
           ))}
         </select>
       </label>
       {kind === "autre" ? (
         <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium">Nom de la pièce</span>
+          <span className="font-medium">{t("logementDetail.rooms.name")}</span>
           <Input value={name} onChange={(e) => setName(e.target.value)} autoFocus />
         </label>
       ) : null}
       <label className="flex flex-col gap-1 text-sm">
-        <span className="font-medium">Notes (optionnel)</span>
+        <span className="font-medium">{t("logementDetail.notesOptional")}</span>
         <Input value={notes} onChange={(e) => setNotes(e.target.value)} />
       </label>
       <div className="flex justify-end gap-2">
         <Button type="button" variant="ghost" onClick={onSuccess}>
-          Annuler
+          {t("common.cancel")}
         </Button>
         <Button type="submit" disabled={create.isPending}>
-          {create.isPending ? "…" : "Créer"}
+          {create.isPending ? "…" : t("logementDetail.create")}
         </Button>
       </div>
     </form>
@@ -1290,6 +1293,7 @@ function TemplateSection({
   const [editLabel, setEditLabel] = useState("");
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
+  const { t, tp } = useI18n();
 
   const sections = template.data ?? [];
 
@@ -1301,7 +1305,7 @@ function TemplateSection({
     try {
       await updateSection.mutateAsync({ id, input: { label } });
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Erreur");
+      toast.error(err instanceof ApiError ? err.message : t("common.error"));
     }
   };
 
@@ -1313,7 +1317,7 @@ function TemplateSection({
     try {
       await updateItem.mutateAsync({ id, input: { label } });
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Erreur");
+      toast.error(err instanceof ApiError ? err.message : t("common.error"));
     }
   };
 
@@ -1335,9 +1339,9 @@ function TemplateSection({
     try {
       await applyTemplate.mutateAsync(applyId);
       setApplyId("");
-      toast.success("Modèle appliqué à la checklist");
+      toast.success(t("logementDetail.checklist.applied"));
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Erreur");
+      toast.error(err instanceof ApiError ? err.message : t("common.error"));
     }
   };
 
@@ -1345,18 +1349,18 @@ function TemplateSection({
     const sections = template.data ?? [];
     if (sections.length === 0) return;
     const ok = await confirm({
-      title: "Vider toute la checklist personnalisée de ce logement ?",
+      title: t("logementDetail.checklist.clearTitle"),
       tone: "danger",
-      confirmLabel: "Vider",
+      confirmLabel: t("logementDetail.checklist.clearConfirm"),
     });
     if (!ok) return;
     try {
       for (const s of sections) {
         await deleteSection.mutateAsync(s.id);
       }
-      toast.success("Checklist vidée");
+      toast.success(t("logementDetail.checklist.cleared"));
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Erreur");
+      toast.error(err instanceof ApiError ? err.message : t("common.error"));
     }
   };
 
@@ -1372,9 +1376,9 @@ function TemplateSection({
       await createOrgTemplate.mutateAsync({ name, sections: payloadSections });
       setSaveTemplateOpen(false);
       setSaveTemplateName("");
-      toast.success("Modèle d'organisation créé");
+      toast.success(t("logementDetail.checklist.orgTemplateCreated"));
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Erreur");
+      toast.error(err instanceof ApiError ? err.message : t("common.error"));
     }
   };
 
@@ -1386,7 +1390,7 @@ function TemplateSection({
       await createSection.mutateAsync({ logement_id: logementId, label });
       setNewSectionLabel("");
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Erreur");
+      toast.error(err instanceof ApiError ? err.message : t("common.error"));
     }
   };
 
@@ -1397,7 +1401,7 @@ function TemplateSection({
       await createItem.mutateAsync({ section_id: sectionId, label });
       setNewItemBySection((p) => ({ ...p, [sectionId]: "" }));
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Erreur");
+      toast.error(err instanceof ApiError ? err.message : t("common.error"));
     }
   };
 
@@ -1406,7 +1410,7 @@ function TemplateSection({
       <div className="mb-4">
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-lg font-semibold text-zinc-900 dark:text-white">
-            Checklist personnalisée
+            {t("logementDetail.checklist.title")}
           </h2>
           {isAdmin && (template.data ?? []).length > 0 ? (
             <div className="flex items-center gap-2">
@@ -1418,7 +1422,7 @@ function TemplateSection({
                   setSaveTemplateOpen(true);
                 }}
               >
-                Enregistrer comme modèle
+                {t("logementDetail.checklist.saveAsTemplate")}
               </Button>
               <Button
                 variant="ghost"
@@ -1427,28 +1431,26 @@ function TemplateSection({
                 disabled={deleteSection.isPending}
               >
                 <Trash2 size={14} />
-                Tout vider
+                {t("logementDetail.checklist.clearAll")}
               </Button>
             </div>
           ) : null}
         </div>
         <p className="text-sm text-zinc-500 dark:text-zinc-400">
-          Si tu définis au moins une section ici, elle sera utilisée à la création d&apos;un ménage
-          (à la place du plan automatique basé sur les attributs du logement). Sinon, le plan
-          automatique (basé sur les pièces/attributs) s&apos;applique.
+          {t("logementDetail.checklist.hint")}
         </p>
         {isAdmin && (checklistTemplates.data?.data ?? []).length > 0 ? (
           <div className="mt-3 flex items-end gap-2">
             <div className="flex-1 sm:max-w-xs">
               <Select
-                label="Appliquer un modèle"
+                label={t("logementDetail.checklist.applyTemplate")}
                 value={applyId}
                 onChange={(e) => setApplyId(e.target.value)}
               >
-                <option value="">— Choisir un modèle —</option>
-                {(checklistTemplates.data?.data ?? []).map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name} ({t.section_count} section{t.section_count > 1 ? "s" : ""})
+                <option value="">{t("logementDetail.checklist.chooseTemplate")}</option>
+                {(checklistTemplates.data?.data ?? []).map((tpl) => (
+                  <option key={tpl.id} value={tpl.id}>
+                    {tpl.name} ({tp("logementDetail.checklist.sectionCount", tpl.section_count)})
                   </option>
                 ))}
               </Select>
@@ -1461,14 +1463,14 @@ function TemplateSection({
               loading={applyTemplate.isPending}
               className="mb-0.5"
             >
-              Appliquer
+              {t("logementDetail.checklist.apply")}
             </Button>
           </div>
         ) : null}
       </div>
 
       {template.isLoading ? (
-        <p className="text-sm text-zinc-500">Chargement…</p>
+        <p className="text-sm text-zinc-500">{t("common.loading")}</p>
       ) : (
         <div className="flex flex-col gap-4">
           {sections.map((section) => (
@@ -1504,7 +1506,7 @@ function TemplateSection({
                     type="button"
                     onClick={() => setIconPickerSection(section)}
                     className="flex h-7 w-7 items-center justify-center rounded-md border border-zinc-200 text-lg leading-none hover:border-blue-400 dark:border-zinc-700"
-                    title="Choisir l'icône"
+                    title={t("logementDetail.checklist.chooseIcon")}
                   >
                     {section.icon || "＋"}
                   </button>
@@ -1538,26 +1540,26 @@ function TemplateSection({
                         setEditLabel(section.label);
                       }}
                       className="text-zinc-400 hover:text-blue-600"
-                      aria-label="Renommer la section"
+                      aria-label={t("logementDetail.checklist.renameSection")}
                     >
                       <Pencil size={14} />
                     </button>
                     <button
                       onClick={async () => {
                         const ok = await confirm({
-                          title: `Supprimer "${section.label}" et tous ses items ?`,
+                          title: t("logementDetail.checklist.deleteSectionTitle", { label: section.label }),
                           tone: "danger",
-                          confirmLabel: "Supprimer",
+                          confirmLabel: t("common.delete"),
                         });
                         if (!ok) return;
                         try {
                           await deleteSection.mutateAsync(section.id);
                         } catch (err) {
-                          toast.error(err instanceof ApiError ? err.message : "Erreur");
+                          toast.error(err instanceof ApiError ? err.message : t("common.error"));
                         }
                       }}
                       className="text-zinc-400 hover:text-rose-600"
-                      aria-label="Supprimer la section"
+                      aria-label={t("logementDetail.checklist.deleteSection")}
                     >
                       <Trash2 size={14} />
                     </button>
@@ -1597,14 +1599,14 @@ function TemplateSection({
                             setEditLabel(it.label);
                           }}
                           className="text-zinc-300 hover:text-blue-600"
-                          aria-label="Renommer l'item"
+                          aria-label={t("logementDetail.checklist.renameItem")}
                         >
                           <Pencil size={12} />
                         </button>
                         <button
                           onClick={() => deleteItem.mutate(it.id)}
                           className="text-zinc-300 hover:text-rose-600"
-                          aria-label="Supprimer l'item"
+                          aria-label={t("logementDetail.checklist.deleteItem")}
                         >
                           <Trash2 size={12} />
                         </button>
@@ -1616,7 +1618,7 @@ function TemplateSection({
               {isAdmin ? (
                 <div className="flex gap-2">
                   <Input
-                    placeholder="Nouvel item…"
+                    placeholder={t("logementDetail.checklist.newItemPlaceholder")}
                     value={newItemBySection[section.id] ?? ""}
                     onChange={(e) =>
                       setNewItemBySection((p) => ({ ...p, [section.id]: e.target.value }))
@@ -1644,20 +1646,20 @@ function TemplateSection({
           {isAdmin ? (
             <form onSubmit={handleAddSection} className="flex gap-2">
               <Input
-                placeholder="Nouvelle section (ex: Salle de bain principale)"
+                placeholder={t("logementDetail.checklist.newSectionPlaceholder")}
                 value={newSectionLabel}
                 onChange={(e) => setNewSectionLabel(e.target.value)}
               />
               <Button type="submit" disabled={createSection.isPending}>
                 <Plus size={14} />
-                Section
+                {t("logementDetail.checklist.sectionButton")}
               </Button>
             </form>
           ) : null}
 
           {(template.data ?? []).length === 0 ? (
             <p className="text-sm text-zinc-500">
-              Aucune section personnalisée. La checklist sera générée automatiquement.
+              {t("logementDetail.checklist.emptyAuto")}
             </p>
           ) : null}
         </div>
@@ -1667,25 +1669,24 @@ function TemplateSection({
         <Modal
           open
           onClose={() => setSaveTemplateOpen(false)}
-          title="Enregistrer comme modèle d'organisation"
+          title={t("logementDetail.checklist.saveTemplateTitle")}
         >
           <form onSubmit={handleSaveAsTemplate} className="flex flex-col gap-3">
             <p className="text-sm text-zinc-500">
-              Crée un modèle réutilisable (sur d&apos;autres logements) à partir des{" "}
-              {sections.length} section{sections.length > 1 ? "s" : ""} de cette checklist.
+              {tp("logementDetail.checklist.saveTemplateDesc", sections.length)}
             </p>
             <label className="flex flex-col gap-1 text-sm">
-              <span className="font-medium">Nom du modèle</span>
+              <span className="font-medium">{t("templates.form.name")}</span>
               <Input
                 value={saveTemplateName}
                 onChange={(e) => setSaveTemplateName(e.target.value)}
-                placeholder="Ex. Appartement T2 standard"
+                placeholder={t("logementDetail.checklist.templateNamePlaceholder")}
                 autoFocus
               />
             </label>
             <div className="flex justify-end">
               <Button type="submit" size="sm" loading={createOrgTemplate.isPending}>
-                Créer le modèle
+                {t("templates.form.submit")}
               </Button>
             </div>
           </form>
@@ -1693,7 +1694,7 @@ function TemplateSection({
       ) : null}
 
       {iconPickerSection ? (
-        <Modal open onClose={() => setIconPickerSection(null)} title="Icône de la section">
+        <Modal open onClose={() => setIconPickerSection(null)} title={t("logementDetail.checklist.iconTitle")}>
           <div className="flex flex-wrap justify-center gap-2">
             {SECTION_EMOJIS.map((e) => {
               const active = iconPickerSection.icon === e;
@@ -1707,7 +1708,7 @@ function TemplateSection({
                     try {
                       await updateSection.mutateAsync({ id: s.id, input: { icon: e } });
                     } catch (err) {
-                      toast.error(err instanceof ApiError ? err.message : "Erreur");
+                      toast.error(err instanceof ApiError ? err.message : t("common.error"));
                     }
                   }}
                   className={[
@@ -1728,12 +1729,12 @@ function TemplateSection({
               try {
                 await updateSection.mutateAsync({ id: s.id, input: { icon: "" } });
               } catch (err) {
-                toast.error(err instanceof ApiError ? err.message : "Erreur");
+                toast.error(err instanceof ApiError ? err.message : t("common.error"));
               }
             }}
             className="mt-4 w-full rounded-lg border border-zinc-200 py-2.5 text-sm font-medium text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300"
           >
-            Aucune icône
+            {t("logementDetail.checklist.noIcon")}
           </button>
         </Modal>
       ) : null}
@@ -1746,8 +1747,9 @@ const SECTION_EMOJIS = [
   "🪣", "🧴", "🛒", "🔑", "📋", "🧼", "🚪", "🪟", "🛁", "☕",
 ];
 
-function labelForKind(kind: RoomKind): string {
-  return ROOM_KINDS.find((k) => k.value === kind)?.label ?? kind;
+function labelForKind(kind: RoomKind, t: TFn): string {
+  const key = ROOM_KINDS.find((k) => k.value === kind)?.key;
+  return key ? t(key) : kind;
 }
 
 function RoomItem({
@@ -1768,6 +1770,7 @@ function RoomItem({
   const fileInputRef = useRef<HTMLInputElement>(null);
   /** Progression de l'envoi en cours (sélection multiple de fichiers). */
   const [uploading, setUploading] = useState<{ done: number; total: number } | null>(null);
+  const { t } = useI18n();
   const items = (photos.data?.data ?? []).filter((p) => p.logement_room_id === room.id);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1803,12 +1806,14 @@ function RoomItem({
 
     if (failed === 0) {
       toast.success(
-        files.length > 1 ? `${files.length} photos ajoutées à ${room.name}` : `Ajouté à ${room.name}`,
+        files.length > 1
+          ? t("logementDetail.rooms.photosAddedTo", { count: files.length, room: room.name })
+          : t("logementDetail.rooms.addedTo", { room: room.name }),
       );
     } else if (failed === files.length) {
-      toast.error("Aucune photo n'a pu être envoyée");
+      toast.error(t("logementDetail.rooms.noneUploaded"));
     } else {
-      toast.error(`${files.length - failed} photo(s) ajoutée(s), ${failed} en échec`);
+      toast.error(t("logementDetail.rooms.partialUpload", { ok: files.length - failed, failed }));
     }
   };
 
@@ -1818,7 +1823,7 @@ function RoomItem({
         <GripVertical size={14} className="text-zinc-300" />
         <div className="flex-1">
           <p className="font-medium text-zinc-900 dark:text-white">{room.name}</p>
-          {room.kind ? <p className="text-xs text-zinc-500">{labelForKind(room.kind)}</p> : null}
+          {room.kind ? <p className="text-xs text-zinc-500">{labelForKind(room.kind, t)}</p> : null}
         </div>
         {isAdmin ? (
           <>
@@ -1839,15 +1844,15 @@ function RoomItem({
               <Camera size={12} />
               {uploading
                 ? uploading.total > 1
-                  ? `Envoi ${uploading.done}/${uploading.total}…`
-                  : "Envoi…"
-                : "Photo"}
+                  ? t("logementDetail.rooms.uploadProgress", { done: uploading.done, total: uploading.total })
+                  : t("common.sending")
+                : t("logementDetail.rooms.photo")}
             </button>
             <button
               type="button"
               onClick={onDelete}
               className="text-zinc-400 hover:text-rose-600"
-              aria-label="Supprimer la pièce"
+              aria-label={t("logementDetail.rooms.deleteRoom")}
             >
               <Trash2 size={14} />
             </button>
@@ -1865,15 +1870,15 @@ function RoomItem({
                   type="button"
                   onClick={async () => {
                     const ok = await confirm({
-                      title: "Supprimer cette photo ?",
+                      title: t("photos.confirmDelete"),
                       tone: "danger",
-                      confirmLabel: "Supprimer",
+                      confirmLabel: t("common.delete"),
                     });
                     if (!ok) return;
                     await remove.mutateAsync(p.id);
                   }}
                   className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-white opacity-0 transition-opacity hover:bg-rose-600 group-hover:opacity-100"
-                  aria-label="Supprimer la photo"
+                  aria-label={t("logementDetail.rooms.deletePhoto")}
                 >
                   <Trash2 size={10} />
                 </button>
@@ -1892,6 +1897,7 @@ function LogementMembersSection({ logementId, isAdmin }: { logementId: string; i
   const orgPrestataires = useOrgPrestataires();
   const add = useAddLogementMember();
   const remove = useRemoveLogementMember();
+  const { t } = useI18n();
 
   const prestataires = (members.data ?? []).filter((m) => m.role === "prestataire");
   const memberIds = new Set(prestataires.map((m) => m.user_id));
@@ -1901,38 +1907,38 @@ function LogementMembersSection({ logementId, isAdmin }: { logementId: string; i
     if (!userId) return;
     try {
       await add.mutateAsync({ logement_id: logementId, user_id: userId, role: "prestataire" });
-      toast.success("Prestataire rattaché");
+      toast.success(t("logementDetail.members.attached"));
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Erreur");
+      toast.error(err instanceof ApiError ? err.message : t("common.error"));
     }
   };
 
   const handleRemove = async (m: LogementMember) => {
     const ok = await confirm({
-      title: `Retirer ${m.first_name} ${m.last_name} de ce logement ?`,
+      title: t("logementDetail.members.removeTitle", { name: `${m.first_name} ${m.last_name}` }),
       tone: "danger",
-      confirmLabel: "Retirer",
+      confirmLabel: t("logementDetail.members.remove"),
     });
     if (!ok) return;
     try {
       await remove.mutateAsync({ id: m.id, logement_id: logementId });
-      toast.success("Prestataire retiré");
+      toast.success(t("logementDetail.members.removed"));
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Erreur");
+      toast.error(err instanceof ApiError ? err.message : t("common.error"));
     }
   };
 
   return (
     <Card className="p-6">
       <div className="mb-4">
-        <h2 className="text-lg font-semibold text-zinc-900 dark:text-white">Prestataires</h2>
+        <h2 className="text-lg font-semibold text-zinc-900 dark:text-white">{t("logementDetail.members.title")}</h2>
         <p className="text-sm text-zinc-500 dark:text-zinc-400">
-          Les prestataires rattachés peuvent être affectés aux ménages de ce logement.
+          {t("logementDetail.members.hint")}
         </p>
       </div>
 
       {members.isLoading ? (
-        <p className="text-sm text-zinc-500">Chargement…</p>
+        <p className="text-sm text-zinc-500">{t("common.loading")}</p>
       ) : prestataires.length > 0 ? (
         <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
           {prestataires.map((m) => (
@@ -1949,7 +1955,7 @@ function LogementMembersSection({ logementId, isAdmin }: { logementId: string; i
                   type="button"
                   onClick={() => handleRemove(m)}
                   className="text-zinc-400 hover:text-rose-600"
-                  aria-label="Retirer du logement"
+                  aria-label={t("logementDetail.members.removeFromLogement")}
                 >
                   <Trash2 size={14} />
                 </button>
@@ -1958,19 +1964,19 @@ function LogementMembersSection({ logementId, isAdmin }: { logementId: string; i
           ))}
         </ul>
       ) : (
-        <p className="text-sm text-zinc-500">Aucun prestataire rattaché à ce logement.</p>
+        <p className="text-sm text-zinc-500">{t("logementDetail.members.empty")}</p>
       )}
 
       {isAdmin ? (
         <div className="mt-4 border-t border-zinc-200 pt-4 dark:border-zinc-800">
           {candidates.length > 0 ? (
             <Select
-              label="Rattacher un prestataire"
+              label={t("logementDetail.members.attach")}
               value=""
               onChange={(e) => handleAdd(e.target.value)}
               disabled={add.isPending}
             >
-              <option value="">— Choisir un prestataire —</option>
+              <option value="">{t("logementDetail.members.choose")}</option>
               {candidates.map((u) => (
                 <option key={u.id} value={u.id}>
                   {u.first_name} {u.last_name}
@@ -1980,8 +1986,8 @@ function LogementMembersSection({ logementId, isAdmin }: { logementId: string; i
           ) : (
             <p className="text-xs text-zinc-500">
               {orgPrestataires.isLoading
-                ? "Chargement…"
-                : "Tous tes prestataires sont déjà rattachés. Invite-en d'autres depuis Équipe."}
+                ? t("common.loading")
+                : t("logementDetail.members.allAttached")}
             </p>
           )}
         </div>
@@ -1990,15 +1996,22 @@ function LogementMembersSection({ logementId, isAdmin }: { logementId: string; i
   );
 }
 
-const EXTERNAL_CALENDAR_PROVIDERS: { value: ExternalCalendarProvider; label: string }[] = [
-  { value: "airbnb", label: "Airbnb" },
-  { value: "booking", label: "Booking.com" },
-  { value: "vrbo", label: "Vrbo / Abritel" },
-  { value: "ical", label: "Autre (iCal)" },
-];
+const EXTERNAL_CALENDAR_PROVIDERS: ExternalCalendarProvider[] = ["airbnb", "booking", "vrbo", "ical"];
 
-function providerLabel(p: ExternalCalendarProvider): string {
-  return EXTERNAL_CALENDAR_PROVIDERS.find((o) => o.value === p)?.label ?? p;
+/** Noms de plateformes = noms propres (non traduits) ; seul « Autre (iCal) » l'est. */
+function providerLabel(p: ExternalCalendarProvider, t: TFn): string {
+  switch (p) {
+    case "airbnb":
+      return "Airbnb";
+    case "booking":
+      return "Booking.com";
+    case "vrbo":
+      return "Vrbo / Abritel";
+    case "ical":
+      return t("logementDetail.calendars.providerOther");
+    default:
+      return p;
+  }
 }
 
 /** Configuration des calendriers iCal externes (Airbnb, Booking…) — admin only. */
@@ -2014,6 +2027,7 @@ function ExternalCalendarsSection({ logementId }: { logementId: string }) {
   const [provider, setProvider] = useState<ExternalCalendarProvider>("airbnb");
   const [label, setLabel] = useState("");
   const [syncingId, setSyncingId] = useState<string | null>(null);
+  const { t, tp } = useI18n();
 
   const handleAdd = async (e: FormEvent) => {
     e.preventDefault();
@@ -2028,9 +2042,9 @@ function ExternalCalendarsSection({ logementId }: { logementId: string }) {
       setUrl("");
       setLabel("");
       setProvider("airbnb");
-      toast.success("Calendrier ajouté");
+      toast.success(t("logementDetail.calendars.added"));
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "URL invalide ou erreur");
+      toast.error(err instanceof ApiError ? err.message : t("logementDetail.calendars.addError"));
     }
   };
 
@@ -2039,22 +2053,26 @@ function ExternalCalendarsSection({ logementId }: { logementId: string }) {
     try {
       const r = await sync.mutateAsync({ id, logement_id: logementId });
       if (r.error) {
-        toast.error(`Synchronisation échouée : ${r.error}`);
+        toast.error(t("logementDetail.calendars.syncFailed", { error: r.error }));
       } else {
         // `fetched_events` = événements lus dans le flux. L'afficher distingue
         // « le lien ne renvoie rien » de « le flux est lu mais rien n'en sort ».
-        const detail = `${r.created_menages} créé(s), ${r.updated_menages} mis à jour, ${r.cancelled_menages} annulé(s)`;
-        const lus = `${r.fetched_events} événement${r.fetched_events > 1 ? "s" : ""} lu${r.fetched_events > 1 ? "s" : ""}`;
+        const detail = t("logementDetail.calendars.syncDetail", {
+          created: r.created_menages,
+          updated: r.updated_menages,
+          cancelled: r.cancelled_menages,
+        });
+        const lus = tp("logementDetail.calendars.eventsRead", r.fetched_events);
         if (r.fetched_events === 0) {
-          toast.warning(`Synchro OK — aucun événement dans le flux (calendrier vide ou lien invalide)`);
+          toast.warning(t("logementDetail.calendars.syncEmpty"));
         } else if (r.created_menages + r.updated_menages + r.cancelled_menages === 0) {
-          toast.warning(`Synchro OK — ${lus}, aucune prestation impactée (déjà à jour ou dates bloquées)`);
+          toast.warning(t("logementDetail.calendars.syncNoImpact", { read: lus }));
         } else {
-          toast.success(`Synchro OK — ${lus} · ${detail}`);
+          toast.success(t("logementDetail.calendars.syncOk", { read: lus, detail }));
         }
       }
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Erreur de synchronisation");
+      toast.error(err instanceof ApiError ? err.message : t("logementDetail.calendars.syncError"));
     } finally {
       setSyncingId(null);
     }
@@ -2064,23 +2082,23 @@ function ExternalCalendarsSection({ logementId }: { logementId: string }) {
     try {
       await update.mutateAsync({ id: c.id, logement_id: logementId, enabled: !c.enabled });
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Erreur");
+      toast.error(err instanceof ApiError ? err.message : t("common.error"));
     }
   };
 
   const handleRemove = async (c: ExternalCalendar) => {
     const ok = await confirm({
-      title: "Supprimer ce calendrier ?",
-      description: "La synchronisation s'arrête. Les ménages déjà créés ne sont pas supprimés.",
+      title: t("logementDetail.calendars.deleteTitle"),
+      description: t("logementDetail.calendars.deleteDesc"),
       tone: "danger",
-      confirmLabel: "Supprimer",
+      confirmLabel: t("common.delete"),
     });
     if (!ok) return;
     try {
       await remove.mutateAsync({ id: c.id, logement_id: logementId });
-      toast.success("Calendrier supprimé");
+      toast.success(t("logementDetail.calendars.deleted"));
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Erreur");
+      toast.error(err instanceof ApiError ? err.message : t("common.error"));
     }
   };
 
@@ -2092,29 +2110,27 @@ function ExternalCalendarsSection({ logementId }: { logementId: string }) {
         <CalendarClock size={18} className="mt-0.5 shrink-0 text-zinc-400" />
         <div>
           <h2 className="text-lg font-semibold text-zinc-900 dark:text-white">
-            Calendriers externes (iCal)
+            {t("logementDetail.calendars.title")}
           </h2>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            Colle l&apos;URL iCal de ton annonce (Airbnb, Booking…) pour créer les ménages
-            automatiquement à chaque réservation. La synchro tourne toutes les 30 min ; tu peux
-            aussi la lancer à la main.
+            {t("logementDetail.calendars.hint")}
           </p>
         </div>
       </div>
 
       {calendars.isLoading ? (
-        <p className="text-sm text-zinc-500">Chargement…</p>
+        <p className="text-sm text-zinc-500">{t("common.loading")}</p>
       ) : list.length > 0 ? (
         <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
           {list.map((c) => (
             <li key={c.id} className="flex flex-col gap-2 py-3 sm:flex-row sm:items-start">
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-zinc-900 dark:text-white">
-                  {providerLabel(c.provider)}
+                  {providerLabel(c.provider, t)}
                   {c.label ? ` — ${c.label}` : ""}
                   {!c.enabled ? (
                     <span className="ml-2 rounded bg-zinc-100 px-1.5 py-0.5 text-xs font-normal text-zinc-500 dark:bg-zinc-800">
-                      désactivé
+                      {t("logementDetail.calendars.disabled")}
                     </span>
                   ) : null}
                 </p>
@@ -2123,11 +2139,11 @@ function ExternalCalendarsSection({ logementId }: { logementId: string }) {
                 </p>
                 <p className="mt-0.5 text-xs text-zinc-400">
                   {c.last_synced_at
-                    ? `Dernière synchro : ${formatDateFr(c.last_synced_at, "datetime")}`
-                    : "Jamais synchronisé"}
+                    ? t("logementDetail.calendars.lastSync", { date: formatDateFr(c.last_synced_at, "datetime") })
+                    : t("logementDetail.calendars.neverSynced")}
                 </p>
                 {c.last_error ? (
-                  <p className="mt-0.5 text-xs text-rose-600">Erreur : {c.last_error}</p>
+                  <p className="mt-0.5 text-xs text-rose-600">{t("logementDetail.calendars.error", { error: c.last_error })}</p>
                 ) : null}
               </div>
               <div className="flex shrink-0 items-center gap-2">
@@ -2138,20 +2154,20 @@ function ExternalCalendarsSection({ logementId }: { logementId: string }) {
                   disabled={syncingId === c.id}
                 >
                   <RefreshCw size={14} className={syncingId === c.id ? "animate-spin" : ""} />
-                  {syncingId === c.id ? "Synchro…" : "Synchroniser"}
+                  {syncingId === c.id ? t("logementDetail.calendars.syncing") : t("logementDetail.calendars.sync")}
                 </Button>
                 <button
                   type="button"
                   onClick={() => handleToggle(c)}
                   className="text-xs text-zinc-500 hover:text-zinc-900 dark:hover:text-white"
                 >
-                  {c.enabled ? "Désactiver" : "Activer"}
+                  {c.enabled ? t("logementDetail.calendars.disable") : t("logementDetail.calendars.enable")}
                 </button>
                 <button
                   type="button"
                   onClick={() => handleRemove(c)}
                   className="text-zinc-400 hover:text-rose-600"
-                  aria-label="Supprimer le calendrier"
+                  aria-label={t("logementDetail.calendars.deleteAria")}
                 >
                   <Trash2 size={14} />
                 </button>
@@ -2161,7 +2177,7 @@ function ExternalCalendarsSection({ logementId }: { logementId: string }) {
         </ul>
       ) : (
         <p className="text-sm text-zinc-500">
-          Aucun calendrier externe rattaché à ce logement.
+          {t("logementDetail.calendars.empty")}
         </p>
       )}
 
@@ -2171,20 +2187,20 @@ function ExternalCalendarsSection({ logementId }: { logementId: string }) {
       >
         <div className="sm:w-40">
           <Select
-            label="Source"
+            label={t("logementDetail.calendars.source")}
             value={provider}
             onChange={(e) => setProvider(e.target.value as ExternalCalendarProvider)}
           >
             {EXTERNAL_CALENDAR_PROVIDERS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
+              <option key={o} value={o}>
+                {providerLabel(o, t)}
               </option>
             ))}
           </Select>
         </div>
         <div className="flex-1">
           <Input
-            label="URL iCal"
+            label={t("logementDetail.calendars.url")}
             type="url"
             placeholder="https://www.airbnb.fr/calendar/ical/..."
             value={url}
@@ -2193,14 +2209,14 @@ function ExternalCalendarsSection({ logementId }: { logementId: string }) {
         </div>
         <div className="sm:w-44">
           <Input
-            label="Libellé (optionnel)"
-            placeholder="Annonce Airbnb"
+            label={t("logementDetail.calendars.labelOptional")}
+            placeholder={t("logementDetail.calendars.labelPlaceholder")}
             value={label}
             onChange={(e) => setLabel(e.target.value)}
           />
         </div>
         <Button type="submit" loading={create.isPending} disabled={!url.trim()}>
-          <Plus size={16} /> Ajouter
+          <Plus size={16} /> {t("common.add")}
         </Button>
       </form>
     </Card>
@@ -2210,26 +2226,27 @@ function ExternalCalendarsSection({ logementId }: { logementId: string }) {
 function MenagesLinkedSection({ logementId }: { logementId: string }) {
   const menages = useMenages({ logement_id: logementId, limit: 50 });
   const items = menages.data?.data ?? [];
+  const { t, tp } = useI18n();
 
   return (
     <Card className="p-6">
       <div className="mb-4 flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-zinc-900 dark:text-white">Ménages rattachés</h2>
+          <h2 className="text-lg font-semibold text-zinc-900 dark:text-white">{t("logementDetail.menages.title")}</h2>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            {items.length === 0 ? "Aucun ménage." : `${items.length} ménage${items.length > 1 ? "s" : ""}`}
+            {items.length === 0 ? t("logementDetail.menages.empty") : tp("logementDetail.menages.count", items.length)}
           </p>
         </div>
         <Link href={`/menages/new?logement_id=${logementId}`}>
           <Button size="sm">
             <Plus size={14} />
-            Nouveau
+            {t("logementDetail.menages.new")}
           </Button>
         </Link>
       </div>
 
       {menages.isLoading ? (
-        <p className="text-sm text-zinc-500">Chargement…</p>
+        <p className="text-sm text-zinc-500">{t("common.loading")}</p>
       ) : items.length === 0 ? null : (
         <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
           {items
@@ -2274,6 +2291,7 @@ function EquipementsSection({ logementId, isAdmin }: { logementId: string; isAdm
   const [showCreate, setShowCreate] = useState(false);
   const [showCatalog, setShowCatalog] = useState(false);
   const [editing, setEditing] = useState<LogementEquipement | null>(null);
+  const { t } = useI18n();
 
   const list = equipements.data ?? [];
   const total = list.reduce((sum, e) => sum + e.quantity, 0);
@@ -2289,7 +2307,7 @@ function EquipementsSection({ logementId, isAdmin }: { logementId: string; isAdm
       <div className="mb-4 flex items-center justify-between gap-3">
         <div>
           <h2 className="flex items-center gap-2 text-lg font-semibold text-zinc-900 dark:text-white">
-            Équipements
+            {t("logementDetail.equipments.title")}
             {total > 0 ? (
               <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
                 {total}
@@ -2297,32 +2315,31 @@ function EquipementsSection({ logementId, isAdmin }: { logementId: string; isAdm
             ) : null}
           </h2>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            Inventaire du bien : ce que le prestataire trouvera sur place (appareil à raclette,
-            plaque de cuisson, lave-vaisselle…).
+            {t("logementDetail.equipments.hint")}
           </p>
         </div>
         {isAdmin ? (
           <div className="flex shrink-0 gap-2">
             <Button size="sm" variant="secondary" onClick={() => setShowCatalog(true)}>
               <Boxes size={14} />
-              Catalogue
+              {t("logementDetail.equipments.catalog")}
             </Button>
             <Button size="sm" onClick={() => setShowCreate(true)}>
               <Plus size={14} />
-              Ajouter
+              {t("common.add")}
             </Button>
           </div>
         ) : null}
       </div>
 
       {equipements.isLoading ? (
-        <p className="text-sm text-zinc-500">Chargement…</p>
+        <p className="text-sm text-zinc-500">{t("common.loading")}</p>
       ) : groups.length > 0 ? (
         <div className="flex flex-col gap-4">
           {groups.map((group) => (
             <div key={group.value}>
               <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-zinc-400">
-                {group.label}
+                {t(group.key)}
               </p>
               <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
                 {group.items.map((e) => (
@@ -2348,27 +2365,27 @@ function EquipementsSection({ logementId, isAdmin }: { logementId: string; isAdm
                         <button
                           onClick={() => setEditing(e)}
                           className="text-zinc-400 hover:text-blue-600"
-                          aria-label="Modifier"
+                          aria-label={t("common.edit")}
                         >
                           <Pencil size={14} />
                         </button>
                         <button
                           onClick={async () => {
                             const ok = await confirm({
-                              title: `Supprimer « ${e.label} » de l'inventaire ?`,
+                              title: t("logementDetail.equipments.deleteTitle", { label: e.label }),
                               tone: "danger",
-                              confirmLabel: "Supprimer",
+                              confirmLabel: t("common.delete"),
                             });
                             if (!ok) return;
                             try {
                               await remove.mutateAsync(e.id);
-                              toast.success("Équipement supprimé");
+                              toast.success(t("logementDetail.equipments.deleted"));
                             } catch (err) {
-                              toast.error(err instanceof ApiError ? err.message : "Erreur");
+                              toast.error(err instanceof ApiError ? err.message : t("common.error"));
                             }
                           }}
                           className="text-zinc-400 hover:text-rose-600"
-                          aria-label="Supprimer"
+                          aria-label={t("common.delete")}
                         >
                           <Trash2 size={14} />
                         </button>
@@ -2382,13 +2399,13 @@ function EquipementsSection({ logementId, isAdmin }: { logementId: string; isAdm
         </div>
       ) : (
         <p className="text-sm text-zinc-500">
-          Aucun équipement renseigné.
-          {isAdmin ? " Utilise le catalogue pour en ajouter plusieurs d'un coup." : ""}
+          {t("logementDetail.equipments.empty")}
+          {isAdmin ? ` ${t("logementDetail.equipments.emptyAdminHint")}` : ""}
         </p>
       )}
 
       {showCreate ? (
-        <Modal open onClose={() => setShowCreate(false)} title="Ajouter un équipement">
+        <Modal open onClose={() => setShowCreate(false)} title={t("logementDetail.equipments.addTitle")}>
           <EquipementForm
             rooms={rooms.data ?? []}
             onSubmit={(input) => create.mutateAsync({ logement_id: logementId, ...input })}
@@ -2398,7 +2415,7 @@ function EquipementsSection({ logementId, isAdmin }: { logementId: string; isAdm
       ) : null}
 
       {editing ? (
-        <Modal open onClose={() => setEditing(null)} title="Modifier l'équipement">
+        <Modal open onClose={() => setEditing(null)} title={t("logementDetail.equipments.editTitle")}>
           <EquipementForm
             initial={editing}
             rooms={rooms.data ?? []}
@@ -2409,7 +2426,7 @@ function EquipementsSection({ logementId, isAdmin }: { logementId: string; isAdm
       ) : null}
 
       {showCatalog ? (
-        <Modal open onClose={() => setShowCatalog(false)} title="Ajouter depuis le catalogue">
+        <Modal open onClose={() => setShowCatalog(false)} title={t("logementDetail.equipments.catalogTitle")}>
           <EquipementCatalogPicker
             logementId={logementId}
             existing={list}
@@ -2421,16 +2438,16 @@ function EquipementsSection({ logementId, isAdmin }: { logementId: string; isAdm
   );
 }
 
-/** Familles d'équipements — miroir de l'enum côté API. */
-const EQUIPEMENT_CATEGORIES: { value: EquipementCategory; label: string }[] = [
-  { value: "cuisine", label: "Cuisine" },
-  { value: "electromenager", label: "Électroménager" },
-  { value: "confort", label: "Confort" },
-  { value: "exterieur", label: "Extérieur" },
-  { value: "loisirs", label: "Loisirs" },
-  { value: "bebe", label: "Bébé" },
-  { value: "securite", label: "Sécurité" },
-  { value: "autre", label: "Autre" },
+/** Familles d'équipements — miroir de l'enum côté API ; libellés traduits via `t(key)`. */
+const EQUIPEMENT_CATEGORIES: { value: EquipementCategory; key: string }[] = [
+  { value: "cuisine", key: "logementDetail.equipments.category.cuisine" },
+  { value: "electromenager", key: "logementDetail.equipments.category.electromenager" },
+  { value: "confort", key: "logementDetail.equipments.category.confort" },
+  { value: "exterieur", key: "logementDetail.equipments.category.exterieur" },
+  { value: "loisirs", key: "logementDetail.equipments.category.loisirs" },
+  { value: "bebe", key: "logementDetail.equipments.category.bebe" },
+  { value: "securite", key: "logementDetail.equipments.category.securite" },
+  { value: "autre", key: "logementDetail.equipments.category.autre" },
 ];
 
 function EquipementForm({
@@ -2452,6 +2469,7 @@ function EquipementForm({
 }) {
   const [label, setLabel] = useState(initial?.label ?? "");
   const [category, setCategory] = useState<EquipementCategory>(initial?.category ?? "cuisine");
+  const { t } = useI18n();
   const [quantity, setQuantity] = useState(String(initial?.quantity ?? 1));
   const [roomId, setRoomId] = useState(initial?.logement_room_id ?? "");
   const [notes, setNotes] = useState(initial?.notes ?? "");
@@ -2460,12 +2478,12 @@ function EquipementForm({
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!label.trim()) {
-      toast.error("Le nom est obligatoire");
+      toast.error(t("logementDetail.nameRequired"));
       return;
     }
     const qty = parseInt(quantity, 10);
     if (Number.isNaN(qty) || qty < 1) {
-      toast.error("Quantité invalide");
+      toast.error(t("logementDetail.invalidQuantity"));
       return;
     }
     setSaving(true);
@@ -2477,10 +2495,10 @@ function EquipementForm({
         logement_room_id: roomId || null,
         notes: notes.trim() || null,
       });
-      toast.success(initial ? "Équipement modifié" : "Équipement ajouté");
+      toast.success(initial ? t("logementDetail.equipments.updated") : t("logementDetail.equipments.added"));
       onSuccess();
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Erreur");
+      toast.error(err instanceof ApiError ? err.message : t("common.error"));
     } finally {
       setSaving(false);
     }
@@ -2489,28 +2507,28 @@ function EquipementForm({
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-3">
       <label className="flex flex-col gap-1 text-sm">
-        <span className="font-medium">Nom</span>
+        <span className="font-medium">{t("logementDetail.name")}</span>
         <Input
           value={label}
           onChange={(e) => setLabel(e.target.value)}
-          placeholder="Appareil à raclette"
+          placeholder={t("logementDetail.equipments.namePlaceholder")}
           autoFocus
         />
       </label>
       <div className="grid grid-cols-2 gap-3">
         <Select
-          label="Famille"
+          label={t("logementDetail.equipments.family")}
           value={category}
           onChange={(e) => setCategory(e.target.value as EquipementCategory)}
         >
           {EQUIPEMENT_CATEGORIES.map((c) => (
             <option key={c.value} value={c.value}>
-              {c.label}
+              {t(c.key)}
             </option>
           ))}
         </Select>
         <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium">Quantité</span>
+          <span className="font-medium">{t("logementDetail.equipments.quantity")}</span>
           <Input
             type="number"
             min={1}
@@ -2520,12 +2538,12 @@ function EquipementForm({
         </label>
       </div>
       <Select
-        label="Pièce (optionnel)"
+        label={t("logementDetail.equipments.roomOptional")}
         value={roomId}
         onChange={(e) => setRoomId(e.target.value)}
-        hint="Où se trouve l'équipement dans le logement."
+        hint={t("logementDetail.equipments.roomHint")}
       >
-        <option value="">— Aucune —</option>
+        <option value="">{t("logementDetail.equipments.noRoom")}</option>
         {rooms.map((r) => (
           <option key={r.id} value={r.id}>
             {r.name}
@@ -2533,16 +2551,16 @@ function EquipementForm({
         ))}
       </Select>
       <label className="flex flex-col gap-1 text-sm">
-        <span className="font-medium">Notes (optionnel)</span>
+        <span className="font-medium">{t("logementDetail.notesOptional")}</span>
         <Input
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          placeholder="Dans le placard du haut"
+          placeholder={t("logementDetail.equipments.notesPlaceholder")}
         />
       </label>
       <div className="flex justify-end gap-2">
         <Button type="submit" size="sm" loading={saving}>
-          {initial ? "Enregistrer" : "Ajouter"}
+          {initial ? t("common.save") : t("common.add")}
         </Button>
       </div>
     </form>
@@ -2566,6 +2584,7 @@ function EquipementCatalogPicker({
   const catalog = useEquipementCatalog();
   const bulkCreate = useBulkCreateEquipements(logementId);
   const [selected, setSelected] = useState<Record<string, EquipementCategory>>({});
+  const { t } = useI18n();
   const [saving, setSaving] = useState(false);
 
   const alreadyThere = new Set(existing.map((e) => e.label.trim().toLowerCase()));
@@ -2589,24 +2608,23 @@ function EquipementCatalogPicker({
       );
       toast.success(
         selectedLabels.length > 1
-          ? `${selectedLabels.length} équipements ajoutés`
-          : "Équipement ajouté",
+          ? t("logementDetail.equipments.bulkAdded", { count: selectedLabels.length })
+          : t("logementDetail.equipments.added"),
       );
       onDone();
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Erreur");
+      toast.error(err instanceof ApiError ? err.message : t("common.error"));
     } finally {
       setSaving(false);
     }
   };
 
-  if (catalog.isLoading) return <p className="text-sm text-zinc-500">Chargement…</p>;
+  if (catalog.isLoading) return <p className="text-sm text-zinc-500">{t("common.loading")}</p>;
 
   return (
     <div className="flex flex-col gap-4">
       <p className="text-sm text-zinc-500">
-        Coche les équipements présents dans le logement. Tu peux toujours en ajouter un sur mesure
-        avec « Ajouter ».
+        {t("logementDetail.equipments.catalogHint")}
       </p>
       <div className="flex max-h-[50vh] flex-col gap-4 overflow-y-auto">
         {(catalog.data?.categories ?? [])
@@ -2650,7 +2668,9 @@ function EquipementCatalogPicker({
           loading={saving}
           disabled={selectedLabels.length === 0}
         >
-          Ajouter{selectedLabels.length > 0 ? ` (${selectedLabels.length})` : ""}
+          {selectedLabels.length > 0
+            ? t("logementDetail.equipments.addCount", { count: selectedLabels.length })
+            : t("common.add")}
         </Button>
       </div>
     </div>
@@ -2670,6 +2690,7 @@ function AccessCodesSection({ logementId, isAdmin }: { logementId: string; isAdm
   const remove = useDeleteLogementCode(logementId);
   const [showCreate, setShowCreate] = useState(false);
   const [editing, setEditing] = useState<LogementCode | null>(null);
+  const { t } = useI18n();
 
   const list = codes.data ?? [];
 
@@ -2679,23 +2700,22 @@ function AccessCodesSection({ logementId, isAdmin }: { logementId: string; isAdm
         <div>
           <h2 className="flex items-center gap-2 text-lg font-semibold text-zinc-900 dark:text-white">
             <Key size={18} className="text-zinc-400" />
-            Codes d&apos;accès
+            {t("logementDetail.codes.title")}
           </h2>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            Autant de codes que nécessaire (boîte à clés, portail, alarme…), chacun avec son propre
-            libellé. Visibles par les prestataires qui interviennent dans le logement.
+            {t("logementDetail.codes.hint")}
           </p>
         </div>
         {isAdmin ? (
           <Button size="sm" onClick={() => setShowCreate(true)}>
             <Plus size={14} />
-            Ajouter
+            {t("common.add")}
           </Button>
         ) : null}
       </div>
 
       {codes.isLoading ? (
-        <p className="text-sm text-zinc-500">Chargement…</p>
+        <p className="text-sm text-zinc-500">{t("common.loading")}</p>
       ) : list.length > 0 ? (
         <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
           {list.map((c) => (
@@ -2710,27 +2730,27 @@ function AccessCodesSection({ logementId, isAdmin }: { logementId: string; isAdm
                   <button
                     onClick={() => setEditing(c)}
                     className="text-zinc-400 hover:text-blue-600"
-                    aria-label="Modifier"
+                    aria-label={t("common.edit")}
                   >
                     <Pencil size={14} />
                   </button>
                   <button
                     onClick={async () => {
                       const ok = await confirm({
-                        title: `Supprimer le code « ${c.label} » ?`,
+                        title: t("logementDetail.codes.deleteTitle", { label: c.label }),
                         tone: "danger",
-                        confirmLabel: "Supprimer",
+                        confirmLabel: t("common.delete"),
                       });
                       if (!ok) return;
                       try {
                         await remove.mutateAsync(c.id);
-                        toast.success("Code supprimé");
+                        toast.success(t("logementDetail.codes.deleted"));
                       } catch (err) {
-                        toast.error(err instanceof ApiError ? err.message : "Erreur");
+                        toast.error(err instanceof ApiError ? err.message : t("common.error"));
                       }
                     }}
                     className="text-zinc-400 hover:text-rose-600"
-                    aria-label="Supprimer"
+                    aria-label={t("common.delete")}
                   >
                     <Trash2 size={14} />
                   </button>
@@ -2740,11 +2760,11 @@ function AccessCodesSection({ logementId, isAdmin }: { logementId: string; isAdm
           ))}
         </ul>
       ) : (
-        <p className="text-sm text-zinc-500">Aucun code d&apos;accès renseigné.</p>
+        <p className="text-sm text-zinc-500">{t("logementDetail.codes.empty")}</p>
       )}
 
       {showCreate ? (
-        <Modal open onClose={() => setShowCreate(false)} title="Ajouter un code d'accès">
+        <Modal open onClose={() => setShowCreate(false)} title={t("logementDetail.codes.addTitle")}>
           <AccessCodeForm
             onSubmit={(input) => create.mutateAsync({ logement_id: logementId, ...input })}
             onSuccess={() => setShowCreate(false)}
@@ -2753,7 +2773,7 @@ function AccessCodesSection({ logementId, isAdmin }: { logementId: string; isAdm
       ) : null}
 
       {editing ? (
-        <Modal open onClose={() => setEditing(null)} title="Modifier le code d'accès">
+        <Modal open onClose={() => setEditing(null)} title={t("logementDetail.codes.editTitle")}>
           <AccessCodeForm
             initial={editing}
             onSubmit={(input) => update.mutateAsync({ id: editing.id, input })}
@@ -2768,11 +2788,12 @@ function AccessCodesSection({ logementId, isAdmin }: { logementId: string; isAdm
 /** Code masqué (•••) révélé au clic — même esprit que le champ mobile. */
 function SecretCode({ value }: { value: string }) {
   const [revealed, setRevealed] = useState(false);
+  const { t } = useI18n();
   return (
     <button
       type="button"
       onClick={() => setRevealed((v) => !v)}
-      title={revealed ? "Masquer" : "Révéler"}
+      title={revealed ? t("logementDetail.codes.hide") : t("logementDetail.codes.reveal")}
       className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1 font-mono text-sm tracking-wider text-zinc-800 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-100"
     >
       {revealed ? value : "•".repeat(Math.min(value.length, 8))}
@@ -2793,26 +2814,27 @@ function AccessCodeForm({
   const suggestions = useCodeLabelSuggestions();
   const [label, setLabel] = useState(initial?.label ?? "");
   const [code, setCode] = useState(initial?.code ?? "");
+  const { t } = useI18n();
   const [notes, setNotes] = useState(initial?.notes ?? "");
   const [saving, setSaving] = useState(false);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!label.trim()) {
-      toast.error("Le libellé est obligatoire");
+      toast.error(t("logementDetail.labelRequired"));
       return;
     }
     if (!code.trim()) {
-      toast.error("Le code est obligatoire");
+      toast.error(t("logementDetail.codes.codeRequired"));
       return;
     }
     setSaving(true);
     try {
       await onSubmit({ label: label.trim(), code: code.trim(), notes: notes.trim() || null });
-      toast.success(initial ? "Code modifié" : "Code ajouté");
+      toast.success(initial ? t("logementDetail.codes.updated") : t("logementDetail.codes.added"));
       onSuccess();
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Erreur");
+      toast.error(err instanceof ApiError ? err.message : t("common.error"));
     } finally {
       setSaving(false);
     }
@@ -2821,11 +2843,11 @@ function AccessCodeForm({
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-3">
       <label className="flex flex-col gap-1 text-sm">
-        <span className="font-medium">Libellé</span>
+        <span className="font-medium">{t("logementDetail.label")}</span>
         <Input
           value={label}
           onChange={(e) => setLabel(e.target.value)}
-          placeholder="Ex. Portail"
+          placeholder={t("logementDetail.codes.labelPlaceholder")}
           maxLength={100}
           autoFocus
         />
@@ -2848,25 +2870,25 @@ function AccessCodeForm({
         ))}
       </div>
       <label className="flex flex-col gap-1 text-sm">
-        <span className="font-medium">Code</span>
+        <span className="font-medium">{t("logementDetail.codes.code")}</span>
         <Input
           value={code}
           onChange={(e) => setCode(e.target.value)}
-          placeholder="Ex. 1984"
+          placeholder={t("logementDetail.codes.codePlaceholder")}
           maxLength={100}
         />
       </label>
       <label className="flex flex-col gap-1 text-sm">
-        <span className="font-medium">Notes (optionnel)</span>
+        <span className="font-medium">{t("logementDetail.notesOptional")}</span>
         <Input
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          placeholder="Ex. à gauche de la porte"
+          placeholder={t("logementDetail.codes.notesPlaceholder")}
         />
       </label>
       <div className="flex justify-end gap-2">
         <Button type="submit" size="sm" loading={saving}>
-          {initial ? "Enregistrer" : "Ajouter"}
+          {initial ? t("common.save") : t("common.add")}
         </Button>
       </div>
     </form>
@@ -2886,6 +2908,7 @@ function OptionsSection({ logementId, isAdmin }: { logementId: string; isAdmin: 
   const remove = useDeleteLogementOption(logementId);
   const [showCreate, setShowCreate] = useState(false);
   const [editing, setEditing] = useState<LogementOption | null>(null);
+  const { t } = useI18n();
 
   const list = options.data ?? [];
 
@@ -2895,23 +2918,22 @@ function OptionsSection({ logementId, isAdmin }: { logementId: string; isAdmin: 
         <div>
           <h2 className="flex items-center gap-2 text-lg font-semibold text-zinc-900 dark:text-white">
             <Gift size={18} className="text-zinc-400" />
-            Options
+            {t("logementDetail.options.title")}
           </h2>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            Packs proposés au client (romantique, anniversaire…). Sur une prestation, tu coches
-            celui qu&apos;il a choisi : le prestataire voit ce qu&apos;il doit installer.
+            {t("logementDetail.options.hint")}
           </p>
         </div>
         {isAdmin ? (
           <Button size="sm" onClick={() => setShowCreate(true)}>
             <Plus size={14} />
-            Ajouter
+            {t("common.add")}
           </Button>
         ) : null}
       </div>
 
       {options.isLoading ? (
-        <p className="text-sm text-zinc-500">Chargement…</p>
+        <p className="text-sm text-zinc-500">{t("common.loading")}</p>
       ) : list.length > 0 ? (
         <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
           {list.map((o) => (
@@ -2927,29 +2949,28 @@ function OptionsSection({ logementId, isAdmin }: { logementId: string; isAdmin: 
                   <button
                     onClick={() => setEditing(o)}
                     className="text-zinc-400 hover:text-blue-600"
-                    aria-label="Modifier"
+                    aria-label={t("common.edit")}
                   >
                     <Pencil size={14} />
                   </button>
                   <button
                     onClick={async () => {
                       const ok = await confirm({
-                        title: `Supprimer l'option « ${o.label} » ?`,
-                        description:
-                          "Elle sera retirée des prestations où elle était cochée.",
+                        title: t("logementDetail.options.deleteTitle", { label: o.label }),
+                        description: t("logementDetail.options.deleteDesc"),
                         tone: "danger",
-                        confirmLabel: "Supprimer",
+                        confirmLabel: t("common.delete"),
                       });
                       if (!ok) return;
                       try {
                         await remove.mutateAsync(o.id);
-                        toast.success("Option supprimée");
+                        toast.success(t("logementDetail.options.deleted"));
                       } catch (err) {
-                        toast.error(err instanceof ApiError ? err.message : "Erreur");
+                        toast.error(err instanceof ApiError ? err.message : t("common.error"));
                       }
                     }}
                     className="text-zinc-400 hover:text-rose-600"
-                    aria-label="Supprimer"
+                    aria-label={t("common.delete")}
                   >
                     <Trash2 size={14} />
                   </button>
@@ -2959,11 +2980,11 @@ function OptionsSection({ logementId, isAdmin }: { logementId: string; isAdmin: 
           ))}
         </ul>
       ) : (
-        <p className="text-sm text-zinc-500">Aucune option proposée sur ce logement.</p>
+        <p className="text-sm text-zinc-500">{t("logementDetail.options.empty")}</p>
       )}
 
       {showCreate ? (
-        <Modal open onClose={() => setShowCreate(false)} title="Ajouter une option">
+        <Modal open onClose={() => setShowCreate(false)} title={t("logementDetail.options.addTitle")}>
           <OptionForm
             onSubmit={(input) => create.mutateAsync({ logement_id: logementId, ...input })}
             onSuccess={() => setShowCreate(false)}
@@ -2972,7 +2993,7 @@ function OptionsSection({ logementId, isAdmin }: { logementId: string; isAdmin: 
       ) : null}
 
       {editing ? (
-        <Modal open onClose={() => setEditing(null)} title="Modifier l'option">
+        <Modal open onClose={() => setEditing(null)} title={t("logementDetail.options.editTitle")}>
           <OptionForm
             initial={editing}
             onSubmit={(input) => update.mutateAsync({ id: editing.id, input })}
@@ -2996,21 +3017,22 @@ function OptionForm({
   const suggestions = useOptionSuggestions();
   const [label, setLabel] = useState(initial?.label ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
+  const { t } = useI18n();
   const [saving, setSaving] = useState(false);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!label.trim()) {
-      toast.error("Le libellé est obligatoire");
+      toast.error(t("logementDetail.labelRequired"));
       return;
     }
     setSaving(true);
     try {
       await onSubmit({ label: label.trim(), description: description.trim() || null });
-      toast.success(initial ? "Option modifiée" : "Option ajoutée");
+      toast.success(initial ? t("logementDetail.options.updated") : t("logementDetail.options.added"));
       onSuccess();
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Erreur");
+      toast.error(err instanceof ApiError ? err.message : t("common.error"));
     } finally {
       setSaving(false);
     }
@@ -3019,11 +3041,11 @@ function OptionForm({
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-3">
       <label className="flex flex-col gap-1 text-sm">
-        <span className="font-medium">Libellé</span>
+        <span className="font-medium">{t("logementDetail.label")}</span>
         <Input
           value={label}
           onChange={(e) => setLabel(e.target.value)}
-          placeholder="Ex. Pack romantique"
+          placeholder={t("logementDetail.options.labelPlaceholder")}
           maxLength={150}
           autoFocus
         />
@@ -3045,17 +3067,17 @@ function OptionForm({
         ))}
       </div>
       <label className="flex flex-col gap-1 text-sm">
-        <span className="font-medium">À installer (optionnel)</span>
+        <span className="font-medium">{t("logementDetail.options.toInstall")}</span>
         <Textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          placeholder="Pétales sur le lit, bougies, champagne au frais"
+          placeholder={t("logementDetail.options.descPlaceholder")}
           rows={3}
         />
       </label>
       <div className="flex justify-end gap-2">
         <Button type="submit" size="sm" loading={saving}>
-          {initial ? "Enregistrer" : "Ajouter"}
+          {initial ? t("common.save") : t("common.add")}
         </Button>
       </div>
     </form>

@@ -3,7 +3,6 @@
 import { useMemo } from "react";
 import Link from "next/link";
 import {
-  Building2,
   Users,
   UserX,
   CalendarClock,
@@ -34,12 +33,12 @@ const STATUS_PILL: Record<CalendarMenage["status"], string> = {
   annule: "bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-400",
 };
 
-const STATUS_LABEL: Record<CalendarMenage["status"], string> = {
-  a_venir: "À venir",
-  en_cours: "En cours",
-  termine: "Terminé",
-  valide: "Validé",
-  annule: "Annulé",
+const STATUS_KEY: Record<CalendarMenage["status"], string> = {
+  a_venir: "menages.statusUpcoming",
+  en_cours: "menages.statusInProgress",
+  termine: "menages.statusCompleted",
+  valide: "menages.statusValidated",
+  annule: "menages.statusCancelled",
 };
 
 function todayIso(): string {
@@ -113,7 +112,7 @@ export default function DashboardPage() {
           <Link href="/menages/new">
             <Button>
               <Plus size={16} />
-              Nouveau ménage
+              {t("menages.new")}
             </Button>
           </Link>
         ) : null}
@@ -122,32 +121,32 @@ export default function DashboardPage() {
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
         <StatCard
           icon={<CalendarClock size={20} />}
-          label="Ménages à venir"
+          label={t("dashboard.upcomingMenages")}
           value={stats.upcomingMenageCount}
           href="/menages"
         />
         <StatCard
           icon={<LogIn size={20} />}
-          label="Check-in à venir"
+          label={t("dashboard.upcomingCheckIns")}
           value={stats.upcomingCheckInCount}
           href="/check-ins"
         />
         <StatCard
           icon={<LogOut size={20} />}
-          label="Check-out à venir"
+          label={t("dashboard.upcomingCheckOuts")}
           value={stats.upcomingCheckOutCount}
           href="/check-outs"
         />
         <StatCard
           icon={<UserX size={20} />}
-          label="Non assignés"
+          label={t("dashboard.unassigned")}
           value={unassigned.data?.meta.total ?? 0}
           href="/menages"
           highlight={(unassigned.data?.meta.total ?? 0) > 0}
         />
         <StatCard
           icon={<Clock size={20} />}
-          label="Reschedule en attente"
+          label={t("dashboard.pendingReschedules")}
           value={
             (reschedules.data?.data ?? []).filter((r) => r.status === "pending").length
           }
@@ -158,7 +157,7 @@ export default function DashboardPage() {
         />
         <StatCard
           icon={<Wallet size={20} />}
-          label="Validés ce mois"
+          label={t("dashboard.validatedThisMonth")}
           value={stats.validatedCount}
           href="/archives"
         />
@@ -167,22 +166,20 @@ export default function DashboardPage() {
       <Card className="p-6">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-base font-semibold text-zinc-900 dark:text-white">
-            Prochaines prestations
+            {t("dashboard.nextPrestations")}
           </h2>
           <Link
             href="/menages"
             className="text-sm font-medium text-blue-600 hover:underline dark:text-blue-400"
           >
-            Tout voir
+            {t("dashboard.seeAll")}
           </Link>
         </div>
 
         {allMenages.isLoading ? (
           <p className="text-sm text-zinc-500">{t("common.loading")}</p>
         ) : nextMenages.length === 0 ? (
-          <p className="text-sm text-zinc-500">
-            Aucun ménage planifié. Crée le premier pour commencer.
-          </p>
+          <p className="text-sm text-zinc-500">{t("dashboard.noPlanned")}</p>
         ) : (
           <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
             {nextMenages.map((m) => {
@@ -204,7 +201,7 @@ export default function DashboardPage() {
                       </p>
                       <p className="mt-0.5 truncate text-xs text-zinc-500">
                         <MapPin size={11} className="inline-block -mt-0.5 mr-1 text-zinc-400" />
-                        {logementLabel(m)}
+                        {logementLabel(m, t)}
                         {m.logement_city ? (
                           <span className="text-zinc-400"> · {m.logement_city}</span>
                         ) : null}
@@ -213,7 +210,7 @@ export default function DashboardPage() {
                     <div className="flex flex-shrink-0 items-center gap-3">
                       {unassignedM ? (
                         <span className="hidden text-xs text-amber-600 sm:inline">
-                          Non assigné
+                          {t("prestation.unassigned")}
                         </span>
                       ) : (
                         <div className="hidden items-center gap-1.5 sm:inline-flex">
@@ -224,7 +221,7 @@ export default function DashboardPage() {
                             size="sm"
                           />
                           <span className="text-xs text-zinc-600 dark:text-zinc-400">
-                            {prestataireLabel(m)}
+                            {prestataireLabel(m, t)}
                           </span>
                         </div>
                       )}
@@ -234,7 +231,7 @@ export default function DashboardPage() {
                           prestationTypePill(m.prestation_type),
                         )}
                       >
-                        {prestationTypeLabel(m.prestation_type)}
+                        {prestationTypeLabel(m.prestation_type, t)}
                       </span>
                       <span
                         className={
@@ -242,7 +239,7 @@ export default function DashboardPage() {
                           STATUS_PILL[m.status]
                         }
                       >
-                        {STATUS_LABEL[m.status]}
+                        {t(STATUS_KEY[m.status])}
                       </span>
                     </div>
                   </Link>
@@ -256,13 +253,13 @@ export default function DashboardPage() {
       {isAdmin ? (
         <Card className="p-6">
           <h2 className="mb-4 text-base font-semibold text-zinc-900 dark:text-white">
-            Raccourcis admin
+            {t("dashboard.adminShortcuts")}
           </h2>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <ShortcutLink href="/logements/new" icon={<Plus size={16} />} label="Nouveau logement" />
-            <ShortcutLink href="/clients" icon={<Users size={16} />} label="Gérer les clients" />
-            <ShortcutLink href="/team" icon={<Users size={16} />} label="Équipe" />
-            <ShortcutLink href="/map" icon={<MapPin size={16} />} label="Carte" />
+            <ShortcutLink href="/logements/new" icon={<Plus size={16} />} label={t("dashboard.newLogement")} />
+            <ShortcutLink href="/clients" icon={<Users size={16} />} label={t("dashboard.manageClients")} />
+            <ShortcutLink href="/team" icon={<Users size={16} />} label={t("nav.team")} />
+            <ShortcutLink href="/map" icon={<MapPin size={16} />} label={t("nav.map")} />
           </div>
         </Card>
       ) : null}

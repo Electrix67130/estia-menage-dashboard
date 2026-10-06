@@ -6,6 +6,7 @@ import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Modal from "@/components/ui/Modal";
 import { useCreateClient } from "@/hooks/useClients";
+import { useI18n } from "@/contexts/I18nContext";
 import { ApiError } from "@/lib/api";
 import type { CreateClientInput, Client } from "@/types/api";
 
@@ -16,84 +17,85 @@ interface Props {
 }
 
 export default function CreateClientModal({ onClose, onCreated }: Props) {
+  const { t } = useI18n();
   const create = useCreateClient();
   const [form, setForm] = useState<CreateClientInput>({});
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!form.first_name && !form.last_name && !form.company_name) {
-      toast.error("Au moins un nom (personne ou entreprise) est requis");
+      toast.error(t("clients.nameRequired"));
       return;
     }
     try {
       const created = await create.mutateAsync(form);
-      toast.success("Client créé");
+      toast.success(t("clients.created"));
       onCreated?.(created);
       onClose();
     } catch (err) {
-      const msg = err instanceof ApiError ? err.message : "Erreur";
+      const msg = err instanceof ApiError ? err.message : t("common.error");
       toast.error(msg);
     }
   };
 
   return (
-    <Modal open onClose={onClose} title="Nouveau client">
+    <Modal open onClose={onClose} title={t("clients.new")}>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Prénom">
+          <Field label={t("clients.firstName")}>
             <Input
               value={form.first_name ?? ""}
               onChange={(e) => setForm({ ...form, first_name: e.target.value })}
             />
           </Field>
-          <Field label="Nom">
+          <Field label={t("clients.lastName")}>
             <Input
               value={form.last_name ?? ""}
               onChange={(e) => setForm({ ...form, last_name: e.target.value })}
             />
           </Field>
         </div>
-        <Field label="Entreprise (si pro)">
+        <Field label={t("clients.companyIfPro")}>
           <Input
             value={form.company_name ?? ""}
             onChange={(e) => setForm({ ...form, company_name: e.target.value })}
           />
         </Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Email">
+          <Field label={t("common.email")}>
             <Input
               type="email"
               value={form.email ?? ""}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
             />
           </Field>
-          <Field label="Téléphone">
+          <Field label={t("clients.phone")}>
             <Input
               value={form.phone ?? ""}
               onChange={(e) => setForm({ ...form, phone: e.target.value })}
             />
           </Field>
         </div>
-        <Field label="Adresse de facturation">
+        <Field label={t("clients.billingAddress")}>
           <Input
             value={form.billing_address ?? ""}
             onChange={(e) => setForm({ ...form, billing_address: e.target.value })}
           />
         </Field>
         <div className="grid grid-cols-3 gap-3">
-          <Field label="Code postal">
+          <Field label={t("menages.form.postalCode")}>
             <Input
               value={form.postal_code ?? ""}
               onChange={(e) => setForm({ ...form, postal_code: e.target.value })}
             />
           </Field>
-          <Field label="Ville">
+          <Field label={t("menages.form.city")}>
             <Input
               value={form.city ?? ""}
               onChange={(e) => setForm({ ...form, city: e.target.value })}
             />
           </Field>
-          <Field label="Pays">
+          <Field label={t("clients.country")}>
             <Input
               value={form.country ?? "FR"}
               maxLength={2}
@@ -109,7 +111,7 @@ export default function CreateClientModal({ onClose, onCreated }: Props) {
               onChange={(e) => setForm({ ...form, siret: e.target.value })}
             />
           </Field>
-          <Field label="N° TVA">
+          <Field label={t("clients.vatNumber")}>
             <Input
               value={form.vat_number ?? ""}
               onChange={(e) => setForm({ ...form, vat_number: e.target.value })}
@@ -118,10 +120,10 @@ export default function CreateClientModal({ onClose, onCreated }: Props) {
         </div>
         <div className="flex justify-end gap-2">
           <Button type="button" variant="ghost" onClick={onClose}>
-            Annuler
+            {t("common.cancel")}
           </Button>
           <Button type="submit" disabled={create.isPending}>
-            {create.isPending ? "Création…" : "Créer"}
+            {create.isPending ? t("clients.creating") : t("emergencies.create")}
           </Button>
         </div>
       </form>

@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, API_URL, getAccessToken } from "@/lib/api";
+import { tFr } from "@/i18n/translations";
 
 const API_KEY = process.env.NEXT_PUBLIC_API_KEY || "change-me-in-production";
 
@@ -150,7 +151,7 @@ export async function downloadInvoiceFile(path: string, filename: string): Promi
 
   const response = await fetch(`${API_URL}${path}`, { headers });
   if (!response.ok) {
-    let message = response.statusText || "Téléchargement impossible";
+    let message = response.statusText || tFr("invoices.downloadFailed");
     try {
       const data = (await response.clone().json()) as { message?: unknown };
       if (typeof data.message === "string" && data.message.length > 0) message = data.message;

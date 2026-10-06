@@ -5,6 +5,7 @@ import { CalendarClock, Check, X } from "lucide-react";
 import { toast } from "sonner";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
+import { useI18n } from "@/contexts/I18nContext";
 import {
   useDecideReschedule,
   useRescheduleRequests,
@@ -13,12 +14,12 @@ import { ApiError } from "@/lib/api";
 import { formatDateFr } from "@/lib/date-fr";
 import type { RescheduleStatus } from "@/types/api";
 
-const STATUS_OPTIONS: { value: RescheduleStatus | "all"; label: string }[] = [
-  { value: "pending", label: "En attente" },
-  { value: "approved", label: "Approuvées" },
-  { value: "rejected", label: "Refusées" },
-  { value: "cancelled", label: "Annulées" },
-  { value: "all", label: "Toutes" },
+const STATUS_OPTIONS: { value: RescheduleStatus | "all"; labelKey: string }[] = [
+  { value: "pending", labelKey: "reschedule.status.pending" },
+  { value: "approved", labelKey: "reschedule.filter.approved" },
+  { value: "rejected", labelKey: "reschedule.filter.rejected" },
+  { value: "cancelled", labelKey: "reschedule.filter.cancelled" },
+  { value: "all", labelKey: "reschedule.filter.all" },
 ];
 
 const STATUS_BADGE: Record<RescheduleStatus, string> = {
@@ -28,14 +29,15 @@ const STATUS_BADGE: Record<RescheduleStatus, string> = {
   cancelled: "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300",
 };
 
-const STATUS_LABEL: Record<RescheduleStatus, string> = {
-  pending: "En attente",
-  approved: "Approuvée",
-  rejected: "Refusée",
-  cancelled: "Annulée",
+const STATUS_KEY: Record<RescheduleStatus, string> = {
+  pending: "reschedule.status.pending",
+  approved: "reschedule.status.approved",
+  rejected: "reschedule.status.rejected",
+  cancelled: "reschedule.status.cancelled",
 };
 
 export default function RescheduleRequestsPage() {
+  const { t } = useI18n();
   const [filter, setFilter] = useState<RescheduleStatus | "all">("pending");
   const list = useRescheduleRequests({
     status: filter === "all" ? undefined : filter,
@@ -48,13 +50,13 @@ export default function RescheduleRequestsPage() {
   ) => {
     const reason =
       decision === "rejected"
-        ? prompt("Motif du refus (optionnel) :") ?? undefined
+        ? prompt(t("reschedule.rejectReasonPrompt")) ?? undefined
         : undefined;
     try {
       await decide.mutateAsync({ id, decision, decision_reason: reason });
-      toast.success(decision === "approved" ? "Demande approuvée" : "Demande refusée");
+      toast.success(decision === "approved" ? t("reschedule.approvedToast") : t("reschedule.rejectedToast"));
     } catch (err) {
-      const msg = err instanceof ApiError ? err.message : "Erreur";
+      const msg = err instanceof ApiError ? err.message : t("common.error");
       toast.error(msg);
     }
   };
@@ -65,11 +67,9 @@ export default function RescheduleRequestsPage() {
         <CalendarClock size={24} className="text-zinc-500" />
         <div>
           <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">
-            Demandes de changement de date
+            {t("reschedule.title")}
           </h1>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            Les prestataires peuvent demander à reporter un ménage. Approuve ou refuse.
-          </p>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">{t("reschedule.subtitle")}</p>
         </div>
       </div>
 
@@ -84,14 +84,14 @@ export default function RescheduleRequestsPage() {
                 : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
             }`}
           >
-            {opt.label}
+            {t(opt.labelKey)}
           </button>
         ))}
       </div>
 
       <Card className="p-0">
         {list.isLoading ? (
-          <p className="p-6 text-sm text-zinc-500">Chargement…</p>
+          <p className="p-6 text-sm text-zinc-500">{t("common.loading")}</p>
         ) : list.data && list.data.data.length > 0 ? (
           <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
             {list.data.data.map((r) => (
@@ -102,27 +102,27 @@ export default function RescheduleRequestsPage() {
                       <span
                         className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_BADGE[r.status]}`}
                       >
-                        {STATUS_LABEL[r.status]}
+                        {t(STATUS_KEY[r.status])}
                       </span>
                       <span className="text-xs text-zinc-500">
-                        Demandée le {formatDateFr(r.created_at, "datetime")}
+                        {t("reschedule.requestedOn", { date: formatDateFr(r.created_at, "datetime") })}
                       </span>
                     </div>
                     <p className="mt-2 text-sm text-zinc-900 dark:text-white">
                       <span className="font-medium">{formatDateFr(r.original_date, "long")}</span>{" "}
                       → <span className="font-medium">{formatDateFr(r.proposed_date, "long")}</span>
                       {r.proposed_time ? (
-                        <span className="text-zinc-500"> à {r.proposed_time}</span>
+                        <span className="text-zinc-500"> {t("reschedule.atTime", { time: r.proposed_time })}</span>
                       ) : null}
                     </p>
                     {r.reason ? (
                       <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-                        Motif : {r.reason}
+                        {t("reschedule.reason", { reason: r.reason })}
                       </p>
                     ) : null}
                     {r.decision_reason ? (
                       <p className="mt-1 text-xs text-zinc-500">
-                        Décision : {r.decision_reason}
+                        {t("reschedule.decision", { reason: r.decision_reason })}
                       </p>
                     ) : null}
                   </div>
@@ -135,7 +135,7 @@ export default function RescheduleRequestsPage() {
                         disabled={decide.isPending}
                       >
                         <X size={14} />
-                        Refuser
+                        {t("common.refuse")}
                       </Button>
                       <Button
                         size="sm"
@@ -143,7 +143,7 @@ export default function RescheduleRequestsPage() {
                         disabled={decide.isPending}
                       >
                         <Check size={14} />
-                        Approuver
+                        {t("reschedule.approve")}
                       </Button>
                     </div>
                   ) : null}
@@ -152,7 +152,7 @@ export default function RescheduleRequestsPage() {
             ))}
           </ul>
         ) : (
-          <p className="p-6 text-sm text-zinc-500">Aucune demande pour ce filtre.</p>
+          <p className="p-6 text-sm text-zinc-500">{t("reschedule.emptyFilter")}</p>
         )}
       </Card>
     </div>

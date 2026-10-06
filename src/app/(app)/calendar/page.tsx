@@ -9,11 +9,13 @@ import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Select from "@/components/ui/Select";
 import { useAuth } from "@/contexts/AuthContext";
+import { useI18n } from "@/contexts/I18nContext";
+import { type TFn } from "@/i18n/translations";
 import { useCalendarMenages, CalendarMenage, prestataireLabel, logementLabel } from "@/hooks/useCalendarMenages";
 import { prestationTypeLabel, type PrestationType } from "@/lib/prestation";
 import { useLogementsList } from "@/hooks/useLogementsList";
 import { apiFetch } from "@/lib/api";
-import { formatDateFr } from "@/lib/date-fr";
+import { formatDateFr, intlLocale } from "@/lib/date-fr";
 import type { User, PaginatedResponse } from "@/types/api";
 
 const PRESTATAIRE_ALL = "";
@@ -22,7 +24,20 @@ const LOGEMENT_ALL = "";
 const TYPE_ALL = "";
 const PRESTATION_TYPES: PrestationType[] = ["menage", "check_in", "check_out"];
 
-const WEEKDAYS = ["lun", "mar", "mer", "jeu", "ven", "sam", "dim"];
+/** Libellés courts des jours (lundi → dimanche) dans la langue de l'app. */
+function buildWeekdays(intl: string): string[] {
+  const fmt = new Intl.DateTimeFormat(intl, { weekday: "short" });
+  // Le 1er janvier 2024 est un lundi.
+  return Array.from({ length: 7 }, (_, i) => fmt.format(new Date(2024, 0, 1 + i)).replace(/\.$/, ""));
+}
+
+const STATUS_KEY: Record<CalendarMenage["status"], string> = {
+  a_venir: "menages.statusUpcoming",
+  en_cours: "menages.statusInProgress",
+  termine: "menages.statusCompleted",
+  valide: "menages.statusValidated",
+  annule: "menages.statusCancelled",
+};
 
 const STATUS_DOT: Record<CalendarMenage["status"], string> = {
   a_venir: "bg-sky-500",
@@ -34,6 +49,8 @@ const STATUS_DOT: Record<CalendarMenage["status"], string> = {
 
 export default function CalendarPage() {
   const { user } = useAuth();
+  const { t, tp, locale } = useI18n();
+  const intl = intlLocale(locale);
   const isAdmin = user?.role === "admin";
   const [cursor, setCursor] = useState(() => startOfMonth(new Date()));
   const [prestataireFilter, setPrestataireFilter] = usePersistedState<string>(
@@ -60,8 +77,8 @@ export default function CalendarPage() {
   });
 
   const prestataireOptions = useMemo(
-    () => buildPrestataireOptions(allMenages, usersQuery.data?.data ?? []),
-    [allMenages, usersQuery.data],
+    () => buildPrestataireOptions(allMenages, usersQuery.data?.data ?? [], t, intl),
+    [allMenages, usersQuery.data, t, intl],
   );
   // On charge tous les logements de l'org (et pas seulement ceux du mois affiché)
   // pour que le filtre liste TOUS les logements, même ceux sans ménage ce mois.
@@ -70,8 +87,8 @@ export default function CalendarPage() {
     return (allLogements.data?.data ?? [])
       .filter((l) => !l.archived_at)
       .map((l) => ({ id: l.id, label: l.name }))
-      .sort((a, b) => a.label.localeCompare(b.label, 'fr'));
-  }, [allLogements.data]);
+      .sort((a, b) => a.label.localeCompare(b.label, intl));
+  }, [allLogements.data, intl]);
 
   const filteredMenages = useMemo(
     () =>
@@ -89,10 +106,11 @@ export default function CalendarPage() {
   );
 
   const days = useMemo(() => buildMonthGrid(cursor), [cursor]);
+  const weekdays = useMemo(() => buildWeekdays(intl), [intl]);
   const byDate = useMemo(() => groupByDate(filteredMenages), [filteredMenages]);
   // Séjours = barres multi-jours (check-in → check-out). Le ménage est créé le
   // jour du check-out (date_prevue) ; l'arrivée = date_prevue − stay_nights.
-  const spans = useMemo(() => buildSpans(filteredMenages), [filteredMenages]);
+  const spans = useMemo(() => buildSpans(filteredMenages, t), [filteredMenages, t]);
   // Vue « séjours » (barres multi-jours) vs vue classique (pastilles + liste).
   const [spanView, setSpanView] = usePersistedState<boolean>("calendar.spanView", false);
   const todayIso = isoLocal(new Date());
@@ -101,6 +119,7 @@ export default function CalendarPage() {
     logementFilter !== LOGEMENT_ALL ||
     typeFilter !== TYPE_ALL;
   const filteredCount = filteredMenages.length;
+  const monthTotal = menages.data?.meta.total ?? 0;
 
   return (
     <div className="flex flex-col gap-6">
@@ -113,8 +132,8 @@ export default function CalendarPage() {
             </h1>
             <p className="text-sm text-zinc-500 dark:text-zinc-400">
               {filtersActive
-                ? `${filteredCount} / ${menages.data?.meta.total ?? 0} ménage${(menages.data?.meta.total ?? 0) > 1 ? "s" : ""} ce mois`
-                : `${menages.data?.meta.total ?? 0} ménage${(menages.data?.meta.total ?? 0) > 1 ? "s" : ""} ce mois`}
+                ? tp("calendar.monthCountFiltered", monthTotal, { shown: filteredCount })
+                : tp("calendar.monthCount", monthTotal)}
             </p>
           </div>
         </div>
@@ -127,7 +146,7 @@ export default function CalendarPage() {
               void usersQuery.refetch();
             }}
             disabled={menages.isFetching || usersQuery.isFetching}
-            aria-label="Rafraîchir"
+            aria-label={t("calendar.refresh")}
           >
             <RefreshCw size={14} className={menages.isFetching || usersQuery.isFetching ? "animate-spin" : undefined} />
           </Button>
@@ -138,13 +157,13 @@ export default function CalendarPage() {
               onChange={(e) => setSpanView(e.target.checked)}
               className="h-3.5 w-3.5 rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
             />
-            Vue séjours
+            {t("calendar.spanView")}
           </label>
           <Button variant="ghost" size="sm" onClick={() => setCursor(addMonths(cursor, -1))}>
             <ChevronLeft size={16} />
           </Button>
           <Button variant="ghost" size="sm" onClick={() => setCursor(startOfMonth(new Date()))}>
-            Aujourd&apos;hui
+            {t("period.today")}
           </Button>
           <Button variant="ghost" size="sm" onClick={() => setCursor(addMonths(cursor, 1))}>
             <ChevronRight size={16} />
@@ -153,7 +172,7 @@ export default function CalendarPage() {
             <Link href="/menages/new">
               <Button size="sm">
                 <Plus size={16} />
-                Créer
+                {t("calendar.create")}
               </Button>
             </Link>
           ) : null}
@@ -162,34 +181,35 @@ export default function CalendarPage() {
 
       {menages.error ? (
         <Card className="border-rose-200 bg-rose-50 p-4 text-sm text-rose-800 dark:border-rose-900 dark:bg-rose-900/20 dark:text-rose-300">
-          Erreur de chargement :{" "}
-          {menages.error instanceof Error ? menages.error.message : String(menages.error)}
+          {t("calendar.loadError", {
+            message: menages.error instanceof Error ? menages.error.message : String(menages.error),
+          })}
         </Card>
       ) : null}
 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
         <div className="flex-1">
           <Select
-            label="Type"
+            label={t("calendar.filterType")}
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
           >
-            <option value={TYPE_ALL}>Tous</option>
-            {PRESTATION_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {prestationTypeLabel(t)}
+            <option value={TYPE_ALL}>{t("common.all")}</option>
+            {PRESTATION_TYPES.map((type) => (
+              <option key={type} value={type}>
+                {prestationTypeLabel(type, t)}
               </option>
             ))}
           </Select>
         </div>
         <div className="flex-1">
           <Select
-            label="Prestataire"
+            label={t("menage.fields.prestataire")}
             value={prestataireFilter}
             onChange={(e) => setPrestataireFilter(e.target.value)}
           >
-            <option value={PRESTATAIRE_ALL}>Tous</option>
-            <option value={PRESTATAIRE_UNASSIGNED}>Non assigné</option>
+            <option value={PRESTATAIRE_ALL}>{t("common.all")}</option>
+            <option value={PRESTATAIRE_UNASSIGNED}>{t("prestation.unassigned")}</option>
             {prestataireOptions.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.label}
@@ -199,11 +219,11 @@ export default function CalendarPage() {
         </div>
         <div className="flex-1">
           <Select
-            label="Logement"
+            label={t("calendar.filterLogement")}
             value={logementFilter}
             onChange={(e) => setLogementFilter(e.target.value)}
           >
-            <option value={LOGEMENT_ALL}>Tous</option>
+            <option value={LOGEMENT_ALL}>{t("common.all")}</option>
             {logementOptions.map((l) => (
               <option key={l.id} value={l.id}>
                 {l.label}
@@ -222,30 +242,30 @@ export default function CalendarPage() {
             }}
           >
             <X size={14} />
-            Réinitialiser
+            {t("common.reset")}
           </Button>
         ) : null}
       </div>
 
       {spanView ? (
-        <MonthSpanGrid days={days} spans={spans} todayIso={todayIso} />
+        <MonthSpanGrid days={days} spans={spans} todayIso={todayIso} weekdays={weekdays} />
       ) : (
-        <MonthClassicGrid days={days} byDate={byDate} todayIso={todayIso} />
+        <MonthClassicGrid days={days} byDate={byDate} todayIso={todayIso} weekdays={weekdays} />
       )}
 
       <div className="flex flex-wrap items-center gap-3 text-xs text-zinc-500">
-        <span>Légende :</span>
-        <Legend dot="bg-sky-500" label="À venir" />
-        <Legend dot="bg-amber-500" label="En cours" />
-        <Legend dot="bg-emerald-500" label="Terminé" />
-        <Legend dot="bg-teal-500" label="Validé" />
-        <Legend dot="bg-zinc-400" label="Annulé" />
+        <span>{t("calendar.legend")}</span>
+        <Legend dot="bg-sky-500" label={t("menages.statusUpcoming")} />
+        <Legend dot="bg-amber-500" label={t("menages.statusInProgress")} />
+        <Legend dot="bg-emerald-500" label={t("menages.statusCompleted")} />
+        <Legend dot="bg-teal-500" label={t("menages.statusValidated")} />
+        <Legend dot="bg-zinc-400" label={t("menages.statusCancelled")} />
       </div>
 
       {filteredMenages.length > 0 ? (
         <Card className="p-6">
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-zinc-500">
-            Liste du mois
+            {t("calendar.monthList")}
           </h2>
           <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
             {filteredMenages
@@ -275,15 +295,15 @@ export default function CalendarPage() {
                         <span className="text-zinc-400">·</span>
                         {unassigned ? (
                           <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
-                            Non assigné
+                            {t("prestation.unassigned")}
                           </span>
                         ) : (
                           <span className="text-zinc-700 dark:text-zinc-200">
-                            {prestataireLabel(m)}
+                            {prestataireLabel(m, t)}
                           </span>
                         )}
                       </div>
-                      <span className="text-xs text-zinc-500">{m.status}</span>
+                      <span className="text-xs text-zinc-500">{t(STATUS_KEY[m.status])}</span>
                     </Link>
                   </li>
                 );
@@ -351,7 +371,7 @@ function dayIndex(iso: string): number {
  * Regroupe ménage / check-in / check-out d'une même réservation (external_event_uid)
  * en un séjour ; les ménages manuels (sans uid) deviennent des événements 1 jour.
  */
-function buildSpans(menages: CalendarMenage[]): Span[] {
+function buildSpans(menages: CalendarMenage[], t: TFn): Span[] {
   const groups = new Map<string, CalendarMenage[]>();
   const singles: CalendarMenage[] = [];
   for (const m of menages) {
@@ -380,7 +400,7 @@ function buildSpans(menages: CalendarMenage[]): Span[] {
       startIso,
       endIso,
       color: anchor.logement_color ?? STATUS_HEX[anchor.status],
-      label: anchor.prestataire_user_id ? prestataireLabel(anchor) : "Non assigné",
+      label: prestataireLabel(anchor, t),
       needsAttention: rows.some((r) => r.needs_attention),
       isStay: startIso < endIso,
       kind: "stay",
@@ -404,7 +424,7 @@ function buildSpans(menages: CalendarMenage[]): Span[] {
       startIso,
       endIso,
       color: m.logement_color ?? STATUS_HEX[m.status],
-      label: m.prestataire_user_id ? prestataireLabel(m) : "Non assigné",
+      label: prestataireLabel(m, t),
       needsAttention: !!m.needs_attention,
       isStay: startIso < endIso,
       kind: m.prestation_type,
@@ -430,11 +450,14 @@ function MonthSpanGrid({
   days,
   spans,
   todayIso,
+  weekdays,
 }: {
   days: { date: Date; inMonth: boolean }[];
   spans: Span[];
   todayIso: string;
+  weekdays: string[];
 }) {
+  const { t } = useI18n();
   const weeks: { date: Date; inMonth: boolean }[][] = [];
   for (let i = 0; i < days.length; i += 7) weeks.push(days.slice(i, i + 7));
 
@@ -512,7 +535,7 @@ function MonthSpanGrid({
   return (
     <Card className="overflow-hidden p-0">
       <div className="grid grid-cols-7 border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/40">
-        {WEEKDAYS.map((d) => (
+        {weekdays.map((d) => (
           <div key={d} className="px-2 py-2 text-center text-xs font-semibold uppercase tracking-wider text-zinc-500">
             {d}
           </div>
@@ -607,12 +630,12 @@ function MonthSpanGrid({
                                 {isStartDay && s.hasCheckIn ? (
                                   <>
                                     <LogIn size={9} className="flex-shrink-0" />
-                                    <span className="truncate">{s.checkInTime ?? "arrivée"}</span>
+                                    <span className="truncate">{s.checkInTime ?? t("calendar.arrival")}</span>
                                   </>
                                 ) : isEndDay && s.hasCheckOut ? (
                                   <>
                                     <LogOut size={9} className="flex-shrink-0" />
-                                    <span className="truncate">{s.checkOutTime ?? "départ"}</span>
+                                    <span className="truncate">{s.checkOutTime ?? t("calendar.departure")}</span>
                                   </>
                                 ) : di === 0 || isStartDay ? (
                                   <span className="truncate">{s.label}</span>
@@ -640,15 +663,18 @@ function MonthClassicGrid({
   days,
   byDate,
   todayIso,
+  weekdays,
 }: {
   days: { date: Date; inMonth: boolean }[];
   byDate: Map<string, CalendarMenage[]>;
   todayIso: string;
+  weekdays: string[];
 }) {
+  const { t, tp } = useI18n();
   return (
     <Card className="p-0">
       <div className="grid grid-cols-7 border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/40">
-        {WEEKDAYS.map((d) => (
+        {weekdays.map((d) => (
           <div key={d} className="px-2 py-2 text-center text-xs font-semibold uppercase tracking-wider text-zinc-500">
             {d}
           </div>
@@ -686,7 +712,7 @@ function MonthClassicGrid({
                         key={i}
                         className={`h-2 w-2 rounded-full ${m.logement_color ? "" : STATUS_DOT[m.status]}`}
                         style={m.logement_color ? { backgroundColor: m.logement_color } : undefined}
-                        title={`${m.horaire_prevu ? m.horaire_prevu.slice(0, 5) + " · " : ""}${m.status}`}
+                        title={`${m.horaire_prevu ? m.horaire_prevu.slice(0, 5) + " · " : ""}${t(STATUS_KEY[m.status])}`}
                       />
                     ))}
                     {dayMenages.length > 5 ? (
@@ -704,7 +730,7 @@ function MonthClassicGrid({
                       <Link
                         key={m.id}
                         href={`/menages/${m.id}`}
-                        title={m.needs_attention ? "Jour passé sans pointage" : undefined}
+                        title={m.needs_attention ? t("calendar.pastDayNotClocked") : undefined}
                         className={`flex items-center gap-0.5 truncate rounded px-1 py-0.5 text-[10px] font-medium hover:opacity-90${
                           m.needs_attention ? " ring-1 ring-rose-500 dark:ring-rose-400" : ""
                         }`}
@@ -718,17 +744,17 @@ function MonthClassicGrid({
                         {m.horaire_prevu ? `${m.horaire_prevu.slice(0, 5)} · ` : ""}
                         {unassigned ? (
                           <span className="rounded bg-blue-100 px-1 py-px text-[9px] font-bold uppercase text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
-                            Non assigné
+                            {t("prestation.unassigned")}
                           </span>
                         ) : (
-                          prestataireLabel(m)
+                          prestataireLabel(m, t)
                         )}
                       </Link>
                     );
                   })}
                   {dayMenages.length > 3 ? (
                     <span className="text-[10px] text-zinc-400">
-                      +{dayMenages.length - 3} autre{dayMenages.length - 3 > 1 ? "s" : ""}
+                      {tp("calendar.moreOthers", dayMenages.length - 3)}
                     </span>
                   ) : null}
                 </div>
@@ -781,6 +807,8 @@ function buildMonthGrid(cursor: Date): { date: Date; inMonth: boolean }[] {
 function buildPrestataireOptions(
   menages: CalendarMenage[],
   users: User[],
+  t: TFn,
+  intl: string,
 ): { id: string; label: string }[] {
   const map = new Map<string, string>();
   // 1. Tous les users role='prestataire' de l'org — apparaissent même sans
@@ -794,12 +822,12 @@ function buildPrestataireOptions(
   for (const m of menages) {
     if (!m.prestataire_user_id) continue;
     if (!map.has(m.prestataire_user_id)) {
-      map.set(m.prestataire_user_id, prestataireLabel(m));
+      map.set(m.prestataire_user_id, prestataireLabel(m, t));
     }
   }
   return Array.from(map.entries())
     .map(([id, label]) => ({ id, label }))
-    .sort((a, b) => a.label.localeCompare(b.label, "fr"));
+    .sort((a, b) => a.label.localeCompare(b.label, intl));
 }
 
 function buildLogementOptions(

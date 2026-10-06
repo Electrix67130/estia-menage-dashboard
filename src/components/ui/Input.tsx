@@ -1,5 +1,6 @@
 import { InputHTMLAttributes, forwardRef, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
+import { useI18n } from "@/contexts/I18nContext";
 import { cn } from "@/lib/utils";
 
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
@@ -14,6 +15,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
   { className, wrapperClassName, label, error, hint, id, type, ...rest },
   ref,
 ) {
+  const { t } = useI18n();
   const inputId = id || rest.name;
   const [reveal, setReveal] = useState(false);
   const isPassword = type === "password";
@@ -45,7 +47,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
             type="button"
             onClick={() => setReveal((r) => !r)}
             tabIndex={-1}
-            aria-label={reveal ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+            aria-label={reveal ? t("ui.hidePassword") : t("ui.showPassword")}
             className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
           >
             {reveal ? <EyeOff size={16} /> : <Eye size={16} />}

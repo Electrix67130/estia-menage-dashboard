@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { LogementListItem } from "@/hooks/useLogementsList";
+import { useI18n } from "@/contexts/I18nContext";
 
 // Chargement runtime des libs map — évite que Turbopack tente de les résoudre
 // au moment du build server (le module SSR ne touche jamais au code leaflet).
@@ -41,6 +42,7 @@ const DEFAULT_WRAPPER =
   "h-[calc(100vh-12rem)] w-full overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-800";
 
 export default function LogementsMap({ logements, className }: Props) {
+  const { t } = useI18n();
   const [libs, setLibs] = useState<{
     L: LeafletModule;
     RL: ReactLeafletModule;
@@ -84,7 +86,7 @@ export default function LogementsMap({ logements, className }: Props) {
     return (
       <div className={className ?? DEFAULT_WRAPPER}>
         <div className="flex h-full items-center justify-center text-sm text-zinc-500">
-          Chargement de la carte…
+          {t("prestations.mapLoading")}
         </div>
       </div>
     );
@@ -125,7 +127,7 @@ export default function LogementsMap({ logements, className }: Props) {
                   href={`/logements/${g.id}`}
                   className="mt-1 text-xs font-medium text-blue-600 hover:underline"
                 >
-                  Voir le logement →
+                  {t("map.viewLogement")}
                 </Link>
               </div>
             </Popup>

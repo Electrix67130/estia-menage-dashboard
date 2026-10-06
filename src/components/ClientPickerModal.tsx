@@ -3,16 +3,21 @@
 import { useMemo, useState } from "react";
 import { Search, User, Plus, X } from "lucide-react";
 import Modal from "@/components/ui/Modal";
+import { useI18n } from "@/contexts/I18nContext";
+import { tFr, type TFn } from "@/i18n/translations";
 import { cn } from "@/lib/utils";
 import type { Client } from "@/types/api";
 
-function clientDisplayName(c: {
-  company_name?: string | null;
-  first_name?: string | null;
-  last_name?: string | null;
-}): string {
+function clientDisplayName(
+  c: {
+    company_name?: string | null;
+    first_name?: string | null;
+    last_name?: string | null;
+  },
+  t: TFn = tFr,
+): string {
   if (c.company_name) return c.company_name;
-  return [c.first_name, c.last_name].filter(Boolean).join(" ") || "Client sans nom";
+  return [c.first_name, c.last_name].filter(Boolean).join(" ") || t("clients.picker.noName");
 }
 
 interface Props {
@@ -37,6 +42,7 @@ export default function ClientPickerModal({
   onSelect,
   onCreateNew,
 }: Props) {
+  const { t } = useI18n();
   const [search, setSearch] = useState("");
 
   const filtered = useMemo(() => {
@@ -51,7 +57,7 @@ export default function ClientPickerModal({
   }, [clients, search]);
 
   return (
-    <Modal open={open} onClose={onClose} title="Choisir un client" size="md">
+    <Modal open={open} onClose={onClose} title={t("clients.picker.title")} size="md">
       <div className="flex flex-col gap-3">
         <div className="flex items-center gap-2 rounded-md border border-zinc-300 bg-zinc-50 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900">
           <Search size={14} className="text-zinc-400" />
@@ -59,7 +65,7 @@ export default function ClientPickerModal({
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Rechercher un client…"
+            placeholder={t("clients.picker.searchPlaceholder")}
             autoFocus
             className="flex-1 bg-transparent text-sm focus:outline-none"
           />
@@ -72,7 +78,7 @@ export default function ClientPickerModal({
             className="flex items-center justify-center gap-2 rounded-md border border-dashed border-blue-500 px-3 py-2 text-sm font-semibold text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20"
           >
             <Plus size={14} />
-            Créer un nouveau client
+            {t("clients.picker.createNew")}
           </button>
         ) : null}
 
@@ -96,13 +102,13 @@ export default function ClientPickerModal({
                   : "text-zinc-500",
               )}
             >
-              Aucun client
+              {t("clients.picker.none")}
             </span>
           </button>
 
           {filtered.length === 0 ? (
             <p className="px-3 py-6 text-center text-sm text-zinc-500">
-              {search ? "Aucun résultat." : "Aucun client. Crée-en un."}
+              {search ? t("clients.picker.noResult") : t("clients.picker.emptyCreate")}
             </p>
           ) : (
             filtered.map((c) => {
@@ -132,7 +138,7 @@ export default function ClientPickerModal({
                           : "font-medium text-zinc-900 dark:text-white",
                       )}
                     >
-                      {clientDisplayName(c)}
+                      {clientDisplayName(c, t)}
                     </span>
                     {sub ? (
                       <span className="truncate text-xs text-zinc-500">{sub}</span>

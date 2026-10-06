@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown } from "lucide-react";
+import { useI18n } from "@/contexts/I18nContext";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -59,7 +60,8 @@ function isValidHex(s: string | null): s is string {
   return !!s && /^#[0-9a-fA-F]{6}$/.test(s);
 }
 
-export default function ColorPicker({ label = "Couleur", value, onChange }: Props) {
+export default function ColorPicker({ label, value, onChange }: Props) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [hsv, setHsv] = useState<HSV>(() =>
     isValidHex(value) ? hexToHsv(value) : { h: 30, s: 1, v: 0.85 },
@@ -151,7 +153,7 @@ export default function ColorPicker({ label = "Couleur", value, onChange }: Prop
 
   return (
     <div className="flex flex-col gap-2">
-      <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">{label}</label>
+      <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">{label ?? t("ui.color.label")}</label>
 
       <div className="relative inline-block">
         <button
@@ -172,7 +174,7 @@ export default function ColorPicker({ label = "Couleur", value, onChange }: Prop
             }}
           />
           <span className="font-mono text-xs uppercase tracking-wider text-zinc-600 dark:text-zinc-300">
-            {value ?? "Aucune"}
+            {value ?? t("ui.color.none")}
           </span>
           <ChevronDown size={14} className="text-zinc-500" />
         </button>
@@ -248,7 +250,7 @@ export default function ColorPicker({ label = "Couleur", value, onChange }: Prop
                   }}
                   className="text-xs text-zinc-500 hover:underline"
                 >
-                  Effacer
+                  {t("ui.clear")}
                 </button>
               ) : null}
             </div>
@@ -271,7 +273,7 @@ export default function ColorPicker({ label = "Couleur", value, onChange }: Prop
                       "flex h-5 w-5 items-center justify-center rounded-full transition-transform hover:scale-110",
                       selected ? "ring-2 ring-zinc-900 ring-offset-1 dark:ring-white" : "",
                     )}
-                    aria-label={`Couleur ${c}`}
+                    aria-label={t("ui.color.swatch", { color: c })}
                   >
                     {selected ? <Check size={10} color="#FFFFFF" /> : null}
                   </button>

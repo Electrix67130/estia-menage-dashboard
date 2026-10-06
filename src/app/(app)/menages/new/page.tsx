@@ -14,6 +14,8 @@ import TimePicker from "@/components/ui/TimePicker";
 import Textarea from "@/components/ui/Textarea";
 import DurationPicker from "@/components/ui/DurationPicker";
 import { useAuth } from "@/contexts/AuthContext";
+import { useI18n } from "@/contexts/I18nContext";
+import { intlLocale } from "@/lib/date-fr";
 import { useLogementsList } from "@/hooks/useLogementsList";
 import { useLogement } from "@/hooks/useLogement";
 import { useCreateMenage } from "@/hooks/useMenageDetail";
@@ -24,6 +26,13 @@ import { prestationTypeLabel, type PrestationType } from "@/lib/prestation";
 function parsePrestationType(v: string | null): PrestationType {
   return v === "check_in" || v === "check_out" ? v : "menage";
 }
+
+/** Suffixe de clé i18n par type de prestation (`menageNew.submit.checkIn`…). */
+const TYPE_KEY: Record<PrestationType, string> = {
+  menage: "menage",
+  check_in: "checkIn",
+  check_out: "checkOut",
+};
 
 function todayIso(): string {
   const d = new Date();
@@ -36,6 +45,7 @@ function todayIso(): string {
 function NewMenageForm() {
   const router = useRouter();
   const params = useSearchParams();
+  const { t, locale } = useI18n();
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
 
@@ -49,7 +59,7 @@ function NewMenageForm() {
   const initialLogementId = params.get("logement_id") ?? "";
   const prestationType = parsePrestationType(params.get("type"));
   const isCheck = prestationType !== "menage";
-  const typeLabel = prestationTypeLabel(prestationType).toLowerCase();
+  const typeKey = TYPE_KEY[prestationType];
 
   const [logementId, setLogementId] = useState<string>(initialLogementId);
   const [datePrevue, setDatePrevue] = useState<string>(initialDate);
@@ -96,7 +106,7 @@ function NewMenageForm() {
   if (!isAdmin) {
     return (
       <Card className="border-blue-200 bg-blue-50 p-4 text-sm text-blue-800 dark:border-blue-900 dark:bg-blue-900/20 dark:text-blue-300">
-        Seul un administrateur peut créer un {typeLabel}.
+        {t(`menageNew.adminOnly.${typeKey}`)}
       </Card>
     );
   }
@@ -104,41 +114,41 @@ function NewMenageForm() {
   const sortedLogements = (logements.data?.data ?? [])
     .filter((l) => !l.archived_at)
     .slice()
-    .sort((a, b) => a.name.localeCompare(b.name, "fr"));
+    .sort((a, b) => a.name.localeCompare(b.name, intlLocale(locale)));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!logementId) {
-      toast.error("Sélectionne un logement");
+      toast.error(t("menageNew.errors.logementRequired"));
       return;
     }
     if (!datePrevue) {
-      toast.error("La date est requise");
+      toast.error(t("menageNew.errors.dateRequired"));
       return;
     }
     const duree = dureeEstimee ? parseInt(dureeEstimee, 10) : undefined;
     if (dureeEstimee && (Number.isNaN(duree) || (duree ?? -1) < 0)) {
-      toast.error("Durée invalide");
+      toast.error(t("menage.errors.dureeInvalid"));
       return;
     }
     const parseMoney = (s: string, label: string): number | undefined | "invalid" => {
       if (!s.trim()) return undefined;
       const n = parseFloat(s.replace(",", "."));
       if (Number.isNaN(n) || n < 0) {
-        toast.error(`${label} invalide`);
+        toast.error(t("menage.errors.fieldInvalid", { field: label }));
         return "invalid";
       }
       return n;
     };
-    const cPrice = parseMoney(clientPriceHt, "Prix client HT");
+    const cPrice = parseMoney(clientPriceHt, t("menage.fields.clientPriceHt"));
     if (cPrice === "invalid") return;
-    const cVat = parseMoney(clientVatRate, "TVA");
+    const cVat = parseMoney(clientVatRate, t("menage.fields.clientVatRate"));
     if (cVat === "invalid") return;
-    const pPrice = parseMoney(providerPrice, "Prix prestataire");
+    const pPrice = parseMoney(providerPrice, t("menage.fields.providerPrice"));
     if (pPrice === "invalid") return;
-    const lCPrice = parseMoney(laundryClientPriceHt, "Prix linge client HT");
+    const lCPrice = parseMoney(laundryClientPriceHt, t("menage.fields.laundryClientHt"));
     if (lCPrice === "invalid") return;
-    const lPPrice = parseMoney(laundryProviderPrice, "Prix linge prestataire");
+    const lPPrice = parseMoney(laundryProviderPrice, t("menage.fields.laundryProvider"));
     if (lPPrice === "invalid") return;
     try {
       const menage = await create.mutateAsync({
@@ -157,7 +167,7 @@ function NewMenageForm() {
         laundry_client_price_ht: !isCheck && laundryIncluded ? lCPrice : undefined,
         laundry_provider_price: !isCheck && laundryIncluded ? lPPrice : undefined,
       });
-      toast.success(`${prestationTypeLabel(prestationType)} créé`);
+      toast.success(t("menageNew.created", { type: prestationTypeLabel(prestationType, t) }));
       router.push(`/menages/${menage.id}`);
     } catch (err) {
       const message =
@@ -165,7 +175,7 @@ function NewMenageForm() {
           ? err.message
           : err instanceof Error
             ? err.message
-            : "Erreur";
+            : t("common.error");
       toast.error(message);
     }
   };
@@ -173,23 +183,23 @@ function NewMenageForm() {
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-6">
       <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">
-        Nouveau {typeLabel}
+        {t(`prestations.new.${typeKey}`)}
       </h1>
       <Card className="flex flex-col gap-4 p-6">
         <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">
-          Informations
+          {t("menageNew.sectionInfo")}
         </h2>
 
         {initialLogementId ? (
           <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm dark:border-blue-900/40 dark:bg-blue-900/20">
-            <p className="text-xs uppercase tracking-wider text-blue-700 dark:text-blue-300">Logement</p>
+            <p className="text-xs uppercase tracking-wider text-blue-700 dark:text-blue-300">{t("menageNew.logement")}</p>
             <p className="mt-0.5 font-semibold text-zinc-900 dark:text-white">
-              {sortedLogements.find((l) => l.id === logementId)?.name ?? "Logement sélectionné"}
+              {sortedLogements.find((l) => l.id === logementId)?.name ?? t("menageNew.logementSelected")}
             </p>
           </div>
         ) : (
           <Select
-            label="Logement"
+            label={t("menageNew.logement")}
             value={logementId}
             onChange={(e) => {
               setLogementId(e.target.value);
@@ -198,7 +208,7 @@ function NewMenageForm() {
             disabled={logements.isLoading}
             required
           >
-            <option value="">— Sélectionner —</option>
+            <option value="">— {t("common.select")} —</option>
             {sortedLogements.map((l) => (
               <option key={l.id} value={l.id}>
                 {l.name}
@@ -210,28 +220,28 @@ function NewMenageForm() {
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <DatePicker
-            label="Date prévue"
+            label={t("menage.fields.datePrevue")}
             value={datePrevue}
             onChange={setDatePrevue}
             required
           />
           <TimePicker
-            label="Horaire (optionnel)"
+            label={t("menageNew.horaireOptional")}
             value={horairePrevu}
             onChange={setHorairePrevu}
           />
         </div>
 
-        <DurationPicker label="Durée estimée" value={dureeEstimee} onChange={setDureeEstimee} />
+        <DurationPicker label={t("menage.fields.dureeEstimee")} value={dureeEstimee} onChange={setDureeEstimee} />
 
         <Select
-          label="Prestataire (optionnel)"
+          label={t("menageNew.prestataireOptional")}
           value={prestataireUserId}
           onChange={(e) => setPrestataireUserId(e.target.value)}
           disabled={prestataires.isLoading}
-          hint="Tout prestataire de l'organisation (remplacement possible même hors logement)."
+          hint={t("menageNew.prestataireHint")}
         >
-          <option value="">— Non assigné —</option>
+          <option value="">{t("menage.fields.unassigned")}</option>
           {(prestataires.data ?? []).map((p) => (
             <option key={p.id} value={p.id}>
               {p.first_name} {p.last_name}
@@ -240,36 +250,34 @@ function NewMenageForm() {
         </Select>
 
         <Textarea
-          label="Notes d'intervention (optionnel)"
+          label={t("menageNew.notesOptional")}
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           rows={4}
           maxLength={5000}
-          placeholder="Consignes particulières, accès, codes…"
+          placeholder={t("menage.fields.notesPlaceholder")}
         />
       </Card>
 
       <Card className="flex flex-col gap-4 p-6">
         <div>
           <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">
-            Tarification
+            {t("menage.edit.sectionPricing")}
           </h2>
-          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-            Le prestataire ne verra que son propre montant.
-          </p>
+          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{t("menageNew.pricingHint")}</p>
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <Input
-            label="Prix client HT (€)"
+            label={t("menage.fields.clientPriceHt")}
             type="number"
             min={0}
             step="0.01"
-            placeholder="ex. 80"
+            placeholder={t("menageNew.example", { value: 80 })}
             value={clientPriceHt}
             onChange={(e) => setClientPriceHt(e.target.value)}
           />
           <Input
-            label="TVA (%)"
+            label={t("menage.fields.clientVatRate")}
             type="number"
             min={0}
             max={100}
@@ -279,11 +287,11 @@ function NewMenageForm() {
             onChange={(e) => setClientVatRate(e.target.value)}
           />
           <Input
-            label="Prix prestataire (€)"
+            label={t("menage.fields.providerPrice")}
             type="number"
             min={0}
             step="0.01"
-            placeholder="ex. 50"
+            placeholder={t("menageNew.example", { value: 50 })}
             value={providerPrice}
             onChange={(e) => setProviderPrice(e.target.value)}
           />
@@ -295,11 +303,9 @@ function NewMenageForm() {
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">
-              Linge
+              {t("menage.edit.sectionLaundry")}
             </h2>
-            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-              Activer si la gestion du linge est incluse pour ce ménage.
-            </p>
+            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{t("menageNew.laundryHint")}</p>
           </div>
           <label className="inline-flex items-center gap-2 text-sm font-medium">
             <input
@@ -308,26 +314,26 @@ function NewMenageForm() {
               onChange={(e) => setLaundryIncluded(e.target.checked)}
               className="h-4 w-4 rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
             />
-            Inclus
+            {t("menage.fields.laundryIncludedShort")}
           </label>
         </div>
         {laundryIncluded ? (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Input
-              label="Prix linge — client HT (€)"
+              label={t("menage.fields.laundryClientHt")}
               type="number"
               min={0}
               step="0.01"
-              placeholder="ex. 15"
+              placeholder={t("menageNew.example", { value: 15 })}
               value={laundryClientPriceHt}
               onChange={(e) => setLaundryClientPriceHt(e.target.value)}
             />
             <Input
-              label="Prix linge — prestataire (€)"
+              label={t("menage.fields.laundryProvider")}
               type="number"
               min={0}
               step="0.01"
-              placeholder="ex. 10"
+              placeholder={t("menageNew.example", { value: 10 })}
               value={laundryProviderPrice}
               onChange={(e) => setLaundryProviderPrice(e.target.value)}
             />
@@ -339,11 +345,11 @@ function NewMenageForm() {
       <div className="flex items-center justify-end gap-2">
         <Link href="/calendar">
           <Button type="button" variant="ghost">
-            Annuler
+            {t("common.cancel")}
           </Button>
         </Link>
         <Button type="submit" loading={create.isPending} disabled={create.isPending}>
-          Créer le {typeLabel}
+          {t(`menageNew.submit.${typeKey}`)}
         </Button>
       </div>
     </form>
@@ -351,10 +357,11 @@ function NewMenageForm() {
 }
 
 export default function NewMenagePage() {
+  const { t } = useI18n();
   return (
     <div className="flex flex-col gap-6 p-6">
       <BackLink fallback="/menages" />
-      <Suspense fallback={<p className="text-sm text-zinc-500">Chargement…</p>}>
+      <Suspense fallback={<p className="text-sm text-zinc-500">{t("common.loading")}</p>}>
         <NewMenageForm />
       </Suspense>
     </div>

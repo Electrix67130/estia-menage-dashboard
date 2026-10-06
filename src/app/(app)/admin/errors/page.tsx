@@ -6,8 +6,10 @@ import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import { adminApi, ErrorEntry } from "@/lib/admin-api";
 import { formatDateTime } from "@/lib/utils";
+import { useI18n } from "@/contexts/I18nContext";
 
 export default function AdminErrorsPage() {
+  const { t } = useI18n();
   const [selected, setSelected] = useState<ErrorEntry | null>(null);
   const { data, isLoading } = useQuery({
     queryKey: ["admin", "errors"],
@@ -18,15 +20,13 @@ export default function AdminErrorsPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">Erreurs serveur</h1>
-        <p className="text-sm text-zinc-500">
-          Toutes les exceptions non-gérées de l&apos;API. Sentry maison — zéro service externe.
-        </p>
+        <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">{t("admin.errorsTitle")}</h1>
+        <p className="text-sm text-zinc-500">{t("admin.errorsSubtitle")}</p>
       </div>
 
       <Card className="p-0">
         {isLoading ? (
-          <p className="p-6 text-sm text-zinc-500">Chargement…</p>
+          <p className="p-6 text-sm text-zinc-500">{t("common.loading")}</p>
         ) : data && data.data.length > 0 ? (
           <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
             {data.data.map((e) => (
@@ -49,7 +49,7 @@ export default function AdminErrorsPage() {
                     </div>
                     <p className="mt-1 truncate text-sm text-zinc-900 dark:text-white">{e.message}</p>
                     <p className="mt-0.5 text-xs text-zinc-500">
-                      {e.user_email ?? "anonyme"} • req {e.request_id}
+                      {e.user_email ?? t("admin.anonymous")} • req {e.request_id}
                     </p>
                   </div>
                   <span className="whitespace-nowrap text-xs text-zinc-500">
@@ -60,7 +60,7 @@ export default function AdminErrorsPage() {
             ))}
           </ul>
         ) : (
-          <p className="p-6 text-sm text-zinc-500">Aucune erreur enregistrée. 🎉</p>
+          <p className="p-6 text-sm text-zinc-500">{t("admin.errorsEmpty")}</p>
         )}
       </Card>
 
@@ -80,6 +80,8 @@ export default function AdminErrorsPage() {
               <button
                 onClick={() => setSelected(null)}
                 className="text-sm text-zinc-500 hover:text-zinc-900"
+                aria-label={t("common.close")}
+                title={t("common.close")}
               >
                 ✕
               </button>
@@ -92,7 +94,10 @@ export default function AdminErrorsPage() {
               {formatDateTime(selected.created_at)}
             </p>
             <p className="mt-1 text-xs text-zinc-500">
-              user : {selected.user_email ?? "anonyme"} • req {selected.request_id}
+              {t("admin.errorUserLine", {
+                user: selected.user_email ?? t("admin.anonymous"),
+                id: selected.request_id ?? "—",
+              })}
             </p>
             {selected.stack ? (
               <pre className="mt-4 max-h-96 overflow-auto rounded-lg bg-zinc-900 p-4 text-xs text-zinc-100">

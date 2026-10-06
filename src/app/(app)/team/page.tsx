@@ -31,7 +31,7 @@ type Tab = "members" | "clients";
 export default function TeamPage() {
   const qc = useQueryClient();
   const { user: me } = useAuth();
-  const { t } = useI18n();
+  const { t, tp } = useI18n();
   const isAdmin = me?.role === "admin";
   const [persistedTab, setTab] = usePersistedState<Tab>("team.tab", "members");
   // L'onglet est mémorisé : un prestataire qui l'avait laissé sur « Clients »
@@ -101,10 +101,8 @@ export default function TeamPage() {
           <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">{t("team.title")}</h1>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
             {tab === "members"
-              ? (members.data?.meta.total ?? 0) > 1
-                ? t("team.memberCountPlural", { count: members.data?.meta.total ?? 0 })
-                : t("team.memberCount", { count: members.data?.meta.total ?? 0 })
-              : `${clientsList.data?.meta.total ?? 0} client${(clientsList.data?.meta.total ?? 0) > 1 ? "s" : ""}`}
+              ? tp("team.memberCount", members.data?.meta.total ?? 0)
+              : tp("team.clientCount", clientsList.data?.meta.total ?? 0)}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -124,7 +122,8 @@ export default function TeamPage() {
                 ? members.isFetching || invitations.isFetching
                 : clientsList.isFetching
             }
-            aria-label="Rafraîchir"
+            aria-label={t("team.refresh")}
+            title={t("team.refresh")}
           >
             <RefreshCw
               size={14}
@@ -147,7 +146,7 @@ export default function TeamPage() {
               <Link href="/clients">
                 <Button>
                   <Plus size={16} />
-                  Nouveau client
+                  {t("team.newClient")}
                 </Button>
               </Link>
             )
@@ -157,9 +156,9 @@ export default function TeamPage() {
 
       <div className="inline-flex w-fit rounded-full bg-zinc-100 p-1 dark:bg-zinc-800">
         {([
-          { key: "members" as Tab, label: "Membres" },
+          { key: "members" as Tab, label: t("dashboard.members") },
           // Fichier client = admin only.
-          ...(isAdmin ? [{ key: "clients" as Tab, label: "Clients" }] : []),
+          ...(isAdmin ? [{ key: "clients" as Tab, label: t("nav.clients") }] : []),
         ]).map((tt) => {
           const active = tab === tt.key;
           return (
@@ -184,7 +183,7 @@ export default function TeamPage() {
         <Card className="p-0">
           <div className="border-b border-zinc-200 p-4 dark:border-zinc-800">
             <Input
-              placeholder="Rechercher un client…"
+              placeholder={t("team.searchClientPlaceholder")}
               value={clientSearch}
               onChange={(e) => setClientSearch(e.target.value)}
             />
@@ -192,7 +191,7 @@ export default function TeamPage() {
           {clientsList.isLoading ? (
             <p className="p-6 text-sm text-zinc-500">{t("common.loading")}</p>
           ) : (clientsList.data?.data ?? []).length === 0 ? (
-            <p className="p-6 text-sm text-zinc-500">Aucun client.</p>
+            <p className="p-6 text-sm text-zinc-500">{t("team.noClients")}</p>
           ) : (
             <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
               {clientsList.data!.data.map((c) => (
@@ -206,14 +205,14 @@ export default function TeamPage() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-medium text-zinc-900 dark:text-white">
-                        {clientDisplayName(c)}
+                        {clientDisplayName(c, t)}
                       </p>
                       <p className="truncate text-xs text-zinc-500">
                         {[c.email, c.city].filter(Boolean).join(" · ") || "—"}
                       </p>
                     </div>
                     <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-sky-700 dark:bg-sky-900/40 dark:text-sky-300">
-                      Client
+                      {t("role.client")}
                     </span>
                     <ChevronRight size={16} className="flex-shrink-0 text-zinc-400" />
                   </Link>

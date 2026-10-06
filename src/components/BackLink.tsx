@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
+import { useI18n } from "@/contexts/I18nContext";
 
 /**
  * Bouton « retour » contextuel : revient à la page d'origine via l'historique
@@ -13,7 +14,7 @@ import { ArrowLeft } from "lucide-react";
  */
 export default function BackLink({
   fallback,
-  label = "Retour",
+  label,
   size = 16,
   className = "flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-900 dark:hover:text-white",
 }: {
@@ -23,6 +24,7 @@ export default function BackLink({
   className?: string;
 }) {
   const router = useRouter();
+  const { t } = useI18n();
 
   const handleBack = () => {
     if (typeof window !== "undefined" && window.history.length > 1) {
@@ -35,7 +37,7 @@ export default function BackLink({
   return (
     <button type="button" onClick={handleBack} className={className}>
       <ArrowLeft size={size} />
-      {label}
+      {label ?? t("common.back")}
     </button>
   );
 }

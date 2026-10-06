@@ -106,16 +106,28 @@ function buildStreet(e: ApiSiege | ApiMatchingEtab | undefined): string | null {
   return [e.numero_voie, e.type_voie, e.libelle_voie].filter(Boolean).join(" ") || null;
 }
 
+/**
+ * Codes d'erreur de la recherche : le hook ne connaît pas la langue de
+ * l'interface, c'est au composant appelant de les traduire.
+ */
+export type SiretLookupError = "invalid" | "not_found" | "network";
+
+export type SiretLookupOutcome =
+  | { ok: true; result: SiretLookupResult }
+  | { ok: false; error: SiretLookupError };
+
 export function useSiretLookup() {
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<SiretLookupError | null>(null);
 
-  const lookup = async (rawSiret: string): Promise<SiretLookupResult | null> => {
+  const fail = (code: SiretLookupError): SiretLookupOutcome => {
+    setError(code);
+    return { ok: false, error: code };
+  };
+
+  const lookup = async (rawSiret: string): Promise<SiretLookupOutcome> => {
     const siret = rawSiret.replace(/\s/g, "");
-    if (!/^\d{14}$/.test(siret)) {
-      setError("SIRET invalide (14 chiffres requis).");
-      return null;
-    }
+    if (!/^\d{14}$/.test(siret)) return fail("invalid");
     setIsLoading(true);
     setError(null);
     try {
@@ -125,27 +137,26 @@ export function useSiretLookup() {
       if (!res.ok) throw new Error("Lookup failed");
       const data = (await res.json()) as ApiResponse;
       const first = data.results?.[0];
-      if (!first) {
-        setError("Entreprise introuvable.");
-        return null;
-      }
+      if (!first) return fail("not_found");
       const etab = pickEtab(first, siret);
       const street = buildStreet(etab);
       const siren = first.siren ?? siret.slice(0, 9);
 
       return {
-        siret,
-        name: first.nom_raison_sociale || first.nom_complet || "",
-        legal_form: legalFormLabel(first.nature_juridique),
-        naf_code: (etab?.activite_principale || first.activite_principale || null)?.toUpperCase().replace(".", "") || null,
-        address: street,
-        postal_code: etab?.code_postal || null,
-        city: etab?.libelle_commune || null,
-        vat_number: computeFrVat(siren),
+        ok: true,
+        result: {
+          siret,
+          name: first.nom_raison_sociale || first.nom_complet || "",
+          legal_form: legalFormLabel(first.nature_juridique),
+          naf_code: (etab?.activite_principale || first.activite_principale || null)?.toUpperCase().replace(".", "") || null,
+          address: street,
+          postal_code: etab?.code_postal || null,
+          city: etab?.libelle_commune || null,
+          vat_number: computeFrVat(siren),
+        },
       };
     } catch {
-      setError("Erreur réseau lors de la recherche.");
-      return null;
+      return fail("network");
     } finally {
       setIsLoading(false);
     }

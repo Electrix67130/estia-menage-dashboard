@@ -2,9 +2,16 @@
 
 import { useState, useRef, useEffect, useMemo } from "react";
 import { Calendar, ChevronLeft, ChevronRight } from "lucide-react";
+import { useI18n } from "@/contexts/I18nContext";
+import { formatDateFr, intlLocale } from "@/lib/date-fr";
+import type { Locale } from "@/i18n/translations";
 import { cn } from "@/lib/utils";
 
-const WEEKDAYS = ["L", "M", "M", "J", "V", "S", "D"];
+/** Initiales des jours, lundi en premier, dans la langue de l'app (2024-01-01 est un lundi). */
+function weekdayInitials(locale: Locale): string[] {
+  const fmt = new Intl.DateTimeFormat(intlLocale(locale), { weekday: "narrow" });
+  return Array.from({ length: 7 }, (_, i) => fmt.format(new Date(2024, 0, 1 + i)));
+}
 
 function ymd(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -34,6 +41,7 @@ interface Props {
 
 /** Sélecteur de date custom (popover calendrier) — cohérent avec le thème de l'app. */
 export default function DatePicker({ label, value, onChange, required, id, className }: Props) {
+  const { t, locale } = useI18n();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const selected = value ? new Date(`${value}T00:00:00`) : null;
@@ -55,6 +63,7 @@ export default function DatePicker({ label, value, onChange, required, id, class
   };
 
   const grid = useMemo(() => buildMonthGrid(view), [view]);
+  const weekdays = useMemo(() => weekdayInitials(locale), [locale]);
   const todayYmd = ymd(new Date());
 
   return (
@@ -73,9 +82,7 @@ export default function DatePicker({ label, value, onChange, required, id, class
           className="flex h-10 w-full items-center justify-between rounded-lg border border-zinc-300 bg-white px-3 text-sm text-zinc-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
         >
           <span className={value ? "" : "text-zinc-400"}>
-            {selected
-              ? selected.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })
-              : "Choisir une date"}
+            {selected ? formatDateFr(selected, "long", locale) : t("ui.datePicker.placeholder")}
           </span>
           <Calendar size={16} className="text-zinc-400" />
         </button>
@@ -87,25 +94,25 @@ export default function DatePicker({ label, value, onChange, required, id, class
                 type="button"
                 onClick={() => setView((v) => new Date(v.getFullYear(), v.getMonth() - 1, 1))}
                 className="rounded-lg p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-white"
-                aria-label="Mois précédent"
+                aria-label={t("period.previousMonth")}
               >
                 <ChevronLeft size={16} />
               </button>
               <span className="text-sm font-semibold capitalize text-zinc-900 dark:text-white">
-                {view.toLocaleDateString("fr-FR", { month: "long", year: "numeric" })}
+                {formatDateFr(view, "month", locale)}
               </span>
               <button
                 type="button"
                 onClick={() => setView((v) => new Date(v.getFullYear(), v.getMonth() + 1, 1))}
                 className="rounded-lg p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-white"
-                aria-label="Mois suivant"
+                aria-label={t("period.nextMonth")}
               >
                 <ChevronRight size={16} />
               </button>
             </div>
 
             <div className="mb-1 grid grid-cols-7 text-center text-[11px] font-medium text-zinc-400">
-              {WEEKDAYS.map((w, i) => (
+              {weekdays.map((w, i) => (
                 <span key={i}>{w}</span>
               ))}
             </div>

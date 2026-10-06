@@ -6,6 +6,7 @@ import type { CalendarMenage } from "@/hooks/useCalendarMenages";
 import { logementLabel, prestataireLabel } from "@/hooks/useCalendarMenages";
 import { useLogementsList } from "@/hooks/useLogementsList";
 import { formatDateFr } from "@/lib/date-fr";
+import { useI18n } from "@/contexts/I18nContext";
 
 type LeafletModule = typeof import("leaflet");
 type ReactLeafletModule = typeof import("react-leaflet");
@@ -18,12 +19,12 @@ const STATUS_COLOR: Record<CalendarMenage["status"], string> = {
   annule: "#71717A",
 };
 
-const STATUS_LABEL: Record<CalendarMenage["status"], string> = {
-  a_venir: "À venir",
-  en_cours: "En cours",
-  termine: "Terminé",
-  valide: "Validé",
-  annule: "Annulé",
+const STATUS_KEY: Record<CalendarMenage["status"], string> = {
+  a_venir: "menages.statusUpcoming",
+  en_cours: "menages.statusInProgress",
+  termine: "menages.statusCompleted",
+  valide: "menages.statusValidated",
+  annule: "menages.statusCancelled",
 };
 
 interface PlottedMenage {
@@ -46,6 +47,7 @@ interface Props {
 const DEFAULT_CENTER: [number, number] = [46.6, 2.3];
 
 export default function MenagesMap({ menages, className }: Props) {
+  const { t } = useI18n();
   const logements = useLogementsList();
   const [libs, setLibs] = useState<{
     L: LeafletModule;
@@ -95,13 +97,13 @@ export default function MenagesMap({ menages, className }: Props) {
         horaire_prevu: m.horaire_prevu,
         lat: lat as number,
         lng: lng as number,
-        logement_name: logementLabel(m),
+        logement_name: logementLabel(m, t),
         logement_address: m.logement_address ?? "",
-        prestataire_label: prestataireLabel(m),
+        prestataire_label: prestataireLabel(m, t),
       });
     }
     return out;
-  }, [menages, logementsById]);
+  }, [menages, logementsById, t]);
 
   const center = useMemo<[number, number]>(() => {
     if (plotted.length === 0) return DEFAULT_CENTER;
@@ -122,7 +124,7 @@ export default function MenagesMap({ menages, className }: Props) {
     return (
       <div className={wrapperClass}>
         <div className="flex h-full items-center justify-center text-sm text-zinc-500">
-          Chargement de la carte…
+          {t("prestations.mapLoading")}
         </div>
       </div>
     );
@@ -170,13 +172,13 @@ export default function MenagesMap({ menages, className }: Props) {
                     className="mt-1 inline-block w-fit rounded-full px-2 py-0.5 text-[10px] font-bold uppercase text-white"
                     style={{ backgroundColor: STATUS_COLOR[p.status] }}
                   >
-                    {STATUS_LABEL[p.status]}
+                    {t(STATUS_KEY[p.status])}
                   </span>
                   <Link
                     href={`/menages/${p.id}`}
                     className="mt-1 text-xs font-medium text-blue-600 hover:underline"
                   >
-                    Voir le ménage →
+                    {t("map.viewMenage")}
                   </Link>
                 </div>
               </Popup>

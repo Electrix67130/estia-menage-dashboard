@@ -11,11 +11,13 @@ import Button from "@/components/ui/Button";
 import { adminApi } from "@/lib/admin-api";
 import { formatDate } from "@/lib/utils";
 import { useConfirm, useAlert } from "@/contexts/DialogContext";
+import { useI18n } from "@/contexts/I18nContext";
 
 export default function AdminUsersPage() {
   const qc = useQueryClient();
   const confirm = useConfirm();
   const showAlert = useAlert();
+  const { t, tp } = useI18n();
   const [search, setSearch] = useState("");
 
   const { data, isLoading } = useQuery({
@@ -28,29 +30,29 @@ export default function AdminUsersPage() {
   const enable = useMutation({
     mutationFn: adminApi.enableUser,
     onSuccess: () => {
-      toast.success("Utilisateur réactivé");
+      toast.success(t("admin.userReactivated"));
       invalidate();
     },
   });
   const disable = useMutation({
     mutationFn: adminApi.disableUser,
     onSuccess: () => {
-      toast.success("Utilisateur désactivé + sessions tuées");
+      toast.success(t("admin.userDeactivated"));
       invalidate();
     },
   });
   const kick = useMutation({
     mutationFn: adminApi.kickSessions,
     onSuccess: (data) => {
-      toast.success(`${data.sessions_killed} session${data.sessions_killed > 1 ? "s" : ""} terminée${data.sessions_killed > 1 ? "s" : ""}`);
+      toast.success(tp("admin.sessionsKilled", data.sessions_killed));
     },
   });
   const reset = useMutation({
     mutationFn: adminApi.forceReset,
     onSuccess: (data) => {
       showAlert({
-        title: "Mot de passe temporaire",
-        description: `${data.temporary_password}\n\nTransmettez-le à l'utilisateur, il devra le changer après login.`,
+        title: t("admin.tempPasswordTitle"),
+        description: t("admin.tempPasswordDesc", { password: data.temporary_password }),
         tone: "info",
       });
     },
@@ -58,7 +60,7 @@ export default function AdminUsersPage() {
   const remove = useMutation({
     mutationFn: adminApi.deleteUser,
     onSuccess: () => {
-      toast.success("Utilisateur supprimé");
+      toast.success(t("admin.userDeleted"));
       invalidate();
     },
   });
@@ -66,16 +68,14 @@ export default function AdminUsersPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">Utilisateurs</h1>
-        <p className="text-sm text-zinc-500">
-          {data?.meta.total ?? 0} utilisateur{(data?.meta.total ?? 0) > 1 ? "s" : ""}
-        </p>
+        <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">{t("admin.users")}</h1>
+        <p className="text-sm text-zinc-500">{tp("admin.userCount", data?.meta.total ?? 0)}</p>
       </div>
 
       <div className="relative max-w-md">
         <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
         <Input
-          placeholder="Rechercher (email, nom)…"
+          placeholder={t("admin.searchUsersPlaceholder")}
           className="pl-9"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -84,7 +84,7 @@ export default function AdminUsersPage() {
 
       <Card className="p-0">
         {isLoading ? (
-          <p className="p-6 text-sm text-zinc-500">Chargement…</p>
+          <p className="p-6 text-sm text-zinc-500">{t("common.loading")}</p>
         ) : data && data.data.length > 0 ? (
           <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
             {data.data.map((u) => (
@@ -94,27 +94,29 @@ export default function AdminUsersPage() {
                     <p className="truncate font-medium text-zinc-900 dark:text-white">
                       {u.first_name} {u.last_name}
                     </p>
-                    {!u.is_active ? <Badge variant="danger">Désactivé</Badge> : null}
-                    {u.is_super_admin ? <Badge variant="info">Super admin</Badge> : null}
+                    {!u.is_active ? <Badge variant="danger">{t("admin.userDisabled")}</Badge> : null}
+                    {u.is_super_admin ? <Badge variant="info">{t("admin.section")}</Badge> : null}
                   </div>
                   <p className="truncate text-sm text-zinc-500">
                     {u.email}
                     {u.phone ? ` · ${u.phone}` : ""}
                   </p>
-                  <p className="mt-0.5 text-xs text-zinc-500">Inscrit le {formatDate(u.created_at)}</p>
+                  <p className="mt-0.5 text-xs text-zinc-500">
+                    {t("admin.joinedOn", { date: formatDate(u.created_at) })}
+                  </p>
                 </div>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={async () => {
                     const ok = await confirm({
-                      title: "Reset password",
-                      description: `Forcer reset password pour ${u.email} ?`,
-                      confirmLabel: "Reset",
+                      title: t("admin.resetPasswordTitle"),
+                      description: t("admin.resetPasswordDesc", { email: u.email }),
+                      confirmLabel: t("common.reset"),
                     });
                     if (ok) reset.mutate(u.id);
                   }}
-                  title="Force reset password"
+                  title={t("admin.resetPasswordTitle")}
                 >
                   <KeyRound size={14} />
                 </Button>
@@ -123,14 +125,14 @@ export default function AdminUsersPage() {
                   size="sm"
                   onClick={async () => {
                     const ok = await confirm({
-                      title: "Kick sessions",
-                      description: `Tuer toutes les sessions actives de ${u.email} ?`,
-                      confirmLabel: "Kick",
+                      title: t("admin.kickSessionsTitle"),
+                      description: t("admin.kickSessionsDesc", { email: u.email }),
+                      confirmLabel: t("admin.kickSessionsConfirm"),
                       tone: "danger",
                     });
                     if (ok) kick.mutate(u.id);
                   }}
-                  title="Kick sessions"
+                  title={t("admin.kickSessionsTitle")}
                 >
                   <LogOut size={14} />
                 </Button>
@@ -140,18 +142,19 @@ export default function AdminUsersPage() {
                     size="sm"
                     onClick={async () => {
                       const ok = await confirm({
-                        title: "Désactiver",
-                        description: `Désactiver ${u.email} ? (kick sessions inclus)`,
-                        confirmLabel: "Désactiver",
+                        title: t("admin.disable"),
+                        description: t("admin.disableUserDesc", { email: u.email }),
+                        confirmLabel: t("admin.disable"),
                         tone: "danger",
                       });
                       if (ok) disable.mutate(u.id);
                     }}
+                    title={t("admin.disable")}
                   >
                     <Ban size={14} />
                   </Button>
                 ) : (
-                  <Button size="sm" onClick={() => enable.mutate(u.id)}>
+                  <Button size="sm" onClick={() => enable.mutate(u.id)} title={t("admin.enable")}>
                     <CheckCircle size={14} />
                   </Button>
                 )}
@@ -160,14 +163,14 @@ export default function AdminUsersPage() {
                   size="sm"
                   onClick={async () => {
                     const ok = await confirm({
-                      title: "Suppression définitive",
-                      description: `SUPPRIMER DÉFINITIVEMENT ${u.email} ?\n\nIrréversible. RGPD-compliant.`,
-                      confirmLabel: "Supprimer",
+                      title: t("admin.deleteUserTitle"),
+                      description: t("admin.deleteUserDesc", { email: u.email }),
+                      confirmLabel: t("common.delete"),
                       tone: "danger",
                     });
                     if (ok) remove.mutate(u.id);
                   }}
-                  title="Delete user"
+                  title={t("common.delete")}
                 >
                   <Trash2 size={14} />
                 </Button>
@@ -175,7 +178,7 @@ export default function AdminUsersPage() {
             ))}
           </ul>
         ) : (
-          <p className="p-6 text-sm text-zinc-500">Aucun utilisateur.</p>
+          <p className="p-6 text-sm text-zinc-500">{t("admin.noUsers")}</p>
         )}
       </Card>
     </div>

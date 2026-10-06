@@ -9,6 +9,8 @@ import Input from "@/components/ui/Input";
 import EmptyState from "@/components/ui/EmptyState";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDialog } from "@/contexts/DialogContext";
+import { useI18n } from "@/contexts/I18nContext";
+import { intlLocale } from "@/lib/date-fr";
 import { useLogementsList, useArchivedLogements } from "@/hooks/useLogementsList";
 import { useUnarchiveLogement } from "@/hooks/useLogement";
 
@@ -16,6 +18,7 @@ export default function LogementsListPage() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
   const { confirm } = useDialog();
+  const { t, tp, locale } = useI18n();
   const list = useLogementsList();
   const [search, setSearch] = useState("");
   const [includeArchived, setIncludeArchived] = useState(false);
@@ -31,9 +34,9 @@ export default function LogementsListPage() {
 
   const handleUnarchive = async (id: string, name: string) => {
     const ok = await confirm({
-      title: "Restaurer ce logement ?",
-      description: `« ${name} » et les prestations/consommables archivés avec lui seront réactivés.`,
-      confirmLabel: "Restaurer",
+      title: t("logements.restoreTitle"),
+      description: t("logements.restoreDesc", { name }),
+      confirmLabel: t("logements.restore"),
     });
     if (ok) await unarchive.mutateAsync(id);
   };
@@ -51,8 +54,8 @@ export default function LogementsListPage() {
         );
       })
       .slice()
-      .sort((a, b) => a.name.localeCompare(b.name, "fr"));
-  }, [items, search, includeArchived]);
+      .sort((a, b) => a.name.localeCompare(b.name, intlLocale(locale)));
+  }, [items, search, includeArchived, locale]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -60,11 +63,9 @@ export default function LogementsListPage() {
         <div className="flex items-center gap-3">
           <Building2 size={24} className="text-zinc-500" />
           <div>
-            <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">Logements</h1>
+            <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">{t("nav.logements")}</h1>
             <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              {list.isLoading
-                ? "Chargement…"
-                : `${items.length} logement${items.length > 1 ? "s" : ""}`}
+              {list.isLoading ? t("common.loading") : tp("logements.count", items.length)}
             </p>
           </div>
         </div>
@@ -74,7 +75,7 @@ export default function LogementsListPage() {
             size="sm"
             onClick={() => list.refetch()}
             disabled={list.isFetching}
-            aria-label="Rafraîchir"
+            aria-label={t("logements.refresh")}
           >
             <RefreshCw size={14} className={list.isFetching ? "animate-spin" : undefined} />
           </Button>
@@ -83,13 +84,13 @@ export default function LogementsListPage() {
               <Link href="/templates">
                 <Button variant="ghost">
                   <ListChecks size={16} />
-                  Modèles de checklist
+                  {t("logements.checklistTemplates")}
                 </Button>
               </Link>
               <Link href="/logements/new">
                 <Button>
                   <Plus size={16} />
-                  Nouveau logement
+                  {t("logements.new")}
                 </Button>
               </Link>
             </>
@@ -99,7 +100,7 @@ export default function LogementsListPage() {
 
       {list.error ? (
         <Card className="border-rose-200 bg-rose-50 p-4 text-sm text-rose-800 dark:border-rose-900 dark:bg-rose-900/20 dark:text-rose-300">
-          {list.error instanceof Error ? list.error.message : "Erreur de chargement"}
+          {list.error instanceof Error ? list.error.message : t("common.loadError")}
         </Card>
       ) : null}
 
@@ -110,7 +111,7 @@ export default function LogementsListPage() {
             className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400"
           />
           <Input
-            placeholder="Nom, adresse, ville…"
+            placeholder={t("logements.searchPlaceholder")}
             className="pl-9"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -123,23 +124,19 @@ export default function LogementsListPage() {
             onChange={(e) => setIncludeArchived(e.target.checked)}
             className="h-4 w-4 rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
           />
-          Inclure les archivés
+          {t("logements.includeArchived")}
         </label>
       </div>
 
       {list.isLoading ? (
         <Card>
-          <p className="text-sm text-zinc-500">Chargement…</p>
+          <p className="text-sm text-zinc-500">{t("common.loading")}</p>
         </Card>
       ) : filtered.length === 0 ? (
         <EmptyState
           icon={<Building2 size={32} />}
-          title="Aucun logement"
-          description={
-            search
-              ? "Aucun résultat pour cette recherche."
-              : "Crée un logement pour commencer."
-          }
+          title={t("logements.empty")}
+          description={search ? t("logements.emptySearch") : t("logements.emptyCreate")}
         />
       ) : (
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
@@ -192,7 +189,7 @@ export default function LogementsListPage() {
                         {archived ? (
                           <>
                             <span className="inline-flex items-center rounded-full bg-zinc-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-700 dark:bg-zinc-800 dark:text-zinc-400">
-                              Archivé
+                              {t("logements.archived")}
                             </span>
                             {isAdmin ? (
                               <button
@@ -206,7 +203,7 @@ export default function LogementsListPage() {
                                 className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium text-blue-600 hover:bg-blue-50 disabled:opacity-50 dark:text-blue-400 dark:hover:bg-blue-900/30"
                               >
                                 <RotateCcw size={11} />
-                                Restaurer
+                                {t("logements.restore")}
                               </button>
                             ) : null}
                           </>
@@ -214,10 +211,10 @@ export default function LogementsListPage() {
                         {l.consommables_alert && l.consommables_alert > 0 ? (
                           <span
                             className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-rose-700 dark:bg-rose-900/50 dark:text-rose-300"
-                            title="Consommables à racheter"
+                            title={t("logements.consumablesAlertTitle")}
                           >
                             <AlertTriangle size={10} />
-                            {l.consommables_alert} à racheter
+                            {t("logements.toRestock", { count: l.consommables_alert })}
                           </span>
                         ) : null}
                       </div>

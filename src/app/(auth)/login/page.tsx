@@ -26,9 +26,11 @@ export default function LoginPage() {
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
     if (p.get("reset") === "1") {
-      toast.success("Mot de passe modifié — connectez-vous avec votre nouveau mot de passe.");
+      toast.success(t("auth.passwordResetDone"));
       window.history.replaceState(null, "", "/login");
     }
+    // `t` suit la langue courante ; le toast ne part qu'une fois, au montage.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function onSubmit(e: FormEvent) {

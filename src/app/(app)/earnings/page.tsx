@@ -10,7 +10,8 @@ import Modal from "@/components/ui/Modal";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
-import { formatDateFr } from "@/lib/date-fr";
+import { useI18n, type Locale } from "@/contexts/I18nContext";
+import { formatDateFr, formatCurrencyFr, intlLocale } from "@/lib/date-fr";
 import { prestationTypeLabel, prestationTypePill, type PrestationType } from "@/lib/prestation";
 import { cn } from "@/lib/utils";
 
@@ -61,11 +62,11 @@ interface PrestaEarnings {
 
 type Granularity = "week" | "month" | "year" | "all";
 
-const GRANULARITIES: { key: Granularity; label: string }[] = [
-  { key: "week", label: "Semaine" },
-  { key: "month", label: "Mois" },
-  { key: "year", label: "Année" },
-  { key: "all", label: "Tout" },
+const GRANULARITIES: { key: Granularity; labelKey: string }[] = [
+  { key: "week", labelKey: "period.week" },
+  { key: "month", labelKey: "period.month" },
+  { key: "year", labelKey: "period.year" },
+  { key: "all", labelKey: "period.all" },
 ];
 
 function ymd(d: Date) {
@@ -73,7 +74,11 @@ function ymd(d: Date) {
 }
 
 /** Bornes + libellé d'une période selon granularité et décalage (0 = courante). */
-function computeRange(g: Granularity, offset: number): { from?: string; to?: string; label: string } {
+function computeRange(
+  g: Granularity,
+  offset: number,
+  locale: Locale,
+): { from?: string; to?: string; label: string } {
   if (g === "all") return { label: "" };
   const now = new Date();
   if (g === "week") {
@@ -82,35 +87,28 @@ function computeRange(g: Granularity, offset: number): { from?: string; to?: str
     monday.setDate(now.getDate() - dow + offset * 7);
     const sunday = new Date(monday);
     sunday.setDate(monday.getDate() + 6);
-    const f = (d: Date) => d.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+    const f = (d: Date) => d.toLocaleDateString(intlLocale(locale), { day: "numeric", month: "short" });
     return { from: ymd(monday), to: ymd(sunday), label: `${f(monday)} – ${f(sunday)} ${sunday.getFullYear()}` };
   }
   if (g === "month") {
     const first = new Date(now.getFullYear(), now.getMonth() + offset, 1);
     const last = new Date(now.getFullYear(), now.getMonth() + offset + 1, 0);
-    return {
-      from: ymd(first),
-      to: ymd(last),
-      label: first.toLocaleDateString("fr-FR", { month: "long", year: "numeric" }),
-    };
+    return { from: ymd(first), to: ymd(last), label: formatDateFr(first, "month", locale) };
   }
   const y = now.getFullYear() + offset;
   return { from: `${y}-01-01`, to: `${y}-12-31`, label: String(y) };
 }
 
-function money(value: number, currency: string) {
-  return new Intl.NumberFormat("fr-FR", { style: "currency", currency }).format(value);
-}
-
 export default function EarningsPage() {
   const { user } = useAuth();
+  const { t, tp, locale } = useI18n();
   const [granularity, setGranularity] = usePersistedState<Granularity>(
     "earnings.filter.granularity",
     "month",
   );
   const [offset, setOffset] = useState(0);
   const [selectedPresta, setSelectedPresta] = useState<PrestaBucket | null>(null);
-  const range = useMemo(() => computeRange(granularity, offset), [granularity, offset]);
+  const range = useMemo(() => computeRange(granularity, offset, locale), [granularity, offset, locale]);
   const isAdmin = user?.role === "admin";
 
   const query = useQuery({
@@ -128,7 +126,7 @@ export default function EarningsPage() {
     return (
       <div className="p-6">
         <Card>
-          <p className="text-sm text-zinc-600 dark:text-zinc-300">Accès réservé aux administrateurs.</p>
+          <p className="text-sm text-zinc-600 dark:text-zinc-300">{t("common.adminOnly")}</p>
         </Card>
       </div>
     );
@@ -136,6 +134,16 @@ export default function EarningsPage() {
 
   const data = query.data;
   const currency = data?.currency ?? "EUR";
+  const money = (value: number) => formatCurrencyFr(value, currency);
+  // Nombre de ménages d'un prestataire : fractionnaire en multi-presta (part égale).
+  const prestaCount = (n: number) =>
+    t("prestations.total", {
+      count: new Intl.NumberFormat(intlLocale(locale), {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1,
+      }).format(n),
+      noun: tp("prestations.noun.menage", n),
+    });
 
   // Deep-link vers la création de facture, pré-remplie client + période courante.
   const invoiceHref = (clientId: string) => {
@@ -151,9 +159,9 @@ export default function EarningsPage() {
         <div className="flex items-center gap-3">
           <Wallet size={24} className="text-zinc-500" />
           <div>
-            <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">Gains</h1>
+            <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">{t("nav.earnings")}</h1>
             <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              {data ? `${data.count} ménage${data.count > 1 ? "s" : ""} sur la période` : "Chargement…"}
+              {data ? tp("earnings.countOnPeriod", data.count) : t("common.loading")}
             </p>
           </div>
         </div>
@@ -162,7 +170,7 @@ export default function EarningsPage() {
           size="sm"
           onClick={() => query.refetch()}
           disabled={query.isFetching}
-          aria-label="Rafraîchir"
+          aria-label={t("earnings.refresh")}
         >
           <RefreshCw size={14} className={query.isFetching ? "animate-spin" : undefined} />
         </Button>
@@ -184,7 +192,7 @@ export default function EarningsPage() {
                     : "rounded-full border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
                 }
               >
-                {p.label}
+                {t(p.labelKey)}
               </button>
             ))}
           </div>
@@ -193,7 +201,7 @@ export default function EarningsPage() {
               <button
                 type="button"
                 onClick={() => setOffset((o) => o - 1)}
-                aria-label="Période précédente"
+                aria-label={t("period.previous")}
                 className="rounded-full p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-white"
               >
                 <ChevronLeft size={16} />
@@ -204,7 +212,7 @@ export default function EarningsPage() {
               <button
                 type="button"
                 onClick={() => setOffset((o) => o + 1)}
-                aria-label="Période suivante"
+                aria-label={t("period.next")}
                 className="rounded-full p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-white"
               >
                 <ChevronRight size={16} />
@@ -215,7 +223,7 @@ export default function EarningsPage() {
                   onClick={() => setOffset(0)}
                   className="rounded-full px-2 py-1 text-[11px] font-medium text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20"
                 >
-                  Aujourd&apos;hui
+                  {t("period.today")}
                 </button>
               ) : null}
             </div>
@@ -226,35 +234,37 @@ export default function EarningsPage() {
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="rounded-xl border border-zinc-200 bg-gradient-to-br from-emerald-50 to-white p-6 dark:border-zinc-800 dark:from-emerald-950/30 dark:to-zinc-950">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
-            Ce qu&apos;on gagne · CA client (HT)
+            {t("earnings.revenueCard")}
           </p>
           <p className="mt-1 text-3xl font-bold text-emerald-700 dark:text-emerald-400">
-            {money(data?.revenue ?? 0, currency)}
+            {money(data?.revenue ?? 0)}
           </p>
         </div>
         <div className="rounded-xl border border-zinc-200 bg-gradient-to-br from-rose-50 to-white p-6 dark:border-zinc-800 dark:from-rose-950/30 dark:to-zinc-950">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
-            Ce qu&apos;on doit payer · coût prestataire
+            {t("earnings.costCard")}
           </p>
           <p className="mt-1 text-3xl font-bold text-rose-700 dark:text-rose-400">
-            {money(data?.total ?? 0, currency)}
+            {money(data?.total ?? 0)}
           </p>
         </div>
         <div className="rounded-xl border border-zinc-200 bg-gradient-to-br from-blue-50 to-white p-6 dark:border-zinc-800 dark:from-blue-950/30 dark:to-zinc-950">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Marge (CA − coût)</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+            {t("earnings.marginCard")}
+          </p>
           <p className="mt-1 text-3xl font-bold text-zinc-900 dark:text-white">
-            {money(data?.margin ?? 0, currency)}
+            {money(data?.margin ?? 0)}
           </p>
         </div>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
-          <h2 className="mb-3 text-sm font-semibold text-zinc-900 dark:text-white">Par client</h2>
+          <h2 className="mb-3 text-sm font-semibold text-zinc-900 dark:text-white">{t("earnings.byClient")}</h2>
           {query.isLoading ? (
-            <p className="text-sm text-zinc-500">Chargement…</p>
+            <p className="text-sm text-zinc-500">{t("common.loading")}</p>
           ) : (data?.by_client.length ?? 0) === 0 ? (
-            <p className="text-sm text-zinc-500">Aucune donnée sur la période.</p>
+            <p className="text-sm text-zinc-500">{t("earnings.noData")}</p>
           ) : (
             <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
               {data!.by_client.map((b) => (
@@ -262,26 +272,26 @@ export default function EarningsPage() {
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-medium text-zinc-900 dark:text-white">{b.name}</p>
                     <p className="text-xs text-zinc-500">
-                      {b.count} ménage{b.count > 1 ? "s" : ""} · à payer {money(b.total, currency)}
+                      {tp("earnings.clientLine", b.count, { amount: money(b.total) })}
                     </p>
                   </div>
                   <div className="flex flex-shrink-0 items-center gap-3">
                     <div className="text-right">
                       <p className="tabular-nums font-semibold text-emerald-700 dark:text-emerald-400">
-                        {money(b.revenue, currency)}
+                        {money(b.revenue)}
                       </p>
                       <p className="text-xs tabular-nums text-zinc-500">
-                        marge {money(b.margin, currency)}
+                        {t("earnings.marginLine", { amount: money(b.margin) })}
                       </p>
                     </div>
                     {b.id !== "__no_client__" ? (
                       <Link
                         href={invoiceHref(b.id)}
-                        title="Créer une facture pour ce client sur la période"
+                        title={t("earnings.invoiceTitle")}
                         className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 dark:border-blue-900 dark:bg-blue-900/20 dark:text-blue-300 dark:hover:bg-blue-900/40"
                       >
                         <Receipt size={13} />
-                        Facturer
+                        {t("earnings.invoice")}
                       </Link>
                     ) : null}
                   </div>
@@ -293,16 +303,13 @@ export default function EarningsPage() {
 
         <Card>
           <h2 className="mb-3 text-sm font-semibold text-zinc-900 dark:text-white">
-            Par prestataire · à payer
+            {t("earnings.byPresta")}
           </h2>
-          <p className="mb-3 text-[11px] text-zinc-500">
-            Clique sur un prestataire pour voir le détail de ses prestations. En cas de ménage
-            multi-prestataires, le coût est réparti à parts égales.
-          </p>
+          <p className="mb-3 text-[11px] text-zinc-500">{t("earnings.byPrestaHint")}</p>
           {query.isLoading ? (
-            <p className="text-sm text-zinc-500">Chargement…</p>
+            <p className="text-sm text-zinc-500">{t("common.loading")}</p>
           ) : (data?.by_prestataire.length ?? 0) === 0 ? (
-            <p className="text-sm text-zinc-500">Aucune donnée sur la période.</p>
+            <p className="text-sm text-zinc-500">{t("earnings.noData")}</p>
           ) : (
             <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
               {data!.by_prestataire.map((b) => (
@@ -314,12 +321,10 @@ export default function EarningsPage() {
                   >
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-medium text-zinc-900 dark:text-white">{b.name}</p>
-                      <p className="text-xs text-zinc-500">
-                        {b.count.toFixed(1)} ménage{b.count > 1 ? "s" : ""}
-                      </p>
+                      <p className="text-xs text-zinc-500">{prestaCount(b.count)}</p>
                     </div>
                     <span className="tabular-nums font-semibold text-zinc-900 dark:text-white">
-                      {money(b.total, currency)}
+                      {money(b.total)}
                     </span>
                     <ChevronRight size={16} className="flex-shrink-0 text-zinc-400" />
                   </button>
@@ -354,6 +359,7 @@ function PrestaDetailModal({
   to?: string;
   onClose: () => void;
 }) {
+  const { t, tp } = useI18n();
   const detail = useQuery({
     queryKey: ["presta-earnings", presta.id, from ?? "", to ?? ""],
     queryFn: () => {
@@ -372,15 +378,17 @@ function PrestaDetailModal({
       title={presta.name}
       subtitle={
         detail.data
-          ? `${detail.data.count} prestation${detail.data.count > 1 ? "s" : ""} · à payer ${money(detail.data.total, currency)}`
-          : "Chargement…"
+          ? tp("earnings.prestaSubtitle", detail.data.count, {
+              amount: formatCurrencyFr(detail.data.total, currency),
+            })
+          : t("common.loading")
       }
       size="lg"
     >
       {detail.isLoading ? (
-        <p className="text-sm text-zinc-500">Chargement…</p>
+        <p className="text-sm text-zinc-500">{t("common.loading")}</p>
       ) : (detail.data?.items.length ?? 0) === 0 ? (
-        <p className="text-sm text-zinc-500">Aucune prestation sur la période.</p>
+        <p className="text-sm text-zinc-500">{t("earnings.noPrestation")}</p>
       ) : (
         <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
           {detail.data!.items.map((it) => (
@@ -390,19 +398,19 @@ function PrestaDetailModal({
                   {formatDateFr(it.date_prevue.slice(0, 10), "weekday")}
                 </p>
                 <p className="mt-0.5 flex items-center gap-2 text-xs text-zinc-500">
-                  <span className="truncate">{it.logement_name ?? "Logement"}</span>
+                  <span className="truncate">{it.logement_name ?? t("prestation.logementUnknown")}</span>
                   <span
                     className={cn(
                       "inline-flex flex-shrink-0 items-center rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider",
                       prestationTypePill(it.prestation_type),
                     )}
                   >
-                    {prestationTypeLabel(it.prestation_type)}
+                    {prestationTypeLabel(it.prestation_type, t)}
                   </span>
                 </p>
               </div>
               <span className="flex-shrink-0 tabular-nums font-semibold text-zinc-900 dark:text-white">
-                {money(it.subtotal, currency)}
+                {formatCurrencyFr(it.subtotal, currency)}
               </span>
             </li>
           ))}
