@@ -11,6 +11,11 @@ interface AuthContextValue {
   login: (email: string, password: string) => Promise<void>;
   signup: (input: SignupInput) => Promise<void>;
   logout: () => Promise<void>;
+  /**
+   * Oublie la session locale sans appeler `/auth/logout` : pour les cas où
+   * l'API a déjà coupé toutes les sessions (compte supprimé).
+   */
+  clearSession: () => void;
   refresh: () => Promise<void>;
 }
 
@@ -100,6 +105,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, []);
 
+  const clearSession = useCallback(() => {
+    clearTokens();
+    setUser(null);
+  }, []);
+
   const refresh = useCallback(async () => {
     await loadMe();
   }, [loadMe]);
@@ -113,6 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         login,
         signup,
         logout,
+        clearSession,
         refresh,
       }}
     >

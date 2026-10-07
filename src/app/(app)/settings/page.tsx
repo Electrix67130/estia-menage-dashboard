@@ -4,13 +4,14 @@ import { useState, useEffect, useRef, FormEvent, ChangeEvent } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Save, KeyRound, Sun, Moon, Monitor, Plus, ArrowRightLeft, Check, Camera, Trash2 } from "lucide-react";
+import { Save, KeyRound, Sun, Moon, Monitor, Plus, ArrowRightLeft, Check, Camera, Trash2, TriangleAlert } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import Avatar from "@/components/ui/Avatar";
 import OrgLegalForm from "@/components/settings/OrgLegalForm";
 import CreateOrgModal from "@/components/settings/CreateOrgModal";
+import DeleteAccountModal from "@/components/settings/DeleteAccountModal";
 import { apiFetch, ApiError } from "@/lib/api";
 import { uploadFile } from "@/lib/upload";
 import { useAuth } from "@/contexts/AuthContext";
@@ -256,6 +257,7 @@ export default function SettingsPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [showCreate, setShowCreate] = useState(false);
+  const [showDelete, setShowDelete] = useState(false);
 
   useEffect(() => {
     if (searchParams.get("createOrg") === "1") {
@@ -590,6 +592,38 @@ export default function SettingsPage() {
               })}
             </div>
           </div>
+        </div>
+      </Card>
+
+      {/* Zone sensible : suppression de compte (exigence App Store, parité mobile). */}
+      <Card className="border-rose-200 dark:border-rose-900/50">
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center gap-2">
+            <TriangleAlert size={16} className="text-rose-600 dark:text-rose-400" />
+            <h2 className="text-sm font-semibold text-rose-700 dark:text-rose-300">
+              {t("settings.danger.title")}
+            </h2>
+          </div>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium text-zinc-900 dark:text-white">
+                {t("settings.deleteAccount.title")}
+              </p>
+              <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+                {t("settings.deleteAccount.description")}
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="danger"
+              onClick={() => setShowDelete(true)}
+              className="flex-shrink-0"
+            >
+              <Trash2 size={16} />
+              {t("settings.deleteAccount.button")}
+            </Button>
+          </div>
+          <DeleteAccountModal open={showDelete} onClose={() => setShowDelete(false)} />
         </div>
       </Card>
     </div>

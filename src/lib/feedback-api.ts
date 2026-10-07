@@ -1,8 +1,11 @@
 import { apiFetch } from "@/lib/api";
 import type { PaginatedResponse } from "@/types/api";
 
-export type FeedbackType = "bug" | "suggestion";
+/** `report` = signalement d'un contenu (commentaire, photo) par un utilisateur. */
+export type FeedbackType = "bug" | "suggestion" | "report";
 export type FeedbackStatus = "new" | "in_progress" | "resolved" | "declined";
+/** Ce qu'un `report` peut viser. */
+export type FeedbackTargetType = "comment" | "photo";
 
 export interface Feedback {
   id: string;
@@ -16,6 +19,9 @@ export interface Feedback {
   app_version: string | null;
   screen: string | null;
   locale: string;
+  /** `report` uniquement : le contenu visé. Nuls pour un bug ou une suggestion. */
+  target_type: FeedbackTargetType | null;
+  target_id: string | null;
   /** Réponse de l'admin. Nulle tant que personne n'a répondu. */
   response: string | null;
   responded_by: string | null;
@@ -43,6 +49,9 @@ export interface CreateFeedbackInput {
   app_version?: string;
   screen?: string;
   locale?: string;
+  /** `report` uniquement : le contenu signalé. */
+  target_type?: FeedbackTargetType;
+  target_id?: string;
 }
 
 export interface FeedbackFilters {

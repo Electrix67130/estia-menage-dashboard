@@ -3,7 +3,7 @@
 import { use, useState, useEffect, FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { MapPin, Clock, Timer, User as UserIcon, Pencil, Trash2, CheckCircle2, ListChecks, Camera, MessageSquare, Send, Maximize2, Lock, AlertTriangle, Key, Moon, RotateCcw, Gift, Package } from "lucide-react";
+import { MapPin, Clock, Timer, User as UserIcon, Pencil, Trash2, CheckCircle2, ListChecks, Camera, MessageSquare, Send, Maximize2, Lock, AlertTriangle, Key, Moon, RotateCcw, Gift, Package, Flag } from "lucide-react";
 import BackLink from "@/components/BackLink";
 import { toast } from "sonner";
 import Card from "@/components/ui/Card";
@@ -18,6 +18,7 @@ import DurationPicker from "@/components/ui/DurationPicker";
 import Modal from "@/components/ui/Modal";
 import PhotoLightbox from "@/components/PhotoLightbox";
 import PrestatairePicker from "@/components/PrestatairePicker";
+import ReportCommentModal from "@/components/ReportCommentModal";
 import { useI18n } from "@/contexts/I18nContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDialog } from "@/contexts/DialogContext";
@@ -1591,6 +1592,8 @@ function CommentsTab({ menageId }: { menageId: string }) {
   const comments = useMenageComments(menageId);
   const create = useCreateComment(menageId);
   const [draft, setDraft] = useState("");
+  // Commentaire d'un autre utilisateur en cours de signalement (modale).
+  const [reporting, setReporting] = useState<{ id: string; content: string } | null>(null);
 
   const handleSend = async () => {
     if (!draft.trim()) return;
@@ -1645,11 +1648,26 @@ function CommentsTab({ menageId }: { menageId: string }) {
                     {formatDateFr(c.created_at, "datetime")}
                   </p>
                 </div>
+                {!isOwn ? (
+                  <button
+                    type="button"
+                    onClick={() => setReporting({ id: c.id, content: c.content })}
+                    className="self-center rounded-lg p-1.5 text-zinc-300 transition-colors hover:bg-rose-50 hover:text-rose-600 dark:text-zinc-600 dark:hover:bg-rose-900/20 dark:hover:text-rose-400"
+                    aria-label={t("report.action")}
+                    title={t("report.action")}
+                  >
+                    <Flag size={14} />
+                  </button>
+                ) : null}
               </li>
             );
           })}
         </ul>
       )}
+
+      {reporting ? (
+        <ReportCommentModal open comment={reporting} onClose={() => setReporting(null)} />
+      ) : null}
 
       <form
         onSubmit={(e) => {
