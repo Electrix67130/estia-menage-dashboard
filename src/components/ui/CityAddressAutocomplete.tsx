@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { MapPin, Navigation, Loader2 } from "lucide-react";
 import { useCitySearch, CitySuggestion } from "@/hooks/useCitySearch";
 import { useAddressSearch, AddressSuggestion } from "@/hooks/useAddressSearch";
+import { countryFlag } from "@/lib/address-search";
 import { useI18n } from "@/contexts/I18nContext";
 import { cn } from "@/lib/utils";
 
@@ -34,7 +35,7 @@ export default function CityAddressAutocomplete({
   const { t } = useI18n();
   const [cityFocused, setCityFocused] = useState(false);
   const [addressFocused, setAddressFocused] = useState(false);
-  const [selectedCityCode, setSelectedCityCode] = useState("");
+  const [selectedCity, setSelectedCity] = useState<CitySuggestion | null>(null);
 
   const cityWrapRef = useRef<HTMLDivElement>(null);
   const addressWrapRef = useRef<HTMLDivElement>(null);
@@ -42,14 +43,14 @@ export default function CityAddressAutocomplete({
   const { suggestions: citySuggestions, isLoading: cityLoading } = useCitySearch(city);
   const { suggestions: addressSuggestions, isLoading: addressLoading } = useAddressSearch(
     address,
-    selectedCityCode,
+    selectedCity,
   );
 
   const showCity = cityFocused && city.length >= 2 && (cityLoading || citySuggestions.length > 0);
   const showAddress =
     addressFocused &&
     address.length >= 3 &&
-    !!selectedCityCode &&
+    !!selectedCity &&
     (addressLoading || addressSuggestions.length > 0);
 
   useEffect(() => {
@@ -67,11 +68,15 @@ export default function CityAddressAutocomplete({
 
   const handleCityPick = (item: CitySuggestion) => {
     onCitySelect(item.name, item.postalCode, item.latitude, item.longitude);
-    setSelectedCityCode(item.cityCode);
+    setSelectedCity(item);
     setCityFocused(false);
   };
 
   const handleAddressPick = (item: AddressSuggestion) => {
+    // Suisse / Luxembourg : le code postal dépend de la rue, il n'est connu qu'ici.
+    if (item.postalCode && item.postalCode !== postalCode) {
+      onCitySelect(city, item.postalCode, item.latitude, item.longitude);
+    }
     onAddressSelect(item.name, item.latitude, item.longitude);
     setAddressFocused(false);
   };
@@ -92,7 +97,7 @@ export default function CityAddressAutocomplete({
             value={city}
             onChange={(e) => {
               onCityChange(e.target.value);
-              if (selectedCityCode) setSelectedCityCode("");
+              if (selectedCity) setSelectedCity(null);
             }}
             onFocus={() => setCityFocused(true)}
             autoComplete="off"
@@ -109,7 +114,7 @@ export default function CityAddressAutocomplete({
               {citySuggestions.slice(0, 8).map((item, i) => (
                 <button
                   type="button"
-                  key={`${item.cityCode}-${item.postalCode}-${i}`}
+                  key={`${item.country}-${item.cityCode}-${item.postalCode}-${i}`}
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => handleCityPick(item)}
                   className="flex w-full items-center gap-2 border-b border-zinc-100 px-3 py-2 text-left hover:bg-blue-50 dark:border-zinc-800 dark:hover:bg-blue-900/20"
@@ -120,7 +125,9 @@ export default function CityAddressAutocomplete({
                       {item.name}
                     </p>
                     <p className="truncate text-xs text-zinc-500">
-                      {item.postalCode} — {item.department}
+                      {[countryFlag(item.country), item.postalCode, item.department]
+                        .filter(Boolean)
+                        .join(" · ")}
                     </p>
                   </div>
                 </button>
@@ -146,7 +153,7 @@ export default function CityAddressAutocomplete({
         </div>
       </div>
 
-      {postalCode ? (
+      {postalCode || selectedCity ? (
         <div ref={addressWrapRef} className="relative">
           <label htmlFor="address" className={labelCls}>
             {t("menages.form.address")}

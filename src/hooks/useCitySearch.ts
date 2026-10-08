@@ -1,24 +1,9 @@
 import { useState, useEffect, useRef } from "react";
+import { searchCities, CitySuggestion } from "@/lib/address-search";
 
-interface CityResult {
-  nom: string;
-  code: string;
-  codesPostaux: string[];
-  departement: { code: string; nom: string };
-  population: number;
-  centre: { type: string; coordinates: [number, number] };
-}
+export type { CitySuggestion } from "@/lib/address-search";
 
-export interface CitySuggestion {
-  name: string;
-  cityCode: string;
-  postalCode: string;
-  department: string;
-  latitude: number;
-  longitude: number;
-  label: string;
-}
-
+/** Villes de France, Suisse et Luxembourg (voir `lib/address-search`). */
 export function useCitySearch(query: string) {
   const [suggestions, setSuggestions] = useState<CitySuggestion[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -35,28 +20,7 @@ export function useCitySearch(query: string) {
     debounceRef.current = setTimeout(async () => {
       setIsLoading(true);
       try {
-        const res = await fetch(
-          `https://geo.api.gouv.fr/communes?nom=${encodeURIComponent(query)}&fields=nom,code,codesPostaux,departement,population,centre&boost=population&limit=8`,
-        );
-        const data: CityResult[] = await res.json();
-
-        const results: CitySuggestion[] = [];
-        for (const city of data) {
-          const [lng, lat] = city.centre?.coordinates ?? [0, 0];
-          for (const cp of city.codesPostaux) {
-            results.push({
-              name: city.nom,
-              cityCode: city.code,
-              postalCode: cp,
-              department: city.departement?.nom ?? "",
-              latitude: lat,
-              longitude: lng,
-              label: `${city.nom} (${cp})`,
-            });
-          }
-        }
-
-        setSuggestions(results.slice(0, 10));
+        setSuggestions(await searchCities(query));
       } catch {
         setSuggestions([]);
       } finally {
