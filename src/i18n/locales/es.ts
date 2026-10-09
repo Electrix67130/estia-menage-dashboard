@@ -949,6 +949,7 @@ const es: Dict = {
   "menageDetail.photos.by": "Por {name}",
   "menageDetail.comments.empty": "Ningún comentario.",
   "menageDetail.comments.placeholder": "Escribir un comentario…",
+  "menageDetail.comments.mention": "Mencionar",
   "menageDetail.codes.keySafe": "Caja de llaves",
   "menageDetail.codes.entry": "{label}:",
   "menageDetail.prepare.title": "Por preparar",

@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
+import type { MentionCandidate, MentionRef } from "@/lib/mentions";
 
 export interface MenageCheckItem {
   id: string;
@@ -74,6 +75,8 @@ export interface Comment {
   first_name?: string;
   last_name?: string;
   avatar_url?: string;
+  /** Personnes mentionnées (« @Prénom Nom »), pour le surlignage. */
+  mentions?: MentionRef[];
 }
 
 interface CommentResponse {
@@ -91,10 +94,20 @@ export function useMenageComments(menageId: string | undefined) {
   });
 }
 
+/** Personnes qu'on peut mentionner (« @ ») sur une prestation. */
+export function useMentionable(menageId: string | undefined) {
+  return useQuery({
+    queryKey: ["comments-mentionable", menageId],
+    queryFn: () => apiFetch<MentionCandidate[]>(`/comments/mentionable?menage_id=${menageId}`),
+    enabled: !!menageId,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
 export function useCreateComment(menageId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: { content: string; section_id?: string }) =>
+    mutationFn: (input: { content: string; section_id?: string; mentioned_user_ids?: string[] }) =>
       apiFetch<Comment>(`/comments`, {
         method: "POST",
         body: { menage_id: menageId, ...input },

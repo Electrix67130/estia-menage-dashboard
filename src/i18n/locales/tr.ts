@@ -949,6 +949,7 @@ const tr: Dict = {
   "menageDetail.photos.by": "{name} tarafından",
   "menageDetail.comments.empty": "Yorum yok.",
   "menageDetail.comments.placeholder": "Yorum yaz…",
+  "menageDetail.comments.mention": "Bahset",
   "menageDetail.codes.keySafe": "Anahtar kasası",
   "menageDetail.codes.entry": "{label}:",
   "menageDetail.prepare.title": "Hazırlanacaklar",
