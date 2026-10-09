@@ -112,6 +112,7 @@ import CityAddressAutocomplete from "@/components/ui/CityAddressAutocomplete";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDialog } from "@/contexts/DialogContext";
 import { ApiError } from "@/lib/api";
+import LogementNotificationLevel from "@/components/logement/LogementNotificationLevel";
 
 function clientDisplayName(
   c: { company_name?: string | null; first_name?: string | null; last_name?: string | null },
@@ -307,6 +308,12 @@ function InfoSection({ logementId, isAdmin }: { logementId: string; isAdmin: boo
           )
         ) : null}
       </div>
+
+      {!l.archived_at ? (
+        <div className="mb-4 border-y border-zinc-100 py-3 dark:border-zinc-800">
+          <LogementNotificationLevel logementId={l.id} />
+        </div>
+      ) : null}
 
       {isAdmin ? (
         <LogementInfoForm logement={l} />

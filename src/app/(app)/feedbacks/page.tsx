@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Bug, Lightbulb, Search, Plus, Flag } from "lucide-react";
+import { Bug, Lightbulb, Search, Plus } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
@@ -11,7 +11,6 @@ import Input from "@/components/ui/Input";
 import Modal from "@/components/ui/Modal";
 import Select from "@/components/ui/Select";
 import Textarea from "@/components/ui/Textarea";
-import ReportTargetInfo from "@/components/ReportTargetInfo";
 import { ApiError } from "@/lib/api";
 import {
   feedbackApi,
@@ -35,12 +34,10 @@ const STATUSES: FeedbackStatus[] = ["new", "in_progress", "resolved", "declined"
 const TYPE_KEY: Record<FeedbackType, string> = {
   bug: "support.typeBug",
   suggestion: "support.typeSuggestion",
-  report: "support.typeReport",
 };
 
 function TypeIcon({ type }: { type: FeedbackType }) {
   if (type === "bug") return <Bug size={16} />;
-  if (type === "report") return <Flag size={16} />;
   return <Lightbulb size={16} />;
 }
 
@@ -154,7 +151,6 @@ export default function FeedbacksPage() {
               <option value="">{t("admin.feedbackAllTypes")}</option>
               <option value="bug">{t("support.typeBug")}</option>
               <option value="suggestion">{t("support.typeSuggestion")}</option>
-              <option value="report">{t("support.typeReport")}</option>
             </Select>
           </div>
 
@@ -177,9 +173,6 @@ export default function FeedbacksPage() {
                           <Badge variant={STATUS_VARIANT[f.status]}>
                             {t(`support.status.${f.status}`)}
                           </Badge>
-                          {f.type === "report" ? (
-                            <Badge variant="danger">{t("feedback.reportBadge")}</Badge>
-                          ) : null}
                           {f.platform ? <Badge variant="info">{f.platform}</Badge> : null}
                           {f.app_version ? (
                             <span className="text-xs text-zinc-500">v{f.app_version}</span>
@@ -222,9 +215,6 @@ export default function FeedbacksPage() {
                 <li key={f.id} className="flex flex-col gap-2 px-6 py-4">
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge variant={STATUS_VARIANT[f.status]}>{t(`support.status.${f.status}`)}</Badge>
-                    {f.type === "report" ? (
-                      <Badge variant="danger">{t("feedback.reportBadge")}</Badge>
-                    ) : null}
                     <span className="text-sm font-medium text-zinc-900 dark:text-white">
                       {f.subject}
                     </span>
@@ -432,8 +422,8 @@ function FeedbackDetail({
           <Badge variant={STATUS_VARIANT[feedback.status]}>
             {t(`support.status.${feedback.status}`)}
           </Badge>
-          <Badge variant={feedback.type === "report" ? "danger" : "default"}>
-            {feedback.type === "report" ? t("feedback.reportBadge") : t(TYPE_KEY[feedback.type])}
+          <Badge variant="default">
+            {t(TYPE_KEY[feedback.type])}
           </Badge>
           {feedback.platform ? <Badge variant="info">{feedback.platform}</Badge> : null}
           {feedback.app_version ? (
@@ -446,10 +436,6 @@ function FeedbackDetail({
           ) : null}
           <span className="text-xs text-zinc-500">{formatDateTime(feedback.created_at)}</span>
         </div>
-
-        {feedback.type === "report" ? (
-          <ReportTargetInfo target_type={feedback.target_type} target_id={feedback.target_id} />
-        ) : null}
 
         <p className="whitespace-pre-wrap rounded-lg bg-zinc-50 p-4 text-sm text-zinc-800 dark:bg-zinc-800/50 dark:text-zinc-200">
           {feedback.message}

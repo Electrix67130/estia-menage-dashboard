@@ -15,6 +15,10 @@ vi.mock("@/contexts/AuthContext", () => ({
 vi.mock("@/hooks/useMenageViews", () => ({
   useUnreadSummary: () => ({ data: { by_menage: {}, by_organization: {}, by_type: unread.by_type } }),
 }));
+const reports: { pending: number } = { pending: 0 };
+vi.mock("@/hooks/useReports", () => ({
+  usePendingReportsCount: (enabled: boolean) => ({ data: enabled ? reports.pending : undefined }),
+}));
 vi.mock("@/hooks/useRescheduleRequests", () => ({
   useRescheduleRequests: () => ({
     data: { data: Array.from({ length: pending.count }, (_, i) => ({ id: `r${i}`, status: "pending" })) },
@@ -49,6 +53,7 @@ beforeEach(() => {
   authState.user = user("admin");
   unread.by_type = {};
   pending.count = 0;
+  reports.pending = 0;
 });
 
 describe("Barre latérale — entrées selon le rôle", () => {
@@ -95,6 +100,16 @@ describe("Barre latérale — badges non lus ventilés par type", () => {
     unread.by_type = { menage: 250 };
     renderSidebar();
     expect(within(linkNamed("Ménages")!).getByText("99+")).toBeInTheDocument();
+  });
+
+  it("les contenus signalés en attente badgent leur entrée, réservée à l'admin", () => {
+    reports.pending = 2;
+    renderSidebar();
+    expect(within(linkNamed("Contenus signalés")!).getByText("2")).toBeInTheDocument();
+
+    authState.user = user("prestataire");
+    renderSidebar();
+    expect(within(screen.getAllByRole("navigation").at(-1)!).queryByText("Contenus signalés")).toBeNull();
   });
 
   it("les demandes de report en attente badgent l'entrée dédiée (admin)", () => {

@@ -1,9 +1,9 @@
 "use client";
 
-import { use, useState, useEffect, useRef, FormEvent, KeyboardEvent } from "react";
+import { use, useState, useEffect, FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { MapPin, Clock, Timer, User as UserIcon, Pencil, Trash2, CheckCircle2, ListChecks, Camera, MessageSquare, Send, Maximize2, Lock, AlertTriangle, Key, Moon, RotateCcw, Gift, Package, Flag } from "lucide-react";
+import { MapPin, Clock, Timer, User as UserIcon, Pencil, Trash2, CheckCircle2, ListChecks, Camera, MessageSquare, Maximize2, Lock, AlertTriangle, Key, Moon, RotateCcw, Gift, Package } from "lucide-react";
 import BackLink from "@/components/BackLink";
 import { toast } from "sonner";
 import Card from "@/components/ui/Card";
@@ -18,7 +18,7 @@ import DurationPicker from "@/components/ui/DurationPicker";
 import Modal from "@/components/ui/Modal";
 import PhotoLightbox from "@/components/PhotoLightbox";
 import PrestatairePicker from "@/components/PrestatairePicker";
-import ReportCommentModal from "@/components/ReportCommentModal";
+import CommentsThread from "@/components/comments/CommentsThread";
 import { useI18n } from "@/contexts/I18nContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDialog } from "@/contexts/DialogContext";
@@ -51,9 +51,7 @@ import {
 import {
   useMenageCheck,
   useMenagePhotos,
-  useMenageComments,
   useCreateComment,
-  useMentionable,
   useValidateMenage,
   useDeleteMenage,
   useRestoreMenage,
@@ -69,15 +67,6 @@ import { ApiError } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { haversineMeters, formatDistance, POINTAGE_DISTANCE_WARN_M } from "@/lib/geo-distance";
 import { prestationTypeLabel, prestationTypePill } from "@/lib/prestation";
-import {
-  activeMentionQuery,
-  filterMentionCandidates,
-  insertMention,
-  mentionedIdsInText,
-  mentionName,
-  splitMentions,
-  type MentionCandidate,
-} from "@/lib/mentions";
 
 const STATUS_KEY: Record<MenageDetail["status"], string> = {
   a_venir: "menages.statusUpcoming",
@@ -1441,7 +1430,7 @@ function TabsSection({ menage }: { menage: MenageDetail }) {
       <div className="p-6">
         {tab === "check" ? <ChecklistTab menageId={menage.id} /> : null}
         {tab === "photos" ? <PhotosTab menageId={menage.id} /> : null}
-        {tab === "comments" ? <CommentsTab menageId={menage.id} /> : null}
+        {tab === "comments" ? <CommentsThread menageId={menage.id} /> : null}
       </div>
     </Card>
   );
@@ -1593,198 +1582,6 @@ function PhotosTab({ menageId }: { menageId: string }) {
         }
       />
     </>
-  );
-}
-
-function CommentsTab({ menageId }: { menageId: string }) {
-  const { t } = useI18n();
-  const { user } = useAuth();
-  const comments = useMenageComments(menageId);
-  const create = useCreateComment(menageId);
-  const mentionable = useMentionable(menageId).data ?? [];
-  const [draft, setDraft] = useState("");
-  // Commentaire d'un autre utilisateur en cours de signalement (modale).
-  const [reporting, setReporting] = useState<{ id: string; content: string } | null>(null);
-
-  // Mentions « @ » : liste basée sur ce qui est tapé juste avant le curseur.
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [cursor, setCursor] = useState(0);
-  const [highlighted, setHighlighted] = useState(0);
-  const [mentionDismissed, setMentionDismissed] = useState(false);
-  const activeMention = mentionDismissed ? null : activeMentionQuery(draft, Math.min(cursor, draft.length));
-  const suggestions = activeMention ? filterMentionCandidates(mentionable, activeMention.query) : [];
-
-  const pickMention = (candidate: MentionCandidate) => {
-    if (!activeMention) return;
-    const next = insertMention(draft, activeMention.start, Math.min(cursor, draft.length), candidate);
-    setDraft(next.text);
-    setCursor(next.cursor);
-    setHighlighted(0);
-    requestAnimationFrame(() => {
-      inputRef.current?.focus();
-      inputRef.current?.setSelectionRange(next.cursor, next.cursor);
-    });
-  };
-
-  const handleMentionKeys = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (suggestions.length === 0) return;
-    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-      e.preventDefault();
-      const step = e.key === "ArrowDown" ? 1 : -1;
-      setHighlighted((i) => (i + step + suggestions.length) % suggestions.length);
-    } else if (e.key === "Enter" || e.key === "Tab") {
-      // Entrée choisit la personne au lieu d'envoyer le message.
-      e.preventDefault();
-      pickMention(suggestions[Math.min(highlighted, suggestions.length - 1)]);
-    } else if (e.key === "Escape") {
-      setMentionDismissed(true);
-    }
-  };
-
-  const handleSend = async () => {
-    if (!draft.trim()) return;
-    try {
-      await create.mutateAsync({
-        content: draft.trim(),
-        mentioned_user_ids: mentionedIdsInText(draft, mentionable),
-      });
-      setDraft("");
-      setCursor(0);
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : t("common.error"));
-    }
-  };
-
-  if (comments.isLoading) return <p className="text-sm text-zinc-500">{t("common.loading")}</p>;
-  if (comments.error)
-    return (
-      <p className="text-sm text-rose-600">
-        {comments.error instanceof Error ? comments.error.message : t("common.error")}
-      </p>
-    );
-
-  const items = comments.data?.data ?? [];
-
-  return (
-    <div className="flex flex-col gap-4">
-      {items.length === 0 ? (
-        <p className="text-sm text-zinc-500">{t("menageDetail.comments.empty")}</p>
-      ) : (
-        <ul className="flex flex-col gap-3">
-          {items.map((c) => {
-            const isOwn = c.author_id === user?.id;
-            return (
-              <li
-                key={c.id}
-                className={cn(
-                  "flex gap-3",
-                  isOwn ? "flex-row-reverse" : "flex-row",
-                )}
-              >
-                <Avatar
-                  firstName={c.first_name}
-                  lastName={c.last_name}
-                  src={c.avatar_url}
-                  size="sm"
-                />
-                <div className={cn("min-w-0 max-w-[80%] rounded-lg px-3 py-2", isOwn ? "bg-blue-100 dark:bg-blue-900/30" : "bg-zinc-100 dark:bg-zinc-800")}>
-                  <p className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
-                    {c.first_name} {c.last_name}
-                  </p>
-                  <p className="mt-1 whitespace-pre-wrap break-words text-sm text-zinc-900 dark:text-zinc-100">
-                    {splitMentions(c.content, c.mentions).map((segment, i) =>
-                      segment.mention ? (
-                        <span key={i} className="font-semibold text-blue-600 dark:text-blue-400">
-                          {segment.text}
-                        </span>
-                      ) : (
-                        segment.text
-                      ),
-                    )}
-                  </p>
-                  <p className="mt-1 text-[10px] text-zinc-500">
-                    {formatDateFr(c.created_at, "datetime")}
-                  </p>
-                </div>
-                {!isOwn ? (
-                  <button
-                    type="button"
-                    onClick={() => setReporting({ id: c.id, content: c.content })}
-                    className="self-center rounded-lg p-1.5 text-zinc-300 transition-colors hover:bg-rose-50 hover:text-rose-600 dark:text-zinc-600 dark:hover:bg-rose-900/20 dark:hover:text-rose-400"
-                    aria-label={t("report.action")}
-                    title={t("report.action")}
-                  >
-                    <Flag size={14} />
-                  </button>
-                ) : null}
-              </li>
-            );
-          })}
-        </ul>
-      )}
-
-      {reporting ? (
-        <ReportCommentModal open comment={reporting} onClose={() => setReporting(null)} />
-      ) : null}
-
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          handleSend();
-        }}
-        className="flex items-end gap-2 border-t border-zinc-200 pt-4 dark:border-zinc-800"
-      >
-        <div className="relative flex-1">
-          {suggestions.length > 0 ? (
-            <ul
-              role="listbox"
-              aria-label={t("menageDetail.comments.mention")}
-              className="absolute bottom-full left-0 right-0 z-20 mb-1 max-h-64 overflow-y-auto rounded-lg border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
-            >
-              {suggestions.map((candidate, i) => (
-                <li key={candidate.id} role="option" aria-selected={i === highlighted}>
-                  <button
-                    type="button"
-                    onMouseDown={(e) => e.preventDefault()}
-                    onMouseEnter={() => setHighlighted(i)}
-                    onClick={() => pickMention(candidate)}
-                    className={cn(
-                      "flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-900 dark:text-zinc-100",
-                      i === highlighted && "bg-blue-50 dark:bg-blue-900/20",
-                    )}
-                  >
-                    <Avatar
-                      firstName={candidate.first_name}
-                      lastName={candidate.last_name}
-                      src={candidate.avatar_url ?? undefined}
-                      size="sm"
-                    />
-                    <span className="truncate">{mentionName(candidate)}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-          <Input
-            ref={inputRef}
-            placeholder={t("menageDetail.comments.placeholder")}
-            value={draft}
-            onChange={(e) => {
-              setDraft(e.target.value);
-              setCursor(e.target.selectionStart ?? e.target.value.length);
-              setMentionDismissed(false);
-              setHighlighted(0);
-            }}
-            onSelect={(e) => setCursor(e.currentTarget.selectionStart ?? 0)}
-            onKeyDown={handleMentionKeys}
-            autoComplete="off"
-          />
-        </div>
-        <Button type="submit" disabled={!draft.trim() || create.isPending} loading={create.isPending}>
-          <Send size={14} />
-        </Button>
-      </form>
-    </div>
   );
 }
 

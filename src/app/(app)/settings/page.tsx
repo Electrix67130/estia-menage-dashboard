@@ -12,6 +12,8 @@ import Avatar from "@/components/ui/Avatar";
 import OrgLegalForm from "@/components/settings/OrgLegalForm";
 import CreateOrgModal from "@/components/settings/CreateOrgModal";
 import DeleteAccountModal from "@/components/settings/DeleteAccountModal";
+import BlockedUsers from "@/components/settings/BlockedUsers";
+import NotificationSettings from "@/components/settings/NotificationSettings";
 import { apiFetch, ApiError } from "@/lib/api";
 import { uploadFile } from "@/lib/upload";
 import { useAuth } from "@/contexts/AuthContext";
@@ -594,6 +596,10 @@ export default function SettingsPage() {
           </div>
         </div>
       </Card>
+
+      <NotificationSettings isAdmin={isAdmin} />
+
+      <BlockedUsers />
 
       {/* Zone sensible : suppression de compte (exigence App Store, parité mobile). */}
       <Card className="border-rose-200 dark:border-rose-900/50">

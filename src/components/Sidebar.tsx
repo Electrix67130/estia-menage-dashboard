@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Building2, Archive, Users, FileText, CreditCard, Settings, ShieldCheck, CalendarClock, CalendarDays, CalendarRange, Home, Wallet, Receipt, LogIn, LogOut, MessageSquareWarning } from "lucide-react";
+import { LayoutDashboard, Building2, Archive, Users, FileText, CreditCard, Settings, ShieldCheck, CalendarClock, CalendarDays, CalendarRange, Home, Wallet, Receipt, LogIn, LogOut, MessageSquareWarning, Flag } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useI18n } from "@/contexts/I18nContext";
 import { canSeeBillingSection, canSeeOrgTeamSection, isSuperAdmin } from "@/lib/permissions";
 import { useUnreadSummary } from "@/hooks/useMenageViews";
 import { useRescheduleRequests } from "@/hooks/useRescheduleRequests";
+import { usePendingReportsCount } from "@/hooks/useReports";
 
 const NAV_ALL = [
   { href: "/dashboard", labelKey: "nav.overview", icon: LayoutDashboard, key: "overview" as const },
@@ -24,6 +25,7 @@ const NAV_ALL = [
   { href: "/earnings", labelKey: "nav.earnings", icon: Wallet, key: "earnings" as const },
   { href: "/invoices", labelKey: "nav.invoices", icon: Receipt, key: "invoices" as const },
   { href: "/billing", labelKey: "nav.billing", icon: CreditCard, key: "billing" as const },
+  { href: "/reports", labelKey: "nav.reports", icon: Flag, key: "reports" as const },
   { href: "/feedbacks", labelKey: "nav.feedbacks", icon: MessageSquareWarning, key: "feedbacks" as const },
   { href: "/settings", labelKey: "nav.settings", icon: Settings, key: "settings" as const },
 ];
@@ -33,6 +35,7 @@ const SUPER_ADMIN_NAV = [
   { href: "/admin/orgs", labelKey: "admin.orgs", icon: Building2, key: "admin-orgs" as const },
   { href: "/admin/users", labelKey: "admin.users", icon: Users, key: "admin-users" as const },
   { href: "/admin/feedback", labelKey: "admin.feedback", icon: MessageSquareWarning, key: "admin-feedback" as const },
+  { href: "/admin/reports", labelKey: "admin.reports", icon: Flag, key: "admin-reports" as const },
   { href: "/admin/audit", labelKey: "admin.audit", icon: FileText, key: "admin-audit" as const },
   { href: "/admin/errors", labelKey: "admin.errors", icon: ShieldCheck, key: "admin-errors" as const },
 ];
@@ -50,6 +53,8 @@ export default function Sidebar({ open, onClose }: { open: boolean; onClose: () 
   const pendingReschedules = isAdmin
     ? (rescheduleList.data?.data ?? []).filter((r) => r.status === "pending").length
     : 0;
+  // Contenus signalés en attente : la pastille est l'alerte, la push n'arrive qu'au téléphone.
+  const pendingReports = usePendingReportsCount(isAdmin).data ?? 0;
 
   const visible = NAV_ALL.filter((item) => {
     if (item.key === "team") return canSeeOrgTeamSection(user);
@@ -58,7 +63,8 @@ export default function Sidebar({ open, onClose }: { open: boolean; onClose: () 
       item.key === "rescheduleRequests" ||
       item.key === "earnings" ||
       item.key === "invoices" ||
-      item.key === "planning"
+      item.key === "planning" ||
+      item.key === "reports"
     ) {
       return user?.role === "admin";
     }
@@ -112,7 +118,9 @@ export default function Sidebar({ open, onClose }: { open: boolean; onClose: () 
                   ? (unreadByType.check_out ?? 0)
                   : item.key === "rescheduleRequests" && pendingReschedules > 0
                     ? pendingReschedules
-                    : 0;
+                    : item.key === "reports"
+                      ? pendingReports
+                      : 0;
           return (
             <Link
               key={item.href}

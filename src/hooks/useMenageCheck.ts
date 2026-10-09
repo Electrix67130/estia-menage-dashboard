@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import type { MentionCandidate, MentionRef } from "@/lib/mentions";
+import { toggleReactionLocally, type ReactionEmoji, type ReactionSummary } from "@/lib/reactions";
 
 export interface MenageCheckItem {
   id: string;
@@ -77,6 +78,20 @@ export interface Comment {
   avatar_url?: string;
   /** Personnes mentionnées (« @Prénom Nom »), pour le surlignage. */
   mentions?: MentionRef[];
+  /** Message auquel celui-ci répond. */
+  reply_to_id?: string | null;
+  /** Le message cité ; nul s'il a été supprimé ou si son auteur est bloqué. */
+  reply_to?: CommentReplyPreview | null;
+  reactions?: ReactionSummary[];
+}
+
+/** Le message cité, tel qu'affiché au-dessus d'une réponse. */
+export interface CommentReplyPreview {
+  id: string;
+  content: string;
+  author_id: string;
+  first_name: string;
+  last_name: string;
 }
 
 interface CommentResponse {
@@ -107,7 +122,12 @@ export function useMentionable(menageId: string | undefined) {
 export function useCreateComment(menageId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: { content: string; section_id?: string; mentioned_user_ids?: string[] }) =>
+    mutationFn: (input: {
+      content: string;
+      section_id?: string;
+      mentioned_user_ids?: string[];
+      reply_to_id?: string | null;
+    }) =>
       apiFetch<Comment>(`/comments`, {
         method: "POST",
         body: { menage_id: menageId, ...input },
@@ -115,6 +135,31 @@ export function useCreateComment(menageId: string) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["menage-comments", menageId] });
     },
+  });
+}
+
+/**
+ * Réagir à un message (interrupteur côté API). Mise à jour optimiste : la
+ * pastille bouge tout de suite, puis l'état du serveur fait foi.
+ */
+export function useToggleReaction(menageId: string) {
+  const qc = useQueryClient();
+  const key = ["menage-comments", menageId];
+  const patch = (commentId: string, update: (r: ReactionSummary[] | undefined) => ReactionSummary[]) =>
+    qc.setQueryData<CommentResponse>(key, (old) =>
+      old
+        ? { ...old, data: old.data.map((c) => (c.id === commentId ? { ...c, reactions: update(c.reactions) } : c)) }
+        : old,
+    );
+  return useMutation({
+    mutationFn: ({ commentId, emoji }: { commentId: string; emoji: ReactionEmoji }) =>
+      apiFetch<{ comment_id: string; reactions: ReactionSummary[] }>(`/comments/${commentId}/reactions`, {
+        method: "POST",
+        body: { emoji },
+      }),
+    onMutate: ({ commentId, emoji }) => patch(commentId, (r) => toggleReactionLocally(r, emoji)),
+    onSuccess: (res) => patch(res.comment_id, () => res.reactions),
+    onError: () => qc.invalidateQueries({ queryKey: key }),
   });
 }
 
