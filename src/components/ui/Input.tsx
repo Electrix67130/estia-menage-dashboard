@@ -2,6 +2,7 @@ import { InputHTMLAttributes, forwardRef, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { useI18n } from "@/contexts/I18nContext";
 import { cn } from "@/lib/utils";
+import { stripLeadingZeros } from "@/lib/number-input";
 
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string;
@@ -12,7 +13,7 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 }
 
 const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
-  { className, wrapperClassName, label, error, hint, id, type, ...rest },
+  { className, wrapperClassName, label, error, hint, id, type, onFocus, onChange, ...rest },
   ref,
 ) {
   const { t } = useI18n();
@@ -20,6 +21,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
   const [reveal, setReveal] = useState(false);
   const isPassword = type === "password";
   const effectiveType = isPassword && reveal ? "text" : type;
+  const isNumber = type === "number";
   return (
     <div className={cn("flex flex-col gap-1.5", wrapperClassName)}>
       {label ? (
@@ -41,6 +43,21 @@ const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
             className,
           )}
           {...rest}
+          // Champ numérique (quantité, lits, prix…) : le « 0 » par défaut laissait
+          // le curseur après lui, et taper 5 donnait « 05 ». À l'entrée dans le
+          // champ, on sélectionne son contenu pour que la frappe le remplace, et
+          // un zéro de tête restant (« 05 ») saute.
+          onFocus={(e) => {
+            if (isNumber) e.currentTarget.select();
+            onFocus?.(e);
+          }}
+          onChange={(e) => {
+            if (isNumber) {
+              const stripped = stripLeadingZeros(e.target.value);
+              if (stripped !== e.target.value) e.target.value = stripped;
+            }
+            onChange?.(e);
+          }}
         />
         {isPassword ? (
           <button
